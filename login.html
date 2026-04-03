@@ -2,6 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+
+<!-- 🔥 IMPORTANTE RESPONSIVE -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Login</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -9,39 +13,91 @@
 <style>
 body{
   background: url('https://www.ceupe.com/images/easyblog_articles/3984/b2ap3_large_ruta-de-transporte.png') no-repeat center center/cover;
-  height:100vh;
+  min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
   font-family: 'Segoe UI', sans-serif;
+  padding:15px;
+  position:relative;
 }
 
+/* 🔥 OSCURECER FONDO (MEJORA VISUAL) */
+body::before{
+  content:"";
+  position:absolute;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.4);
+  top:0;
+  left:0;
+}
+
+/* CONTENEDOR */
 .card{
-  width:370px;
+  width:100%;
+  max-width:380px;
   padding:25px;
-  border-radius:15px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.2);
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.3);
   background:white;
   animation: fadeIn 0.5s ease;
+  position:relative;
+  z-index:2;
 }
 
+/* ANIMACIÓN */
 @keyframes fadeIn {
   from {opacity:0; transform:translateY(20px);}
   to {opacity:1; transform:translateY(0);}
 }
 
+/* INPUTS */
 input{
-  border-radius:8px !important;
+  border-radius:10px !important;
+  padding:10px;
 }
 
+/* BOTONES */
 button{
-  border-radius:8px !important;
+  border-radius:10px !important;
+  padding:10px;
 }
 
+/* LOGO */
 .logo{
-  width:120px;
+  width:100%;
+  max-width:110px;
   display:block;
   margin:0 auto 10px auto;
+}
+
+/* FOOTER */
+footer{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  text-align:center;
+  font-size:12px;
+  background:rgba(255,255,255,0.9);
+  padding:5px;
+  border-top:1px solid #ddd;
+  z-index:2;
+}
+
+/* 📱 MOBILE EXTRA */
+@media (max-width: 480px){
+  .card{
+    padding:20px;
+  }
+
+  h5{
+    font-size:18px;
+  }
+
+  h6{
+    font-size:14px;
+  }
 }
 </style>
 </head>
@@ -53,8 +109,9 @@ button{
   <!-- LOGIN -->
   <div id="loginBox">
     <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" class="logo">
+
     <h5 class="text-center text-primary mb-1">VIAL REPORT</h5>
-    <h6 class="mb-3 text-center text-muted">Informes Fotográfico</h6>
+    <h6 class="mb-3 text-center text-muted">Informes Fotográficos</h6>
 
     <input id="email" class="form-control mb-2" placeholder="Email">
     <input id="password" type="password" class="form-control mb-3" placeholder="Password">
@@ -62,14 +119,14 @@ button{
     <button id="btnLogin" class="btn btn-primary w-100 mb-2">Ingresar</button>
 
     <button class="btn btn-link w-100" onclick="mostrarRegistro()">Crear cuenta</button>
-  
   </div>
 
   <!-- REGISTRO -->
   <div id="registroBox" style="display:none;">
     <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" class="logo">
+
     <h5 class="text-center text-primary mb-1">VIAL REPORT</h5>
-    <h6 class="mb-3 text-center text-muted">Informes Fotográfico</h6>
+    <h6 class="mb-3 text-center text-muted">Crear cuenta</h6>
 
     <input id="emailReg" class="form-control mb-2" placeholder="Email">
     <input id="passwordReg" type="password" class="form-control mb-2" placeholder="Password">
@@ -131,25 +188,14 @@ document.getElementById("btnRegister").addEventListener("click", async () => {
     return alert("Completá todos los campos");
   }
 
-  // 1️⃣ Crear usuario
-  const { error } = await supabaseClient.auth.signUp({
-    email,
-    password
-  });
-
+  const { error } = await supabaseClient.auth.signUp({ email, password });
   if (error) return alert(error.message);
 
-  // 🔥 LOGIN AUTOMÁTICO (CORREGIDO)
-  const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
-
+  const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (loginError) return alert(loginError.message);
 
   const user = loginData.user;
 
-  // 2️⃣ Subir logo
   const fileName = `${Date.now()}_${file.name}`;
 
   const { error: uploadError } = await supabaseClient.storage
@@ -160,11 +206,9 @@ document.getElementById("btnRegister").addEventListener("click", async () => {
 
   const logoUrl = `https://yepethuzzretakioqyqy.supabase.co/storage/v1/object/public/logos/${fileName}`;
 
-  // 3️⃣ Guardar empresa
   const { error: dbError } = await supabaseClient
     .from("empresas")
     .insert([{
-      
       nombre: empresaNombre,
       logo: logoUrl,
       user_id: user.id
@@ -174,31 +218,20 @@ document.getElementById("btnRegister").addEventListener("click", async () => {
 
   alert("Cuenta creada correctamente ✅");
 
-  // 🚀 ENTRAR DIRECTO AL SISTEMA
-setTimeout(() => {
-  window.location.href = "index.html";
-}, 500);
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 500);
 });
 </script>
 
-<!--MI MARCA-->
-<footer style="
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  text-align: center;
-  font-size: 12px;
-  background: #f8f9fa;
-  padding: 5px;
-  border-top: 1px solid #ddd;
-">
+<footer>
   © <span id="year"></span> - VIAL REPORT  
   <br>
   Powered by <b>SMG DESARROLLOS</b>
 </footer>
 
 <script>
-  document.getElementById("year").textContent = new Date().getFullYear();
+document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 
 </body>
