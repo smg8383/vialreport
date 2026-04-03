@@ -4,51 +4,102 @@
 <meta charset="UTF-8">
 <title>Informe Fotográfico</title>
 
+<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
 <style>
+/* Cards de tareas */
+.card.grupo {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card.grupo:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+}
+
+/* Previews de imágenes */
 .preview img{
   height:120px;
   object-fit:cover;
-  border-radius:6px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+.preview img:hover {
+  transform: scale(1.05);
+}
+
+/* Footer minimalista */
+footer {
+  backdrop-filter: blur(5px);
+  background: rgba(255,255,255,0.9);
+  font-size: 13px;
+  padding: 6px;
+  border-top: 1px solid #ddd;
+}
+
+/* Navbar logo y estilo */
+.navbar-brand img {
+  height:80px;
+  margin-right:10px;
 }
 </style>
-
 </head>
 
 <body class="bg-light p-4">
 
-<div class="container">
-  <h1 class="mb-4 text-primary">Generar Informe Fotográfico</h1>
+<!-- Navbar con logo -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+  <div class="container-fluid d-flex align-items-center">
+    <a class="navbar-brand d-flex align-items-center" href="#">
+      <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
+      <div class="ms-2">
+        <span class="fw-bold text-primary fs-5">VIAL REPORT</span>
+        <br>
+        <span class="text-muted fs-6">Informes Fotográfico</span>
+      </div>
+    </a>
+  </div>
+</nav>
 
-  <a href="visor.html" class="btn btn-info mb-3">📂 Ver registros</a>
+<!-- Título principal -->
+<div class="container mb-4 text-center">
+  <h1 class="text-primary">Generar Informe Fotográfico</h1>
+</div>
+
+<div class="container">
+  
+
+  <a href="visor.html" class="btn btn-info mb-3">
+    <i class="bi bi-folder2-open"></i> Ver registros
+  </a>
 
   <form id="form">
     <input type="hidden" id="total_groups" value="1">
 
     <div id="grupos">
-
       <div class="card shadow-sm mb-4 grupo">
         <div class="card-header bg-secondary text-white">
           <h5 class="mb-0">Tarea 1</h5>
         </div>
-
         <div class="card-body">
           <div class="row g-3">
 
             <div class="col-md-4">
               <label>Fecha</label>
-              <input type="date" name="date_1" class="form-control" required>
+              <input type="date" name="date_1" class="form-control form-control-lg" required>
             </div>
 
             <div class="col-md-4">
               <label>Tramo</label>
-              <input type="text" name="tramo_1" value="III" class="form-control">
+              <input type="text" name="tramo_1" value="III" class="form-control form-control-lg" placeholder="Ingrese tramo">
             </div>
 
             <div class="col-md-4">
               <label>Ruta</label>
-              <select name="ruta_1" class="form-select">
+              <select name="ruta_1" class="form-select form-select-lg">
                 <option value="RN N° 16" selected>RN N° 16</option>
                 <option value="RN N° 12">RN N° 12</option>
               </select>
@@ -56,7 +107,7 @@
 
             <div class="col-md-4">
               <label>Subtramo</label>
-              <select name="subtramo_1" class="form-select">
+              <select name="subtramo_1" class="form-select form-select-lg">
                 <option value="CHACO" selected>CHACO</option>
                 <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
                 <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
@@ -66,17 +117,17 @@
 
             <div class="col-md-4">
               <label>Subtarea</label>
-              <select name="tarea_1" class="form-select tarea-select"></select>
+              <select name="tarea_1" class="form-select form-select-lg tarea-select"></select>
             </div>
             
             <div class="col-md-4">
               <label>Km</label>
-              <input type="text" name="km_1" class="form-control">
+              <input type="text" name="km_1" class="form-control form-control-lg" placeholder="Ingrese km">
             </div>
 
             <div class="col-md-4">
               <label>Sentido</label>
-              <select name="sentido_1" class="form-select">
+              <select name="sentido_1" class="form-select form-select-lg">
                 <option value="ASCENDENTE" selected>ASCENDENTE</option>
                 <option value="DESCENDENTE">DESCENDENTE</option>
               </select>
@@ -84,7 +135,7 @@
 
             <div class="col-md-12">
               <label>Observación</label>
-              <input type="text" name="observacion_1" class="form-control">
+              <input type="text" name="observacion_1" class="form-control form-control-lg" placeholder="Ingrese observación">
             </div>
 
             <div class="col-md-12">
@@ -102,13 +153,18 @@
           </div>
         </div>
       </div>
-
     </div>
 
-    <div class="d-flex justify-content-between">
-      <button type="button" id="addGroup" class="btn btn-outline-secondary">+ Agregar tarea</button>
-      <button type="button" id="clearForm" class="btn btn-danger">Limpiar</button>
-      <button type="submit" class="btn btn-success">💾 Guardar</button>
+    <div class="d-flex justify-content-between mt-4 mb-5">
+      <button type="button" id="addGroup" class="btn btn-outline-primary">
+        <i class="bi bi-plus-circle"></i> Agregar tarea
+      </button>
+      <button type="button" id="clearForm" class="btn btn-outline-danger">
+        <i class="bi bi-x-circle"></i> Limpiar
+      </button>
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-save"></i> Guardar
+      </button>
     </div>
 
   </form>
@@ -127,12 +183,7 @@ document.addEventListener("change", e => {
   if(e.target.classList.contains("fotos")){
     const input = e.target;
     const files = Array.from(input.files);
-
-    if (files.length > 4) {
-      alert("Máximo 4 imágenes");
-      input.value = "";
-      return;
-    }
+    if (files.length > 4) { alert("Máximo 4 imágenes"); input.value = ""; return; }
 
     const preview = input.closest(".grupo").querySelector(".preview");
     preview.innerHTML = "";
@@ -166,7 +217,6 @@ document.getElementById('addGroup').addEventListener('click', async () => {
   document.getElementById("grupos").appendChild(clone);
   document.getElementById("total_groups").value = count;
 
-  // Llenar select de subtareas
   await cargarTareasJerarquicas();
 });
 
@@ -180,11 +230,7 @@ async function cargarTareasJerarquicas() {
     .order('tarea', { ascending: true })
     .order('subtarea', { ascending: true });
 
-  if(error){
-    console.error("Error cargando tareas:", error);
-    return [];
-  }
-
+  if(error){ console.error("Error cargando tareas:", error); return []; }
   window.tareasCache = data;
 
   document.querySelectorAll('.tarea-select').forEach(select => {
@@ -196,7 +242,6 @@ async function cargarTareasJerarquicas() {
         const optGroup = document.createElement('optgroup');
         optGroup.label = currentTarea;
         select.appendChild(optGroup);
-
         const option = document.createElement('option');
         option.value = item.subtarea;
         option.textContent = item.subtarea;
@@ -210,19 +255,14 @@ async function cargarTareasJerarquicas() {
       }
     });
   });
-
   return data;
 }
 
 // 💾 GUARDAR INFORME COMPLETO
 document.getElementById("form").addEventListener("submit", async (e)=>{
   e.preventDefault();
-
   const { data } = await supabaseClient.auth.getSession();
-  if(!data.session){
-    alert("Sesión expirada");
-    return;
-  }
+  if(!data.session){ alert("Sesión expirada"); return; }
   const user = data.session.user;
 
   const grupos = document.querySelectorAll('.grupo');
@@ -231,7 +271,6 @@ document.getElementById("form").addEventListener("submit", async (e)=>{
     const files = g.querySelector(`[name^="photos_"]`).files;
     let imagenes = [];
 
-    // Subir imágenes
     for(const file of files){
       const compressed = await compressImage(file);
       const url = await subirACloudinary(compressed);
@@ -241,7 +280,6 @@ document.getElementById("form").addEventListener("submit", async (e)=>{
 
     const subtarea = g.querySelector('.tarea-select').value;
 
-    // Guardar todos los campos del grupo
     const { error } = await supabaseClient
       .from('informes')
       .insert([{
@@ -268,9 +306,7 @@ async function compressImage(file){
   return new Promise(resolve=>{
     const img = new Image();
     const reader = new FileReader();
-
     reader.onload = e=> img.src = e.target.result;
-
     img.onload = ()=>{
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -278,11 +314,8 @@ async function compressImage(file){
       canvas.width = 1200;
       canvas.height = img.height * scale;
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      canvas.toBlob(blob=>{
-        resolve(new File([blob], file.name, { type: "image/jpeg" }));
-      }, "image/jpeg", 0.7);
+      canvas.toBlob(blob=>{ resolve(new File([blob], file.name, { type: "image/jpeg" })); }, "image/jpeg", 0.7);
     }
-
     reader.readAsDataURL(file);
   });
 }
@@ -296,9 +329,7 @@ function renderImagenesActuales(){
       <div class="col-md-3 mb-2 text-center">
         <img src="${img}" class="img-fluid rounded border mb-1">
         <br>
-        <button class="btn btn-sm btn-danger" onclick="eliminarImagen(${index})">
-          Eliminar
-        </button>
+        <button class="btn btn-sm btn-danger" onclick="eliminarImagen(${index})">Eliminar</button>
       </div>
     `;
   });
@@ -317,7 +348,6 @@ async function subirACloudinary(file){
     const fd = new FormData();
     fd.append("file",file);
     fd.append("upload_preset",UPLOAD_PRESET);
-
     xhr.open("POST",url);
     xhr.onload = ()=> resolve(JSON.parse(xhr.responseText).secure_url);
     xhr.onerror = ()=> reject(null);
@@ -329,6 +359,16 @@ async function subirACloudinary(file){
 document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
+</script>
+
+<!--FOOTER-->
+<footer class="text-center">
+  © <span id="year"></span> - VIAL REPORT  
+  <br>
+  Powered by <b>SMG DESARROLLOS</b>
+</footer>
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 
 </body>
