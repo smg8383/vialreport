@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Visor de Informes</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- SUPABASE -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body class="bg-light p-4">
+
+<div class="container">
+  <h1 class="mb-4 text-primary">📂 Registros Guardados</h1>
+
+  <a href="index.html" class="btn btn-secondary mb-3">← Volver</a>
+
+  <button class="btn btn-danger mb-3" onclick="generarPDFMultiple()">
+    📄 Generar PDF seleccionados
+  </button>
+
+  <!-- Filtros -->
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <label>Fecha</label>
+      <input type="date" id="filterFecha" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label>Tramo</label>
+      <select id="filterTramo" class="form-select">
+        <option value="">Todos</option>
+        <option value="I">I</option>
+        <option value="II">II</option>
+        <option value="III">III</option>
+        <option value="IV">IV</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Ruta</label>
+      <select id="filterRuta" class="form-select">
+        <option value="">Todas</option>
+        <option value="RN N° 16">RN N° 16</option>
+        <option value="RN N° 12">RN N° 12</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Subtramo</label>
+      <select id="filterSubtramo" class="form-select">
+        <option value="">Todos</option>
+        <option value="CHACO">CHACO</option>
+        <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
+        <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
+        <option value="MISIONES">MISIONES</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Subtarea</label>
+      <select id="filterSubtarea" class="form-select">
+        <option value="">Todos</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="contenedor"></div>
+</div>
+
+<script>
+const supabaseClient = supabase.createClient(
+  "https://yepethuzzretakioqyqy.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
+);
+
+// PROTECCIÓN DE SESIÓN
+(async () => {
+  const { data } = await supabaseClient.auth.getSession();
+  if (!data.session) window.location.href = "login.html";
+})();
+
+// 🚀 CARGAR DATOS
+async function cargar() {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) { window.location.href = "login.html"; return; }
+  const user = sessionData.session.user;
+
+  // tomar valores de filtros
+  const fecha = document.getElementById("filterFecha").value;
+  const tramo = document.getElementById("filterTramo").value;
+  const ruta = document.getElementById("filterRuta").value;
+  const subtramo = document.getElementById("filterSubtramo").value;
+  const subtarea = document.getElementById("filterSubtarea").value;
+
+  let query = supabaseClient.from("informes").select("*").eq("user_id", user.id);
+
+  if (fecha) query = query.eq("fecha", fecha);
+  if (tramo) query = query.eq("tramo", tramo);
+  if (ruta) query = query.eq("ruta", ruta);
+  if (subtramo) query = query.eq("subtramo", subtramo);
+  if (subtarea) query = query.eq("tarea", subtarea);
+
+  const { data, error } = await query.order("fecha", { ascending: false });
+
+  if (error) { console.log(error); alert("Error cargando datos"); return; }
+
+  renderInformes(data);
+}
+
+// 🔧 RENDER INFORMES
+function renderInformes(data) {
+  const contenedor = document.getElementById("contenedor");
+  contenedor.innerHTML = "";
+
+  data.forEach(r => {
+    let imagenesHTML = "";
+    if(r.imagenes && r.imagenes.length > 0) {
+      r.imagenes.forEach(img => {
+        imagenesHTML += `<div class="col-md-3 mb-2"><img src="${img}" class="img-fluid rounded border"></div>`;
+      });
+    }
+
+    contenedor.innerHTML += `
+      <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input seleccionar" value="${r.id}">
+            <label>Seleccionar</label>
+          </div>
+          <h5 class="text-primary">TRAMO ${r.tramo} - ${r.fecha}</h5>
+          <p><b>Ruta:</b> ${r.ruta}</p>
+          <p><b>Subtramo:</b> ${r.subtramo}</p>
+          <p><b>Tarea:</b> ${r.tarea}</p>
+          <p><b>Km:</b> ${r.km}</p>
+          <p><b>Sentido:</b> ${r.sentido}</p>
+          <p><b>Observación:</b> ${r.observacion}</p>
+          <div class="row">${imagenesHTML}</div>
+          <button class="btn btn-danger mt-2" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
+          <button class="btn btn-warning mt-2" onclick="editarInforme(${r.id})">✏️ Editar</button>
+        </div>
+      </div>`;
+  });
+}
+
+// 🔄 CONVERTIR IMAGEN
+async function getBase64ImageFromURL(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// 🔧 OBTENER LOGO
+async function obtenerLogo() {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) return null;
+  const user = sessionData.session.user;
+
+  const { data } = await supabaseClient
+    .from("empresas")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  return data?.logo || null;
+}
+
+// 📄 GENERAR PDF
+async function dibujarInforme(doc, r, logoBase64) {
+  let y;
+  if (logoBase64) {
+    const imgProps = doc.getImageProperties(logoBase64);
+    const maxWidth = 40;
+    const maxHeight = 20;
+    let pdfWidth = imgProps.width;
+    let pdfHeight = imgProps.height;
+    const scale = Math.min(maxWidth/pdfWidth, maxHeight/pdfHeight);
+    pdfWidth *= scale;
+    pdfHeight *= scale;
+    doc.addImage(logoBase64, 'PNG', 10, 10, pdfWidth, pdfHeight);
+    y = 10 + pdfHeight/2; // título alineado vertical al centro del logo
+  } else {
+    y = 15;
+  }
+
+  // Título centrado
+  doc.setFontSize(16);
+  doc.text("INFORME FOTOGRÁFICO", doc.internal.pageSize.getWidth()/2, y, { align: "center" });
+
+  y += 15; // espacio antes de la línea
+  doc.setLineWidth(0.5);
+  doc.line(10, y, 200, y);
+  y += 8;
+
+  doc.setFontSize(10);
+  const linea = (label, valor) => { doc.text(`${label}: ${valor || "-"}`, 10, y); y += 6; };
+  linea("FECHA", r.fecha);
+  linea("TRAMO", r.tramo);
+  linea("RUTA", r.ruta);
+  linea("SUBTRAMO", r.subtramo);
+  linea("TAREA", r.tarea);
+  linea("KM", r.km);
+  linea("SENTIDO", r.sentido);
+  linea("OBSERVACIÓN", r.observacion);
+
+  y += 5;
+  doc.line(10, y, 200, y);
+  y += 10;
+
+  let x = 10;
+  let count = 0;
+  if (r.imagenes && r.imagenes.length > 0) {
+    for (let img of r.imagenes) {
+      const imgData = await getBase64ImageFromURL(img);
+      doc.addImage(imgData, 'JPEG', x, y, 90, 65);
+      count++;
+      if (count % 2 === 0) { x = 10; y += 75; } else { x = 110; }
+      if (y > 250) { doc.addPage(); y = 20; x = 10; }
+    }
+  }
+}
+
+// PDF SIMPLE
+async function generarPDF(id) {
+  const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const logoUrl = await obtenerLogo();
+  const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
+  await dibujarInforme(doc, r, logoBase64);
+  doc.save(`informe_${r.fecha}.pdf`);
+}
+
+// PDF MÚLTIPLE
+async function generarPDFMultiple() {
+  const checkboxes = document.querySelectorAll(".seleccionar:checked");
+  if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let first = true;
+  for (const chk of checkboxes) {
+    const id = chk.value;
+    const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
+    if (!r) continue;
+    if (!first) doc.addPage();
+    const logoUrl = await obtenerLogo();
+    const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
+    await dibujarInforme(doc, r, logoBase64);
+    first = false;
+  }
+  doc.save("informe_multiple.pdf");
+}
+
+// EDITAR INFORME
+function editarInforme(id){
+  localStorage.setItem("editandoInforme", id);
+  window.location.href = "index.html";
+}
+
+// CARGAR FILTROS SUBTAREAS
+async function cargarFiltrosSubtareas() {
+  const { data: subtareas } = await supabaseClient.from("tareas").select("subtarea").order("subtarea", { ascending: true });
+  const filterSubtarea = document.getElementById("filterSubtarea");
+  subtareas.forEach(item => {
+    const option = document.createElement("option");
+    option.value = item.subtarea;
+    option.textContent = item.subtarea;
+    filterSubtarea.appendChild(option);
+  });
+}
+
+// EVENTOS DE FILTROS
+document.querySelectorAll("#filterFecha, #filterTramo, #filterRuta, #filterSubtramo, #filterSubtarea")
+  .forEach(el => el.addEventListener("change", cargar));
+
+// CARGAR INFORMES INICIALES
+cargar();
+cargarFiltrosSubtareas();
+
+</script>
+</body>
+</html>

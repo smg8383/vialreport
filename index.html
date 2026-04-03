@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe Fotográfico</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+.preview img{
+  height:120px;
+  object-fit:cover;
+  border-radius:6px;
+}
+</style>
+
+</head>
+
+<body class="bg-light p-4">
+
+<div class="container">
+  <h1 class="mb-4 text-primary">Generar Informe Fotográfico</h1>
+
+  <a href="visor.html" class="btn btn-info mb-3">📂 Ver registros</a>
+
+  <form id="form">
+    <input type="hidden" id="total_groups" value="1">
+
+    <div id="grupos">
+
+      <div class="card shadow-sm mb-4 grupo">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0">Tarea 1</h5>
+        </div>
+
+        <div class="card-body">
+          <div class="row g-3">
+
+            <div class="col-md-4">
+              <label>Fecha</label>
+              <input type="date" name="date_1" class="form-control" required>
+            </div>
+
+            <div class="col-md-4">
+              <label>Tramo</label>
+              <input type="text" name="tramo_1" value="III" class="form-control">
+            </div>
+
+            <div class="col-md-4">
+              <label>Ruta</label>
+              <select name="ruta_1" class="form-select">
+                <option value="RN N° 16" selected>RN N° 16</option>
+                <option value="RN N° 12">RN N° 12</option>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label>Subtramo</label>
+              <select name="subtramo_1" class="form-select">
+                <option value="CHACO" selected>CHACO</option>
+                <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
+                <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
+                <option value="MISIONES">MISIONES</option>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label>Subtarea</label>
+              <select name="tarea_1" class="form-select tarea-select"></select>
+            </div>
+            
+            <div class="col-md-4">
+              <label>Km</label>
+              <input type="text" name="km_1" class="form-control">
+            </div>
+
+            <div class="col-md-4">
+              <label>Sentido</label>
+              <select name="sentido_1" class="form-select">
+                <option value="ASCENDENTE" selected>ASCENDENTE</option>
+                <option value="DESCENDENTE">DESCENDENTE</option>
+              </select>
+            </div>
+
+            <div class="col-md-12">
+              <label>Observación</label>
+              <input type="text" name="observacion_1" class="form-control">
+            </div>
+
+            <div class="col-md-12">
+              <label>Fotos (máx 4)</label>
+              <input type="file" name="photos_1" class="form-control fotos" multiple>
+            </div>
+
+            <div class="progress mt-2">
+              <div class="progress-bar" style="width:0%"></div>
+            </div>
+
+            <div class="row preview mt-2"></div>
+            <div class="row mt-2" id="imagenesActuales"></div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <button type="button" id="addGroup" class="btn btn-outline-secondary">+ Agregar tarea</button>
+      <button type="button" id="clearForm" class="btn btn-danger">Limpiar</button>
+      <button type="submit" class="btn btn-success">💾 Guardar</button>
+    </div>
+
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+
+<script>
+let editandoId = localStorage.getItem("editandoInforme");
+let imagenesExistentes = [];
+let count = 1;
+
+// 📷 PREVIEW DE IMÁGENES
+document.addEventListener("change", e => {
+  if(e.target.classList.contains("fotos")){
+    const input = e.target;
+    const files = Array.from(input.files);
+
+    if (files.length > 4) {
+      alert("Máximo 4 imágenes");
+      input.value = "";
+      return;
+    }
+
+    const preview = input.closest(".grupo").querySelector(".preview");
+    preview.innerHTML = "";
+
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = ev=>{
+        preview.innerHTML += `<div class="col-md-3 mb-2">
+          <img src="${ev.target.result}" class="img-fluid rounded border">
+        </div>`;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+});
+
+// ➕ AGREGAR NUEVO GRUPO
+document.getElementById('addGroup').addEventListener('click', async () => {
+  count++;
+  const clone = document.querySelector('.grupo').cloneNode(true);
+
+  clone.querySelector("h5").innerText = "Tarea " + count;
+  clone.querySelectorAll("[name]").forEach(el => {
+    el.name = el.name.replace(/_\d+$/, "_" + count);
+    if(el.type !== "file") el.value = "";
+  });
+
+  clone.querySelector(".preview").innerHTML = "";
+  clone.querySelector(".progress-bar").style.width = "0%";
+
+  document.getElementById("grupos").appendChild(clone);
+  document.getElementById("total_groups").value = count;
+
+  // Llenar select de subtareas
+  await cargarTareasJerarquicas();
+});
+
+// CARGAR SUBTAREAS DESDE SUPABASE
+async function cargarTareasJerarquicas() {
+  if(window.tareasCache && window.tareasCache.length > 0) return window.tareasCache;
+
+  const { data, error } = await supabaseClient
+    .from('tareas')
+    .select('*')
+    .order('tarea', { ascending: true })
+    .order('subtarea', { ascending: true });
+
+  if(error){
+    console.error("Error cargando tareas:", error);
+    return [];
+  }
+
+  window.tareasCache = data;
+
+  document.querySelectorAll('.tarea-select').forEach(select => {
+    select.innerHTML = '';
+    let currentTarea = '';
+    data.forEach(item => {
+      if(item.tarea !== currentTarea){
+        currentTarea = item.tarea;
+        const optGroup = document.createElement('optgroup');
+        optGroup.label = currentTarea;
+        select.appendChild(optGroup);
+
+        const option = document.createElement('option');
+        option.value = item.subtarea;
+        option.textContent = item.subtarea;
+        optGroup.appendChild(option);
+      } else {
+        const optGroup = select.querySelector(`optgroup[label="${currentTarea}"]`);
+        const option = document.createElement('option');
+        option.value = item.subtarea;
+        option.textContent = item.subtarea;
+        optGroup.appendChild(option);
+      }
+    });
+  });
+
+  return data;
+}
+
+// 💾 GUARDAR INFORME COMPLETO
+document.getElementById("form").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+
+  const { data } = await supabaseClient.auth.getSession();
+  if(!data.session){
+    alert("Sesión expirada");
+    return;
+  }
+  const user = data.session.user;
+
+  const grupos = document.querySelectorAll('.grupo');
+  for(let i=0;i<grupos.length;i++){
+    const g = grupos[i];
+    const files = g.querySelector(`[name^="photos_"]`).files;
+    let imagenes = [];
+
+    // Subir imágenes
+    for(const file of files){
+      const compressed = await compressImage(file);
+      const url = await subirACloudinary(compressed);
+      if(!url){ alert("Error subiendo imagen"); return; }
+      imagenes.push(url);
+    }
+
+    const subtarea = g.querySelector('.tarea-select').value;
+
+    // Guardar todos los campos del grupo
+    const { error } = await supabaseClient
+      .from('informes')
+      .insert([{
+        fecha: g.querySelector(`[name^="date_"]`).value,
+        tramo: g.querySelector(`[name^="tramo_"]`).value,
+        ruta: g.querySelector(`[name^="ruta_"]`).value,
+        subtramo: g.querySelector(`[name^="subtramo_"]`).value,
+        tarea: subtarea,
+        km: g.querySelector(`[name^="km_"]`).value,
+        sentido: g.querySelector(`[name^="sentido_"]`).value,
+        observacion: g.querySelector(`[name^="observacion_"]`).value,
+        imagenes,
+        user_id: user.id
+      }]);
+    if(error){ alert(error.message); return; }
+  }
+
+  alert("Guardado correctamente ✅");
+  window.location.href = "visor.html";
+});
+
+// 🔧 COMPRESIÓN DE IMÁGENES
+async function compressImage(file){
+  return new Promise(resolve=>{
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = e=> img.src = e.target.result;
+
+    img.onload = ()=>{
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const scale = 1200/img.width;
+      canvas.width = 1200;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      canvas.toBlob(blob=>{
+        resolve(new File([blob], file.name, { type: "image/jpeg" }));
+      }, "image/jpeg", 0.7);
+    }
+
+    reader.readAsDataURL(file);
+  });
+}
+
+// 🖼️ RENDER DE IMÁGENES EXISTENTES
+function renderImagenesActuales(){
+  const cont = document.getElementById("imagenesActuales");
+  cont.innerHTML = "";
+  imagenesExistentes.forEach((img, index)=>{
+    cont.innerHTML += `
+      <div class="col-md-3 mb-2 text-center">
+        <img src="${img}" class="img-fluid rounded border mb-1">
+        <br>
+        <button class="btn btn-sm btn-danger" onclick="eliminarImagen(${index})">
+          Eliminar
+        </button>
+      </div>
+    `;
+  });
+}
+
+function eliminarImagen(index){
+  imagenesExistentes.splice(index,1);
+  renderImagenesActuales();
+}
+
+// ⚡ SUBIR A CLOUDINARY
+async function subirACloudinary(file){
+  return new Promise((resolve,reject)=>{
+    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
+    const xhr = new XMLHttpRequest();
+    const fd = new FormData();
+    fd.append("file",file);
+    fd.append("upload_preset",UPLOAD_PRESET);
+
+    xhr.open("POST",url);
+    xhr.onload = ()=> resolve(JSON.parse(xhr.responseText).secure_url);
+    xhr.onerror = ()=> reject(null);
+    xhr.send(fd);
+  });
+}
+
+// 🏁 INICIALIZAR SELECTS
+document.addEventListener("DOMContentLoaded", async () => {
+  await cargarTareasJerarquicas();
+});
+</script>
+
+</body>
+</html>
