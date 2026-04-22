@@ -142,6 +142,10 @@ footer {
             <div class="col-md-12">
               <label>Fotos (máx 4)</label>
               <input type="file" name="photos_1" class="form-control fotos" multiple>
+
+               <small class="text-muted d-block mt-1">
+                 📷 Podés subir, pegar (Ctrl+V) o arrastrar imágenes aquí
+              </small>
             </div>
 
             <div class="progress mt-2">
@@ -360,6 +364,41 @@ async function subirACloudinary(file){
 document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
+
+  // 📋 PEGAR IMÁGENES (CTRL + V) Y ACUMULAR HASTA 4
+document.addEventListener("paste", (e) => {
+
+  const items = e.clipboardData.items;
+
+  // último grupo activo
+  const grupoActivo = document.querySelector(".grupo:last-child");
+  const input = grupoActivo.querySelector('.fotos');
+
+  let archivosActuales = Array.from(input.files);
+
+  for (let item of items) {
+    if (item.type.indexOf("image") !== -1) {
+
+      const file = item.getAsFile();
+
+      if (archivosActuales.length >= 4) {
+        alert("Máximo 4 imágenes");
+        return;
+      }
+
+      archivosActuales.push(file);
+    }
+  }
+
+  // reconstruir input files
+  const dt = new DataTransfer();
+  archivosActuales.forEach(f => dt.items.add(f));
+  input.files = dt.files;
+
+  // disparar preview
+  input.dispatchEvent(new Event("change"));
+});
+  
 </script>
 
 <!--FOOTER-->
