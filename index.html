@@ -422,9 +422,22 @@ document.querySelectorAll(".paste-zone").forEach(zone => {
     zone.classList.remove("dragover");
 
     const input = zone.closest(".grupo").querySelector(".fotos");
-    agregarArchivos(input, e.dataTransfer.files);
+
+    const dt = new DataTransfer();
+    Array.from(input.files).forEach(f => dt.items.add(f));
+
+    for (let file of e.dataTransfer.files) {
+      if (file.type.startsWith("image/")) {
+        dt.items.add(file);
+      }
+    }
+
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   });
+
 });
+
 
 
 // 🔹 PASTE (PEGAR IMAGEN)
