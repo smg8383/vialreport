@@ -192,14 +192,6 @@ footer {
 <script src="app.js"></script>
 
 <script>
-  // 🚫 BLOQUEO TOTAL DEL NAVEGADOR (ANTES DE TODO)
-["dragenter", "dragover", "dragleave", "drop"].forEach(event => {
-  window.addEventListener(event, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, true); // 👈 IMPORTANTE: TRUE
-});
-  
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
 let count = 1;
@@ -386,9 +378,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
 
-  
+
 // =============================
-// 📷 PEGAR + ARRASTRAR IMÁGENES (VERSIÓN FINAL)
+// 📷 PEGAR + ARRASTRAR IMÁGENES (FINAL FUNCIONAL)
 // =============================
 
 function agregarArchivos(input, nuevosArchivos) {
@@ -447,20 +439,19 @@ document.addEventListener("paste", (e) => {
 });
 
 
-// 🔹 ARRASTRAR Y SOLTAR
+// 🚫 BLOQUEAR comportamiento del navegador (CLAVE)
 document.addEventListener("dragover", (e) => {
-  if (e.target.closest(".paste-zone")) {
-    e.preventDefault();
-  }
+  e.preventDefault();
 });
 
+
+// 🔹 ARRASTRAR Y SOLTAR
 document.addEventListener("drop", (e) => {
 
+  e.preventDefault(); // 🔥 SIEMPRE primero
+
   const zona = e.target.closest(".paste-zone");
-
   if (!zona) return;
-
-  e.preventDefault();
 
   const input = zona.closest(".grupo").querySelector(".fotos");
   const files = e.dataTransfer.files;
@@ -470,7 +461,7 @@ document.addEventListener("drop", (e) => {
 
 
 // 🎨 EFECTO VISUAL
-document.addEventListener("dragover", (e) => {
+document.addEventListener("dragenter", (e) => {
   const zona = e.target.closest(".paste-zone");
   if (zona) zona.classList.add("dragover");
 });
@@ -483,6 +474,7 @@ document.addEventListener("dragleave", (e) => {
 document.addEventListener("drop", () => {
   document.querySelectorAll(".paste-zone").forEach(z => z.classList.remove("dragover"));
 });
+
 </script>
 
 <!--FOOTER-->
