@@ -156,7 +156,7 @@ footer {
               <label>Fotos (máx 4)</label>
               <input type="file" name="photos_1" class="form-control fotos" multiple>
 
-              <div class="paste-zone border rounded p-3 text-center text-muted mt-2">
+              <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
                 📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
             </div>
@@ -380,9 +380,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 📋 PEGAR IMÁGENES (CTRL + V) Y ACUMULAR HASTA 4
 document.querySelectorAll('.paste-zone').forEach(zone => {
+
   zone.addEventListener('click', () => {
-    document.body.focus();
+    zone.focus(); // 🔥 ahora sí recibe Ctrl+V
   });
+
+  zone.addEventListener('paste', (e) => {
+
+    const items = e.clipboardData.items;
+
+    const grupoActivo = zone.closest(".grupo");
+    const input = grupoActivo.querySelector('.fotos');
+
+    let archivosActuales = Array.from(input.files);
+
+    for (let item of items) {
+      if (item.type.indexOf("image") !== -1) {
+
+        const file = item.getAsFile();
+
+        if (archivosActuales.length >= 4) {
+          alert("Máximo 4 imágenes");
+          return;
+        }
+
+        archivosActuales.push(file);
+      }
+    }
+
+    const dt = new DataTransfer();
+    archivosActuales.forEach(f => dt.items.add(f));
+    input.files = dt.files;
+
+    input.dispatchEvent(new Event("change"));
+  });
+
 });
   
 document.addEventListener("paste", (e) => {
