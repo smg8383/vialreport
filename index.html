@@ -157,7 +157,7 @@ footer {
               <input type="file" name="photos_1" class="form-control fotos" multiple>
 
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
-                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas 2
+                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
             </div>
 
@@ -378,8 +378,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
 
+  
 // =============================
-// 📷 PEGAR + ARRASTRAR IMÁGENES
+// 📷 PEGAR + ARRASTRAR IMÁGENES (VERSIÓN FINAL)
 // =============================
 
 function agregarArchivos(input, nuevosArchivos) {
@@ -387,10 +388,12 @@ function agregarArchivos(input, nuevosArchivos) {
 
   for (let file of nuevosArchivos) {
     if (!file.type.startsWith("image/")) continue;
+
     if (actuales.length >= 4) {
       alert("Máximo 4 imágenes");
       return;
     }
+
     actuales.push(file);
   }
 
@@ -398,61 +401,80 @@ function agregarArchivos(input, nuevosArchivos) {
   actuales.forEach(f => dt.items.add(f));
   input.files = dt.files;
 
-  input.dispatchEvent(new Event("change"));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 
+// 🔹 CLICK para activar foco
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("paste-zone")) {
+    e.target.focus();
+  }
+});
+
+
 // 🔹 PEGAR (Ctrl+V)
-document.querySelectorAll('.paste-zone').forEach(zone => {
+document.addEventListener("paste", (e) => {
 
-  zone.addEventListener('click', () => zone.focus());
+  const zona = document.activeElement;
 
-  zone.addEventListener('paste', (e) => {
+  if (!zona.classList.contains("paste-zone")) return;
 
-    const input = zone.closest(".grupo").querySelector('.fotos');
-    let archivos = [];
+  const input = zona.closest(".grupo").querySelector(".fotos");
 
-    for (let item of e.clipboardData.items) {
-      if (item.type.startsWith("image/")) {
-        archivos.push(item.getAsFile());
-      }
+  let archivos = [];
+
+  for (let item of e.clipboardData.items) {
+    if (item.type.startsWith("image/")) {
+      archivos.push(item.getAsFile());
     }
+  }
 
-    if (archivos.length === 0) {
-      alert("Chrome no detectó imagen. Probá copiar desde Paint o usar arrastrar.");
-      return;
-    }
+  if (archivos.length === 0) {
+    alert("No se detectó imagen. Probá copiar desde Paint o arrastrar.");
+    return;
+  }
 
-    agregarArchivos(input, archivos);
-  });
-
+  agregarArchivos(input, archivos);
 });
 
 
 // 🔹 ARRASTRAR Y SOLTAR
-document.querySelectorAll('.paste-zone').forEach(zone => {
-
-  zone.addEventListener("dragover", (e) => {
+document.addEventListener("dragover", (e) => {
+  if (e.target.closest(".paste-zone")) {
     e.preventDefault();
-    zone.classList.add("dragover");
-  });
-
-  zone.addEventListener("dragleave", () => {
-    zone.classList.remove("dragover");
-  });
-
-  zone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    zone.classList.remove("dragover");
-
-    const input = zone.closest(".grupo").querySelector('.fotos');
-    const files = e.dataTransfer.files;
-
-    agregarArchivos(input, files);
-  });
-
+  }
 });
-  
+
+document.addEventListener("drop", (e) => {
+
+  const zona = e.target.closest(".paste-zone");
+
+  if (!zona) return;
+
+  e.preventDefault();
+
+  const input = zona.closest(".grupo").querySelector(".fotos");
+  const files = e.dataTransfer.files;
+
+  agregarArchivos(input, files);
+});
+
+
+// 🎨 EFECTO VISUAL
+document.addEventListener("dragover", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) zona.classList.add("dragover");
+});
+
+document.addEventListener("dragleave", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) zona.classList.remove("dragover");
+});
+
+document.addEventListener("drop", () => {
+  document.querySelectorAll(".paste-zone").forEach(z => z.classList.remove("dragover"));
+});
 </script>
 
 <!--FOOTER-->
