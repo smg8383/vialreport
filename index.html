@@ -382,20 +382,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 document.querySelectorAll('.paste-zone').forEach(zone => {
 
   zone.addEventListener('click', () => {
-    zone.focus(); // 🔥 ahora sí recibe Ctrl+V
+    zone.focus();
   });
 
-  zone.addEventListener('paste', (e) => {
-
-    const items = e.clipboardData.items;
+  zone.addEventListener('paste', async (e) => {
 
     const grupoActivo = zone.closest(".grupo");
     const input = grupoActivo.querySelector('.fotos');
 
     let archivosActuales = Array.from(input.files);
 
-    for (let item of items) {
-      if (item.type.indexOf("image") !== -1) {
+    let agregado = false;
+
+    for (let item of e.clipboardData.items) {
+
+      // ✅ CASO 1: imagen directa
+      if (item.type.startsWith("image/")) {
 
         const file = item.getAsFile();
 
@@ -405,7 +407,36 @@ document.querySelectorAll('.paste-zone').forEach(zone => {
         }
 
         archivosActuales.push(file);
+        agregado = true;
       }
+
+      // ✅ CASO 2: WhatsApp (HTML con imagen)
+      else if (item.type === "text/html") {
+
+        const html = await new Promise(resolve => item.getAsString(resolve));
+
+        const match = html.match(/<img src="([^"]+)"/);
+
+        if (match && match[1]) {
+
+          const response = await fetch(match[1]);
+          const blob = await response.blob();
+          const file = new File([blob], "whatsapp.jpg", { type: blob.type });
+
+          if (archivosActuales.length >= 4) {
+            alert("Máximo 4 imágenes");
+            return;
+          }
+
+          archivosActuales.push(file);
+          agregado = true;
+        }
+      }
+    }
+
+    if (!agregado) {
+      alert("No se detectó imagen. Probá copiar directamente la foto.");
+      return;
     }
 
     const dt = new DataTransfer();
@@ -416,30 +447,6 @@ document.querySelectorAll('.paste-zone').forEach(zone => {
   });
 
 });
-  
-document.addEventListener("paste", (e) => {
-
-  const items = e.clipboardData.items;
-
-  // último grupo activo
-  const grupoActivo = document.querySelector(".grupo:last-child");
-  const input = grupoActivo.querySelector('.fotos');
-
-  let archivosActuales = Array.from(input.files);
-
-  for (let item of items) {
-    if (item.type.indexOf("image") !== -1) {
-
-      const file = item.getAsFile();
-
-      if (archivosActuales.length >= 4) {
-        alert("Máximo 4 imágenes");
-        return;
-      }
-
-      archivosActuales.push(file);
-    }
-  }
 
   // reconstruir input files
   const dt = new DataTransfer();
