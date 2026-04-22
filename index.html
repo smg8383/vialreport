@@ -383,26 +383,53 @@ document.addEventListener("DOMContentLoaded", async () => {
 // 📷 PEGAR + DRAG & DROP CORREGIDO
 // =============================
 
-function agregarArchivos(input, nuevosArchivos) {
-  let actuales = Array.from(input.files);
+function initPasteZones() {
 
-  for (let file of nuevosArchivos) {
-    if (!file.type.startsWith("image/")) continue;
+  document.querySelectorAll(".paste-zone").forEach(zone => {
 
-    if (actuales.length >= 4) {
-      alert("Máximo 4 imágenes");
-      return;
-    }
+    // evitar duplicar eventos
+    if (zone.dataset.init) return;
+    zone.dataset.init = "true";
 
-    actuales.push(file);
-  }
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zone.classList.add("dragover");
+    });
 
-  const dt = new DataTransfer();
-  actuales.forEach(f => dt.items.add(f));
-  input.files = dt.files;
+    zone.addEventListener("dragleave", () => {
+      zone.classList.remove("dragover");
+    });
 
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("dragover");
+
+      const input = zone.closest(".grupo").querySelector(".fotos");
+
+      const dt = new DataTransfer();
+      Array.from(input.files).forEach(f => dt.items.add(f));
+
+      for (let file of e.dataTransfer.files) {
+        if (file.type.startsWith("image/")) {
+          dt.items.add(file);
+        }
+      }
+
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+  });
+
 }
+
+// inicializar al cargar
+document.addEventListener("DOMContentLoaded", initPasteZones);
+
+// 🔥 CLAVE: volver a inicializar cuando agregás grupo
+document.getElementById('addGroup').addEventListener('click', () => {
+  setTimeout(initPasteZones, 100);
+});
 
 
 // 🔹 SOLO BLOQUEAR EN ZONAS DE DROP (NO EN TODO EL DOCUMENTO)
