@@ -157,7 +157,7 @@ footer {
               <input type="file" name="photos_1" class="form-control fotos" multiple>
 
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
-                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
+                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas 2
               </div>
             </div>
 
@@ -378,100 +378,79 @@ document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
 
-  // 📋 PEGAR IMÁGENES (incluye WhatsApp)
+// =============================
+// 📷 PEGAR + ARRASTRAR IMÁGENES
+// =============================
+
+function agregarArchivos(input, nuevosArchivos) {
+  let actuales = Array.from(input.files);
+
+  for (let file of nuevosArchivos) {
+    if (!file.type.startsWith("image/")) continue;
+    if (actuales.length >= 4) {
+      alert("Máximo 4 imágenes");
+      return;
+    }
+    actuales.push(file);
+  }
+
+  const dt = new DataTransfer();
+  actuales.forEach(f => dt.items.add(f));
+  input.files = dt.files;
+
+  input.dispatchEvent(new Event("change"));
+}
+
+
+// 🔹 PEGAR (Ctrl+V)
 document.querySelectorAll('.paste-zone').forEach(zone => {
 
   zone.addEventListener('click', () => zone.focus());
 
-  zone.addEventListener('paste', async (e) => {
+  zone.addEventListener('paste', (e) => {
 
-    const grupo = zone.closest(".grupo");
-    const input = grupo.querySelector('.fotos');
-    let archivos = Array.from(input.files);
-
-    let agregado = false;
+    const input = zone.closest(".grupo").querySelector('.fotos');
+    let archivos = [];
 
     for (let item of e.clipboardData.items) {
-
-      // Imagen directa
       if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (archivos.length >= 4) return alert("Máximo 4 imágenes");
-        archivos.push(file);
-        agregado = true;
-      }
-
-      // WhatsApp (HTML)
-      else if (item.type === "text/html") {
-        const html = await new Promise(r => item.getAsString(r));
-        const match = html.match(/<img src="([^"]+)"/);
-
-        if (match) {
-          const blob = await (await fetch(match[1])).blob();
-          const file = new File([blob], "whatsapp.jpg", { type: blob.type });
-
-          if (archivos.length >= 4) return alert("Máximo 4 imágenes");
-          archivos.push(file);
-          agregado = true;
-        }
+        archivos.push(item.getAsFile());
       }
     }
 
-    if (!agregado) return alert("No se detectó imagen");
+    if (archivos.length === 0) {
+      alert("Chrome no detectó imagen. Probá copiar desde Paint o usar arrastrar.");
+      return;
+    }
 
-    const dt = new DataTransfer();
-    archivos.forEach(f => dt.items.add(f));
-    input.files = dt.files;
-
-    input.dispatchEvent(new Event("change"));
+    agregarArchivos(input, archivos);
   });
 
 });
 
 
-// 🚫 BLOQUEAR comportamiento del navegador
-["dragenter","dragover","dragleave","drop"].forEach(ev=>{
-  window.addEventListener(ev, e=>{
+// 🔹 ARRASTRAR Y SOLTAR
+document.querySelectorAll('.paste-zone').forEach(zone => {
+
+  zone.addEventListener("dragover", (e) => {
     e.preventDefault();
-    e.stopPropagation();
+    zone.classList.add("dragover");
   });
-});
 
+  zone.addEventListener("dragleave", () => {
+    zone.classList.remove("dragover");
+  });
 
-// 🟦 DRAG & DROP
-document.addEventListener("drop", (e)=>{
-  const files = e.dataTransfer.files;
-  if (!files.length) return;
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
 
-  const grupo = document.querySelector(".grupo:last-child");
-  const input = grupo.querySelector('.fotos');
-  let archivos = Array.from(input.files);
+    const input = zone.closest(".grupo").querySelector('.fotos');
+    const files = e.dataTransfer.files;
 
-  for (let file of files){
-    if (!file.type.startsWith("image/")) continue;
-    if (archivos.length >= 4) return alert("Máximo 4 imágenes");
-    archivos.push(file);
-  }
+    agregarArchivos(input, files);
+  });
 
-  const dt = new DataTransfer();
-  archivos.forEach(f => dt.items.add(f));
-  input.files = dt.files;
-
-  input.dispatchEvent(new Event("change"));
-});
-
-
-// 🎨 EFECTO VISUAL
-document.addEventListener("dragenter", () => {
-  document.querySelectorAll('.paste-zone').forEach(z => z.classList.add("dragover"));
-});
-
-document.addEventListener("dragleave", () => {
-  document.querySelectorAll('.paste-zone').forEach(z => z.classList.remove("dragover"));
-});
-
-document.addEventListener("drop", () => {
-  document.querySelectorAll('.paste-zone').forEach(z => z.classList.remove("dragover"));
 });
   
 </script>
