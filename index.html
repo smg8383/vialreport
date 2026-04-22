@@ -30,7 +30,20 @@
 .preview img:hover {
   transform: scale(1.05);
 }
+/* Efecto dragover */
+  .paste-zone {
+  transition: 0.2s;
+  cursor: pointer;
+}
 
+.paste-zone:hover {
+  background: #f1f1f1;
+}
+
+.paste-zone.dragover {
+  background: #d0ebff;
+  border: 2px dashed #0d6efd;
+}
 /* Footer minimalista */
 footer {
   backdrop-filter: blur(5px);
@@ -143,9 +156,9 @@ footer {
               <label>Fotos (máx 4)</label>
               <input type="file" name="photos_1" class="form-control fotos" multiple>
 
-               <small class="text-muted d-block mt-1">
-                 📷 Podés subir, pegar (Ctrl+V) o arrastrar imágenes aquí
-              </small>
+              <div class="paste-zone border rounded p-3 text-center text-muted mt-2">
+                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
+              </div>
             </div>
 
             <div class="progress mt-2">
@@ -366,6 +379,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
   // 📋 PEGAR IMÁGENES (CTRL + V) Y ACUMULAR HASTA 4
+document.querySelectorAll('.paste-zone').forEach(zone => {
+  zone.addEventListener('click', () => {
+    document.body.focus();
+  });
+});
+  
 document.addEventListener("paste", (e) => {
 
   const items = e.clipboardData.items;
@@ -397,6 +416,57 @@ document.addEventListener("paste", (e) => {
 
   // disparar preview
   input.dispatchEvent(new Event("change"));
+});
+
+  // 🟦 DRAG & DROP IMÁGENES
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+
+  const files = e.dataTransfer.files;
+
+  if (!files.length) return;
+
+  const grupoActivo = document.querySelector(".grupo:last-child");
+  const input = grupoActivo.querySelector('.fotos');
+
+  let archivosActuales = Array.from(input.files);
+
+  for (let file of files) {
+
+    if (!file.type.startsWith("image/")) continue;
+
+    if (archivosActuales.length >= 4) {
+      alert("Máximo 4 imágenes");
+      return;
+    }
+
+    archivosActuales.push(file);
+  }
+
+  // reconstruir input
+  const dt = new DataTransfer();
+  archivosActuales.forEach(f => dt.items.add(f));
+  input.files = dt.files;
+
+  // refrescar preview
+  input.dispatchEvent(new Event("change"));
+});
+
+  // 🎨 EFECTO VISUAL AL ARRASTRAR
+document.addEventListener("dragenter", () => {
+  document.querySelectorAll('.paste-zone').forEach(z => z.classList.add("dragover"));
+});
+
+document.addEventListener("dragleave", () => {
+  document.querySelectorAll('.paste-zone').forEach(z => z.classList.remove("dragover"));
+});
+
+document.addEventListener("drop", () => {
+  document.querySelectorAll('.paste-zone').forEach(z => z.classList.remove("dragover"));
 });
   
 </script>
