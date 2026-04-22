@@ -378,9 +378,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
 });
 
-
+  
 // =============================
-// 📷 PEGAR + ARRASTRAR IMÁGENES (FINAL FUNCIONAL)
+// 📷 PEGAR + DRAG & DROP CORREGIDO
 // =============================
 
 function agregarArchivos(input, nuevosArchivos) {
@@ -405,20 +405,33 @@ function agregarArchivos(input, nuevosArchivos) {
 }
 
 
-// 🔹 CLICK para activar foco
-document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("paste-zone")) {
-    e.target.focus();
-  }
+// 🔹 SOLO BLOQUEAR EN ZONAS DE DROP (NO EN TODO EL DOCUMENTO)
+document.querySelectorAll(".paste-zone").forEach(zone => {
+
+  zone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    zone.classList.add("dragover");
+  });
+
+  zone.addEventListener("dragleave", () => {
+    zone.classList.remove("dragover");
+  });
+
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+
+    const input = zone.closest(".grupo").querySelector(".fotos");
+    agregarArchivos(input, e.dataTransfer.files);
+  });
 });
 
 
-// 🔹 PEGAR (Ctrl+V)
+// 🔹 PASTE (PEGAR IMAGEN)
 document.addEventListener("paste", (e) => {
 
   const zona = document.activeElement;
-
-  if (!zona.classList.contains("paste-zone")) return;
+  if (!zona || !zona.classList.contains("paste-zone")) return;
 
   const input = zona.closest(".grupo").querySelector(".fotos");
 
@@ -431,7 +444,7 @@ document.addEventListener("paste", (e) => {
   }
 
   if (archivos.length === 0) {
-    alert("No se detectó imagen. Probá copiar desde Paint o arrastrar.");
+    alert("No se detectó imagen. Copiá desde Paint o navegador.");
     return;
   }
 
@@ -439,42 +452,12 @@ document.addEventListener("paste", (e) => {
 });
 
 
-// 🚫 BLOQUEAR comportamiento del navegador (CLAVE)
-document.addEventListener("dragover", (e) => {
-  e.preventDefault();
-});
-
-
-// 🔹 ARRASTRAR Y SOLTAR
-document.addEventListener("drop", (e) => {
-
-  e.preventDefault(); // 🔥 SIEMPRE primero
-
+// 🔹 CLICK PARA FOCUSEAR
+document.addEventListener("click", (e) => {
   const zona = e.target.closest(".paste-zone");
-  if (!zona) return;
-
-  const input = zona.closest(".grupo").querySelector(".fotos");
-  const files = e.dataTransfer.files;
-
-  agregarArchivos(input, files);
+  if (zona) zona.focus();
 });
-
-
-// 🎨 EFECTO VISUAL
-document.addEventListener("dragenter", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (zona) zona.classList.add("dragover");
-});
-
-document.addEventListener("dragleave", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (zona) zona.classList.remove("dragover");
-});
-
-document.addEventListener("drop", () => {
-  document.querySelectorAll(".paste-zone").forEach(z => z.classList.remove("dragover"));
-});
-
+  
 </script>
 
 <!--FOOTER-->
