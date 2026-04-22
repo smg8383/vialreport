@@ -203,6 +203,9 @@ footer {
 <script src="app.js"></script>
 
 <script>
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => e.preventDefault());
+  
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
 let count = 1;
@@ -407,6 +410,26 @@ function initImageZones() {
     // =====================
     // DRAG & DROP
     // =====================
+    
+    zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+  
+    const input = zone.closest(".grupo").querySelector(".fotos");
+  
+    const dt = new DataTransfer();
+  
+    Array.from(input.files || []).forEach(f => dt.items.add(f));
+  
+    for (let file of e.dataTransfer.files) {
+      if (file.type.startsWith("image/")) {
+        dt.items.add(file);
+      }
+    }
+  
+    input.files = dt.files;
+  
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
     zone.addEventListener("dragover", e => {
       e.preventDefault();
       zone.classList.add("dragover");
