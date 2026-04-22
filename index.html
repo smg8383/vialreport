@@ -54,6 +54,8 @@
   background: #d0ebff;
   border-color: #0d6efd;
   color: #0d6efd;
+  transform: scale(1.02);
+  box-shadow: 0 0 10px rgba(13,110,253,0.3);
 }
 /* Footer minimalista */
 footer {
@@ -392,22 +394,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   
 // =============================
-// 📷 DRAG & DROP + PASTE FIX DEFINITIVO
+// 📷 DRAG & DROP FIJO (SIN ABRIR PESTAÑAS)
 // =============================
 
-function initImageZones() {
+function initDropZones() {
 
   document.querySelectorAll(".paste-zone").forEach(zone => {
 
-    if (zone.dataset.ready) return;
-    zone.dataset.ready = "1";
+    if (zone.dataset.init) return;
+    zone.dataset.init = "1";
 
     const getInput = () =>
       zone.closest(".grupo")?.querySelector(".fotos");
 
-    // DRAG OVER
+    // 🔵 DRAG OVER (mostrar foco)
     zone.addEventListener("dragover", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       zone.classList.add("dragover");
     });
 
@@ -415,9 +418,11 @@ function initImageZones() {
       zone.classList.remove("dragover");
     });
 
-    // DROP (IMPORTANTE: SOLO UNO)
+    // 🔴 DROP (CLAVE)
     zone.addEventListener("drop", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+
       zone.classList.remove("dragover");
 
       const input = getInput();
@@ -425,10 +430,10 @@ function initImageZones() {
 
       const dt = new DataTransfer();
 
-      // mantener archivos existentes
+      // mantener existentes
       Array.from(input.files || []).forEach(f => dt.items.add(f));
 
-      // agregar nuevos
+      // nuevos archivos
       Array.from(e.dataTransfer.files || []).forEach(file => {
         if (file.type.startsWith("image/")) {
           dt.items.add(file);
@@ -444,40 +449,13 @@ function initImageZones() {
   });
 }
 
-// =============================
-// 📋 PASTE CORRECTO (SIN BUGS)
-// =============================
-document.addEventListener("paste", (e) => {
-
-  const zone = document.querySelector(".paste-zone:hover");
-  if (!zone) return;
-
-  const input = zone.closest(".grupo")?.querySelector(".fotos");
-  if (!input) return;
-
-  const dt = new DataTransfer();
-
-  Array.from(input.files || []).forEach(f => dt.items.add(f));
-
-  for (let item of e.clipboardData.items) {
-    if (item.type.startsWith("image/")) {
-      const file = item.getAsFile();
-      if (file) dt.items.add(file);
-    }
-  }
-
-  input.files = dt.files;
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-});
-
 // INIT
-document.addEventListener("DOMContentLoaded", initImageZones);
+document.addEventListener("DOMContentLoaded", initDropZones);
 
-// reinit al agregar grupo
+// re-init cuando agregás grupo
 document.getElementById("addGroup")?.addEventListener("click", () => {
-  setTimeout(initImageZones, 150);
+  setTimeout(initDropZones, 100);
 });
-
 
 </script>
 
