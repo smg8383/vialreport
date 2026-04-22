@@ -192,6 +192,14 @@ footer {
 <script src="app.js"></script>
 
 <script>
+  // 🚫 BLOQUEO TOTAL DEL NAVEGADOR (ANTES DE TODO)
+["dragenter", "dragover", "dragleave", "drop"].forEach(event => {
+  window.addEventListener(event, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, true); // 👈 IMPORTANTE: TRUE
+});
+  
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
 let count = 1;
