@@ -203,9 +203,7 @@ footer {
 <script src="app.js"></script>
 
 <script>
-document.addEventListener("dragover", (e) => e.preventDefault());
-document.addEventListener("drop", (e) => e.preventDefault());
-  
+
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
 let count = 1;
@@ -394,7 +392,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   
 // =============================
-// 📷 PEGAR + DRAG & DROP CORREGIDO
+// 📷 DRAG & DROP + PASTE FIX DEFINITIVO
 // =============================
 
 function initImageZones() {
@@ -407,30 +405,8 @@ function initImageZones() {
     const getInput = () =>
       zone.closest(".grupo")?.querySelector(".fotos");
 
-    // =====================
-    // DRAG & DROP
-    // =====================
-    
-    zone.addEventListener("drop", (e) => {
-    e.preventDefault();
-  
-    const input = zone.closest(".grupo").querySelector(".fotos");
-  
-    const dt = new DataTransfer();
-  
-    Array.from(input.files || []).forEach(f => dt.items.add(f));
-  
-    for (let file of e.dataTransfer.files) {
-      if (file.type.startsWith("image/")) {
-        dt.items.add(file);
-      }
-    }
-  
-    input.files = dt.files;
-  
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-    zone.addEventListener("dragover", e => {
+    // DRAG OVER
+    zone.addEventListener("dragover", (e) => {
       e.preventDefault();
       zone.classList.add("dragover");
     });
@@ -439,7 +415,8 @@ function initImageZones() {
       zone.classList.remove("dragover");
     });
 
-    zone.addEventListener("drop", e => {
+    // DROP (IMPORTANTE: SOLO UNO)
+    zone.addEventListener("drop", (e) => {
       e.preventDefault();
       zone.classList.remove("dragover");
 
@@ -448,25 +425,29 @@ function initImageZones() {
 
       const dt = new DataTransfer();
 
-      Array.from(input.files).forEach(f => dt.items.add(f));
+      // mantener archivos existentes
+      Array.from(input.files || []).forEach(f => dt.items.add(f));
 
-      Array.from(e.dataTransfer.files).forEach(file => {
+      // agregar nuevos
+      Array.from(e.dataTransfer.files || []).forEach(file => {
         if (file.type.startsWith("image/")) {
           dt.items.add(file);
         }
       });
 
       input.files = dt.files;
+
+      // dispara preview
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
   });
 }
 
-// =====================
-// PASTE GLOBAL (FIABLE)
-// =====================
-document.addEventListener("paste", e => {
+// =============================
+// 📋 PASTE CORRECTO (SIN BUGS)
+// =============================
+document.addEventListener("paste", (e) => {
 
   const zone = document.querySelector(".paste-zone:hover");
   if (!zone) return;
@@ -476,11 +457,12 @@ document.addEventListener("paste", e => {
 
   const dt = new DataTransfer();
 
-  Array.from(input.files).forEach(f => dt.items.add(f));
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   for (let item of e.clipboardData.items) {
     if (item.type.startsWith("image/")) {
-      dt.items.add(item.getAsFile());
+      const file = item.getAsFile();
+      if (file) dt.items.add(file);
     }
   }
 
@@ -488,16 +470,15 @@ document.addEventListener("paste", e => {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
-// =====================
 // INIT
-// =====================
 document.addEventListener("DOMContentLoaded", initImageZones);
 
-// re-init al agregar grupos
+// reinit al agregar grupo
 document.getElementById("addGroup")?.addEventListener("click", () => {
-  setTimeout(initImageZones, 100);
+  setTimeout(initImageZones, 150);
 });
-  
+
+
 </script>
 
 <!--FOOTER-->
