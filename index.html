@@ -31,9 +31,19 @@
   transform: scale(1.05);
 }
 /* Efecto dragover */
-  .paste-zone {
-  transition: 0.2s;
+.paste-zone {
+  min-height: 120px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 12px;
   cursor: pointer;
+  transition: 0.2s;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #666;
 }
 
 .paste-zone:hover {
@@ -42,7 +52,8 @@
 
 .paste-zone.dragover {
   background: #d0ebff;
-  border: 2px dashed #0d6efd;
+  border-color: #0d6efd;
+  color: #0d6efd;
 }
 /* Footer minimalista */
 footer {
@@ -383,15 +394,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 // 📷 PEGAR + DRAG & DROP CORREGIDO
 // =============================
 
-function initPasteZones() {
+function initImageZones() {
 
   document.querySelectorAll(".paste-zone").forEach(zone => {
 
-    // evitar duplicar eventos
-    if (zone.dataset.init) return;
-    zone.dataset.init = "true";
+    if (zone.dataset.ready) return;
+    zone.dataset.ready = "1";
 
-    zone.addEventListener("dragover", (e) => {
+    const getInput = () =>
+      zone.closest(".grupo")?.querySelector(".fotos");
+
+    // =====================
+    // DRAG & DROP
+    // =====================
+    zone.addEventListener("dragover", e => {
       e.preventDefault();
       zone.classList.add("dragover");
     });
@@ -400,102 +416,63 @@ function initPasteZones() {
       zone.classList.remove("dragover");
     });
 
-    zone.addEventListener("drop", (e) => {
+    zone.addEventListener("drop", e => {
       e.preventDefault();
       zone.classList.remove("dragover");
 
-      const input = zone.closest(".grupo").querySelector(".fotos");
+      const input = getInput();
+      if (!input) return;
 
       const dt = new DataTransfer();
+
       Array.from(input.files).forEach(f => dt.items.add(f));
 
-      for (let file of e.dataTransfer.files) {
+      Array.from(e.dataTransfer.files).forEach(file => {
         if (file.type.startsWith("image/")) {
           dt.items.add(file);
         }
-      }
+      });
 
       input.files = dt.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
   });
-
 }
 
-// inicializar al cargar
-document.addEventListener("DOMContentLoaded", initPasteZones);
+// =====================
+// PASTE GLOBAL (FIABLE)
+// =====================
+document.addEventListener("paste", e => {
 
-// 🔥 CLAVE: volver a inicializar cuando agregás grupo
-document.getElementById('addGroup').addEventListener('click', () => {
-  setTimeout(initPasteZones, 100);
-});
+  const zone = document.querySelector(".paste-zone:hover");
+  if (!zone) return;
 
+  const input = zone.closest(".grupo")?.querySelector(".fotos");
+  if (!input) return;
 
-// 🔹 SOLO BLOQUEAR EN ZONAS DE DROP (NO EN TODO EL DOCUMENTO)
-document.querySelectorAll(".paste-zone").forEach(zone => {
+  const dt = new DataTransfer();
 
-  zone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    zone.classList.add("dragover");
-  });
-
-  zone.addEventListener("dragleave", () => {
-    zone.classList.remove("dragover");
-  });
-
-  zone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    zone.classList.remove("dragover");
-
-    const input = zone.closest(".grupo").querySelector(".fotos");
-
-    const dt = new DataTransfer();
-    Array.from(input.files).forEach(f => dt.items.add(f));
-
-    for (let file of e.dataTransfer.files) {
-      if (file.type.startsWith("image/")) {
-        dt.items.add(file);
-      }
-    }
-
-    input.files = dt.files;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-
-});
-
-
-
-// 🔹 PASTE (PEGAR IMAGEN)
-document.addEventListener("paste", (e) => {
-
-  const zona = document.activeElement;
-  if (!zona || !zona.classList.contains("paste-zone")) return;
-
-  const input = zona.closest(".grupo").querySelector(".fotos");
-
-  let archivos = [];
+  Array.from(input.files).forEach(f => dt.items.add(f));
 
   for (let item of e.clipboardData.items) {
     if (item.type.startsWith("image/")) {
-      archivos.push(item.getAsFile());
+      dt.items.add(item.getAsFile());
     }
   }
 
-  if (archivos.length === 0) {
-    alert("No se detectó imagen. Copiá desde Paint o navegador.");
-    return;
-  }
-
-  agregarArchivos(input, archivos);
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
+// =====================
+// INIT
+// =====================
+document.addEventListener("DOMContentLoaded", initImageZones);
 
-// 🔹 CLICK PARA FOCUSEAR
-document.addEventListener("click", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (zona) zona.focus();
+// re-init al agregar grupos
+document.getElementById("addGroup")?.addEventListener("click", () => {
+  setTimeout(initImageZones, 100);
 });
   
 </script>
