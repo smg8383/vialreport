@@ -493,6 +493,14 @@ document.addEventListener("paste", (e) => {
   }
 });
 
+  // 🚫 EVITAR QUE EL NAVEGADOR ABRA LA IMAGEN
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+});
 </script>
 
 <!--FOOTER-->
