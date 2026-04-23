@@ -483,31 +483,42 @@ document.addEventListener("click", async (e) => {
   const grupo = e.target.closest(".grupo");
   const input = grupo.querySelector(".fotos");
 
+  // 🔥 Intento moderno
   try {
-    const items = await navigator.clipboard.read();
+    if (navigator.clipboard && navigator.clipboard.read) {
 
-    const dt = new DataTransfer();
+      const items = await navigator.clipboard.read();
 
-    // mantener existentes
-    Array.from(input.files || []).forEach(f => dt.items.add(f));
+      const dt = new DataTransfer();
+      Array.from(input.files || []).forEach(f => dt.items.add(f));
 
-    for (const item of items) {
-      for (const type of item.types) {
-        if (type.startsWith("image/")) {
-          const blob = await item.getType(type);
-          const file = new File([blob], "imagen_portapapeles.png", { type });
-          dt.items.add(file);
+      let agregado = false;
+
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith("image/")) {
+            const blob = await item.getType(type);
+            const file = new File([blob], "imagen.png", { type });
+            dt.items.add(file);
+            agregado = true;
+          }
         }
       }
+
+      if (agregado) {
+        input.files = dt.files;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
     }
-
-    input.files = dt.files;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
   } catch (err) {
-    alert("No se pudo acceder al portapapeles.\nProbá con Ctrl+V o revisá permisos.");
-    console.error(err);
+    console.log("Clipboard API falló:", err);
   }
+
+  // 🟡 FALLBACK REAL (SIEMPRE FUNCIONA)
+  alert("Ahora presioná CTRL + V para pegar la imagen");
+  
+  input.focus();
 
 });
   
