@@ -392,117 +392,64 @@ async function subirACloudinary(file){
   });
 }
 
-// 🏁 INICIALIZAR
+// =============================
+// 📷 DRAG & DROP LIMPIO
+// =============================
+
 let lastZone = null;
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await cargarTareasJerarquicas();
-
-  initDropZones();
+// 👉 CLICK en zona
+document.querySelectorAll(".paste-zone").forEach(zone => {
+  zone.addEventListener("click", () => {
+    lastZone = zone;
+  });
 });
 
-// =============================
-// 📷 DRAG & DROP + PASTE
-// =============================
-function initDropZones() {
+// 👉 DRAG VISUAL (UNA SOLA VEZ)
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
 
-  document.querySelectorAll(".paste-zone").forEach(zone => {
+  const grupo = e.target.closest(".grupo");
 
-    if (zone.dataset.init) return;
-    zone.dataset.init = "1";
+  document.querySelectorAll(".paste-zone").forEach(z => 
+    z.classList.remove("dragover")
+  );
 
-    const getInput = () =>
-      zone.closest(".grupo")?.querySelector(".fotos");
+  if (grupo) {
+    const zone = grupo.querySelector(".paste-zone");
+    if (zone) zone.classList.add("dragover");
+  }
+});
 
-    // 👉 GUARDAR ZONA ACTIVA
-    zone.addEventListener("click", () => {
-      zone.focus();
-      lastZone = zone;
-    });
-
-    // 🟦 DRAG ENTER
-    zone.addEventListener("dragenter", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.add("dragover");
-    });
-
-    // 🟦 DRAG OVER
-     document.addEventListener("dragover", (e) => {
-      e.preventDefault();
-    
-      const grupo = e.target.closest(".grupo");
-    
-      document.querySelectorAll(".paste-zone").forEach(z => 
-        z.classList.remove("dragover")
-      );
-    
-      if (grupo) {
-        const zone = grupo.querySelector(".paste-zone");
-        if (zone) zone.classList.add("dragover");
-      }
-    });
-
-    // 🟦 DRAG LEAVE
-    zone.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.remove("dragover");
-    });
-
-    // 🟦 DRAG END
-    zone.addEventListener("dragend", () => {
-      zone.classList.remove("dragover");
-    });
-
-    // 🔴 DROP FUNCIONANDO SOBRE TODO EL GRUPO
+// 👉 DROP (UNA SOLA VEZ)
 document.addEventListener("drop", (e) => {
   e.preventDefault();
 
   const grupo = e.target.closest(".grupo");
   if (!grupo) return;
 
-  const zone = grupo.querySelector(".paste-zone");
   const input = grupo.querySelector(".fotos");
-
-  if (!input) return;
+  const zone = grupo.querySelector(".paste-zone");
 
   zone.classList.remove("dragover");
 
-  const dt = new DataTransfer();
+  const files = e.dataTransfer.files;
 
-  Array.from(input.files || []).forEach(f => dt.items.add(f));
+  if (!files || files.length === 0) {
+    console.log("⚠️ No hay archivos (WhatsApp no sirve para drag)");
+    return;
+  }
 
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
-
-  Array.from(files).forEach(file => {
-    if (file.type.startsWith("image/")) {
-      dt.items.add(file);
-    }
-  });
-
-  input.files = dt.files;
+  input.files = files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
-  });
-}
-
-// 🔁 REINICIALIZAR AL AGREGAR GRUPO
-document.getElementById("addGroup")?.addEventListener("click", () => {
-  setTimeout(initDropZones, 100);
-});
-
-// =============================
-// 📋 PEGAR IMÁGENES (CTRL + V) - CORREGIDO
+// 👉 PEGAR (CTRL + V)
 document.addEventListener("paste", (e) => {
-
   const items = e.clipboardData?.items;
   if (!items) return;
 
-  // 🔥 usar última zona o la primera disponible
-  let zone = lastZone || document.querySelector(".paste-zone");
+  const zone = lastZone || document.querySelector(".paste-zone");
   if (!zone) return;
 
   const input = zone.closest(".grupo").querySelector(".fotos");
@@ -512,25 +459,14 @@ document.addEventListener("paste", (e) => {
   Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   for (let i = 0; i < items.length; i++) {
-    if (items[i].type.indexOf("image") !== -1) {
-      const blob = items[i].getAsFile();
-      dt.items.add(blob);
+    if (items[i].type.includes("image")) {
+      dt.items.add(items[i].getAsFile());
     }
   }
 
   input.files = dt.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
 });
-
-// =============================
-// 🚫 BLOQUEO GLOBAL EN CAPTURA (CLAVE)
-window.addEventListener("dragover", function(e) {
-  e.preventDefault();
-}, true);
-
-window.addEventListener("drop", function(e) {
-  e.preventDefault();
-}, true);
   
 </script>
 
