@@ -523,13 +523,14 @@ document.addEventListener("paste", (e) => {
 });
 
 // =============================
-// 🚫 BLOQUEO GLOBAL FUERTE
-["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
-  document.addEventListener(eventName, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  });
-});
+// 🚫 BLOQUEO GLOBAL EN CAPTURA (CLAVE)
+window.addEventListener("dragover", function(e) {
+  e.preventDefault();
+}, true);
+
+window.addEventListener("drop", function(e) {
+  e.preventDefault();
+}, true);
   
 </script>
 
