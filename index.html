@@ -35,7 +35,8 @@
   min-height: 150px;
   width: 100%;
   position: relative;
-  z-index: 10; /* 🔥 importante */
+  z-index: 999; /* 🔥 importante */
+  pointer-events: all;
   border: 2px dashed #ccc;
   border-radius: 8px;
   padding: 12px;
@@ -60,6 +61,7 @@
   transform: scale(1.02);
   box-shadow: 0 0 10px rgba(13,110,253,0.3);
 }
+  
 /* Footer minimalista */
 footer {
   backdrop-filter: blur(5px);
@@ -484,41 +486,40 @@ document.getElementById("addGroup")?.addEventListener("click", () => {
 });
 
 // =============================
-// 📋 PEGAR IMÁGENES (CTRL + V)
-// =============================
+// 📋 PEGAR IMÁGENES (CTRL + V) - CORREGIDO
 document.addEventListener("paste", (e) => {
 
-  if (!lastZone) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
 
-  const items = e.clipboardData.items;
+  // 🔥 usar última zona o la primera disponible
+  let zone = lastZone || document.querySelector(".paste-zone");
+  if (!zone) return;
+
+  const input = zone.closest(".grupo").querySelector(".fotos");
+
+  const dt = new DataTransfer();
+
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   for (let i = 0; i < items.length; i++) {
-
     if (items[i].type.indexOf("image") !== -1) {
-
       const blob = items[i].getAsFile();
-      const input = lastZone.closest(".grupo").querySelector(".fotos");
-
-      const dt = new DataTransfer();
-
-      Array.from(input.files || []).forEach(f => dt.items.add(f));
       dt.items.add(blob);
-
-      input.files = dt.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
     }
   }
+
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
 // =============================
-// 🚫 BLOQUEO GLOBAL (CLAVE)
-// =============================
-document.addEventListener("dragover", (e) => {
-  e.preventDefault();
-});
-
-document.addEventListener("drop", (e) => {
-  e.preventDefault();
+// 🚫 BLOQUEO GLOBAL FUERTE
+["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+  document.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
 });
   
 </script>
