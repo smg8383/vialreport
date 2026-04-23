@@ -177,6 +177,9 @@ footer {
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
                 📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
+              <button type="button" class="btn btn-sm btn-primary mt-2 btn-paste">
+                📋 Pegar desde portapapeles
+              </button>
             </div>
 
             <div class="progress mt-2">
@@ -466,6 +469,46 @@ document.addEventListener("paste", (e) => {
 
   input.files = dt.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
+
+
+  // =============================
+// 📋 BOTÓN PEGAR DESDE PORTAPAPELES
+// =============================
+document.addEventListener("click", async (e) => {
+
+  if (!e.target.classList.contains("btn-paste")) return;
+
+  const grupo = e.target.closest(".grupo");
+  const input = grupo.querySelector(".fotos");
+
+  try {
+    const items = await navigator.clipboard.read();
+
+    const dt = new DataTransfer();
+
+    // mantener existentes
+    Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+    for (const item of items) {
+      for (const type of item.types) {
+        if (type.startsWith("image/")) {
+          const blob = await item.getType(type);
+          const file = new File([blob], "imagen_portapapeles.png", { type });
+          dt.items.add(file);
+        }
+      }
+    }
+
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+  } catch (err) {
+    alert("No se pudo acceder al portapapeles.\nProbá con Ctrl+V o revisá permisos.");
+    console.error(err);
+  }
+
 });
   
 </script>
