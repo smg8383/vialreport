@@ -390,6 +390,11 @@ async function subirACloudinary(file){
 // 🏁 INICIALIZAR SELECTS
 document.addEventListener("DOMContentLoaded", async () => {
   await cargarTareasJerarquicas();
+  
+   // 👉 ACTIVAR FOCO EN ZONA DE PEGADO
+  document.querySelectorAll(".paste-zone").forEach(zone => {
+    zone.addEventListener("click", () => zone.focus());
+  });
 });
 
   
@@ -455,6 +460,37 @@ document.addEventListener("DOMContentLoaded", initDropZones);
 // re-init cuando agregás grupo
 document.getElementById("addGroup")?.addEventListener("click", () => {
   setTimeout(initDropZones, 100);
+});
+
+  // 📋 PEGAR IMÁGENES (CTRL + V)
+document.addEventListener("paste", (e) => {
+
+  const items = e.clipboardData.items;
+
+  for (let i = 0; i < items.length; i++) {
+
+    if (items[i].type.indexOf("image") !== -1) {
+
+      const blob = items[i].getAsFile();
+
+      // buscar zona activa (última clickeada)
+      const activeZone = document.activeElement.closest(".paste-zone");
+      if (!activeZone) return;
+
+      const input = activeZone.closest(".grupo").querySelector(".fotos");
+
+      const dt = new DataTransfer();
+
+      // mantener archivos existentes
+      Array.from(input.files).forEach(f => dt.items.add(f));
+
+      dt.items.add(blob);
+
+      input.files = dt.files;
+
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
 });
 
 </script>
