@@ -428,10 +428,19 @@ function initDropZones() {
     });
 
     // 🟦 DRAG OVER
-    zone.addEventListener("dragover", (e) => {
+     document.addEventListener("dragover", (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      zone.classList.add("dragover");
+    
+      const grupo = e.target.closest(".grupo");
+    
+      document.querySelectorAll(".paste-zone").forEach(z => 
+        z.classList.remove("dragover")
+      );
+    
+      if (grupo) {
+        const zone = grupo.querySelector(".paste-zone");
+        if (zone) zone.classList.add("dragover");
+      }
     });
 
     // 🟦 DRAG LEAVE
@@ -446,36 +455,36 @@ function initDropZones() {
       zone.classList.remove("dragover");
     });
 
-    // 🔴 DROP
-    zone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    // 🔴 DROP FUNCIONANDO SOBRE TODO EL GRUPO
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
 
-      zone.classList.remove("dragover");
+  const grupo = e.target.closest(".grupo");
+  if (!grupo) return;
 
-      const input = getInput();
-      if (!input) return;
+  const zone = grupo.querySelector(".paste-zone");
+  const input = grupo.querySelector(".fotos");
 
-      const dt = new DataTransfer();
+  if (!input) return;
 
-      // mantener existentes
-      Array.from(input.files || []).forEach(f => dt.items.add(f));
+  zone.classList.remove("dragover");
 
-      const files = e.dataTransfer?.files;
-      if (!files || files.length === 0) {
-        console.log("No hay archivos en drop");
-        return;
-      }
+  const dt = new DataTransfer();
 
-      Array.from(files).forEach(file => {
-        if (file.type.startsWith("image/")) {
-          dt.items.add(file);
-        }
-      });
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
 
-      input.files = dt.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  Array.from(files).forEach(file => {
+    if (file.type.startsWith("image/")) {
+      dt.items.add(file);
+    }
+  });
+
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+});
 
   });
 }
