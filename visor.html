@@ -241,10 +241,25 @@ function renderInformes(data) {
 async function getBase64ImageFromURL(url) {
   const res = await fetch(url);
   const blob = await res.blob();
+
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
+  });
+}
+
+// 🔥 NUEVA FUNCIÓN (PEGAR ACÁ)
+async function getImageDimensions(base64) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({
+        width: img.width,
+        height: img.height
+      });
+    };
+    img.src = base64;
   });
 }
 
@@ -265,16 +280,15 @@ async function obtenerLogo() {
 
 // 📄 GENERAR PDF
 async function dibujarInforme(doc, r, logoBase64) {
-doc.setDrawColor(160);
-doc.setLineWidth(0.3);
+
+  doc.setDrawColor(160);
+  doc.setLineWidth(0.3);
 
   let y = 10;
 
   // 🟦 ENCABEZADO (FONDO)
   doc.setFillColor(230, 230, 230);
   doc.rect(10, y, 190, 25, 'FD');
-
-  
 
   // 🟦 LOGO IZQUIERDA
   if (logoBase64) {
@@ -293,18 +307,18 @@ doc.setLineWidth(0.3);
     doc.addImage(logoBase64, 'PNG', 12, y + 3, w, h);
   }
 
-  // 🟦 TITULO CENTRADO
+  // 🟦 TITULO
   doc.setFontSize(16);
   doc.setFont(undefined, "bold");
   doc.text("INFORME FOTOGRÁFICO", 105, y + 14, { align: "center" });
 
   y += 30;
 
-  // 🟦 CAJA PRINCIPAL (tipo card)
+  // 🟦 CAJA PRINCIPAL
   doc.setDrawColor(180);
   doc.rect(10, y, 190, 60);
 
-  // 🟦 TITULO DE SECCIÓN
+  // 🟦 TITULO SECCIÓN
   doc.setFillColor(240, 240, 240);
   doc.rect(10, y, 190, 8, 'FD');
 
@@ -323,7 +337,7 @@ doc.setLineWidth(0.3);
     doc.text(value || "-", x + 28, y);
   };
 
-  // 🔹 FILAS
+  // 🔹 DATOS
   campo("Fecha:", r.fecha, 12, y);
   campo("Tramo:", r.tramo, 130, y);
 
@@ -333,7 +347,6 @@ doc.setLineWidth(0.3);
 
   y += 6;
   campo("Tarea:", r.tarea, 12, y);
- 
 
   y += 6;
   campo("Sentido:", r.sentido, 12, y);
@@ -341,7 +354,7 @@ doc.setLineWidth(0.3);
 
   y += 8;
 
-  // 🟦 OBSERVACIÓN BOX
+  // 🟦 OBSERVACIÓN
   doc.setFont(undefined, "bold");
   doc.text("Observación:", 12, y);
 
@@ -366,7 +379,7 @@ doc.setLineWidth(0.3);
 
   y += 12;
 
-  // 🖼️ IMÁGENES EN GRID
+  // 🖼️ IMÁGENES EN GRID (CORREGIDO)
   let x = 12;
   let col = 0;
 
@@ -376,24 +389,37 @@ doc.setLineWidth(0.3);
 
       const imgData = await getBase64ImageFromURL(img);
 
-      doc.setDrawColor(180);
-      doc.rect(x - 2, y - 2, 94, 64); // marco tipo tarjeta
+      // 🔥 dimensiones reales
+      const dim = await getImageDimensions(imgData);
 
-      doc.addImage(imgData, 'JPEG', x, y, 90, 60);
+      const imgWidth = 90;
+      let imgHeight = (dim.height * imgWidth) / dim.width;
+
+      // limitar altura para mantener diseño
+      if (imgHeight > 70) imgHeight = 70;
+
+      // salto de página
+      if (y + imgHeight > 270) {
+        doc.addPage();
+        y = 20;
+        x = 12;
+        col = 0;
+      }
+
+      // 🧱 marco dinámico
+      doc.setDrawColor(180);
+      doc.rect(x - 2, y - 2, imgWidth + 4, imgHeight + 4);
+
+      // 🖼 imagen sin deformar
+      doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
 
       col++;
 
       if (col % 2 === 0) {
         x = 12;
-        y += 70;
+        y += imgHeight + 10;
       } else {
         x = 110;
-      }
-
-      if (y > 250) {
-        doc.addPage();
-        y = 20;
-        x = 12;
       }
     }
   }
