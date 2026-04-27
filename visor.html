@@ -241,25 +241,10 @@ function renderInformes(data) {
 async function getBase64ImageFromURL(url) {
   const res = await fetch(url);
   const blob = await res.blob();
-
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
-  });
-}
-
-// 🔥 NUEVA FUNCIÓN (PEGAR ACÁ)
-async function getImageDimensions(base64) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      resolve({
-        width: img.width,
-        height: img.height
-      });
-    };
-    img.src = base64;
   });
 }
 
@@ -280,15 +265,16 @@ async function obtenerLogo() {
 
 // 📄 GENERAR PDF
 async function dibujarInforme(doc, r, logoBase64) {
-
-  doc.setDrawColor(160);
-  doc.setLineWidth(0.3);
+doc.setDrawColor(160);
+doc.setLineWidth(0.3);
 
   let y = 10;
 
   // 🟦 ENCABEZADO (FONDO)
   doc.setFillColor(230, 230, 230);
   doc.rect(10, y, 190, 25, 'FD');
+
+  
 
   // 🟦 LOGO IZQUIERDA
   if (logoBase64) {
@@ -307,18 +293,18 @@ async function dibujarInforme(doc, r, logoBase64) {
     doc.addImage(logoBase64, 'PNG', 12, y + 3, w, h);
   }
 
-  // 🟦 TITULO
+  // 🟦 TITULO CENTRADO
   doc.setFontSize(16);
   doc.setFont(undefined, "bold");
   doc.text("INFORME FOTOGRÁFICO", 105, y + 14, { align: "center" });
 
   y += 30;
 
-  // 🟦 CAJA PRINCIPAL
+  // 🟦 CAJA PRINCIPAL (tipo card)
   doc.setDrawColor(180);
   doc.rect(10, y, 190, 60);
 
-  // 🟦 TITULO SECCIÓN
+  // 🟦 TITULO DE SECCIÓN
   doc.setFillColor(240, 240, 240);
   doc.rect(10, y, 190, 8, 'FD');
 
@@ -337,7 +323,7 @@ async function dibujarInforme(doc, r, logoBase64) {
     doc.text(value || "-", x + 28, y);
   };
 
-  // 🔹 DATOS
+  // 🔹 FILAS
   campo("Fecha:", r.fecha, 12, y);
   campo("Tramo:", r.tramo, 130, y);
 
@@ -347,6 +333,7 @@ async function dibujarInforme(doc, r, logoBase64) {
 
   y += 6;
   campo("Tarea:", r.tarea, 12, y);
+ 
 
   y += 6;
   campo("Sentido:", r.sentido, 12, y);
@@ -354,7 +341,7 @@ async function dibujarInforme(doc, r, logoBase64) {
 
   y += 8;
 
-  // 🟦 OBSERVACIÓN
+  // 🟦 OBSERVACIÓN BOX
   doc.setFont(undefined, "bold");
   doc.text("Observación:", 12, y);
 
@@ -379,51 +366,83 @@ async function dibujarInforme(doc, r, logoBase64) {
 
   y += 12;
 
-  // 🖼️ IMÁGENES EN GRID (CORREGIDO)
-  let x = 12;
-  let col = 0;
+// 🖼️ IMÁGENES EN GRID (VERSIÓN FINAL PROLIJA + FIX HOJA EN BLANCO)
 
-  if (r.imagenes && r.imagenes.length > 0) {
+const marginLeft = 10;
+const gap = 10;
+const boxWidth = 90;
+const boxHeight = 60;
 
-    for (let img of r.imagenes) {
+let x = marginLeft;
+let col = 0;
 
-      const imgData = await getBase64ImageFromURL(img);
+// 🔴 GUARDAR ALTURA INICIAL (CLAVE)
+const startY = y;
 
-      // 🔥 dimensiones reales
-      const dim = await getImageDimensions(imgData);
+if (r.imagenes && r.imagenes.length > 0) {
 
-      const imgWidth = 90;
-      let imgHeight = (dim.height * imgWidth) / dim.width;
+  for (let i = 0; i < r.imagenes.length; i++) {
 
-      // limitar altura para mantener diseño
-      if (imgHeight > 70) imgHeight = 70;
+    const img = r.imagenes[i];
+    const esUltima = (i === r.imagenes.length - 1);
 
-      // salto de página
-      if (y + imgHeight > 270) {
-        doc.addPage();
-        y = 20;
-        x = 12;
-        col = 0;
-      }
+    const imgData = await getBase64ImageFromURL(img);
+    const imgProps = doc.getImageProperties(imgData);
 
-      // 🧱 marco dinámico
-      doc.setDrawColor(180);
-      doc.rect(x - 2, y - 2, imgWidth + 4, imgHeight + 4);
+    let imgWidth = imgProps.width;
+    let imgHeight = imgProps.height;
 
-      // 🖼 imagen sin deformar
-      doc.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+    // 🧠 DETECTAR TIPO
+    const esHorizontal = imgWidth >= imgHeight;
 
-      col++;
+    // 🧱 FONDO GRIS
+    doc.setFillColor(240, 240, 240);
+    doc.rect(x, y, boxWidth, boxHeight, 'F');
 
-      if (col % 2 === 0) {
-        x = 12;
-        y += imgHeight + 10;
-      } else {
-        x = 110;
-      }
+    // 🧱 BORDE
+    doc.setDrawColor(180);
+    doc.rect(x, y, boxWidth, boxHeight);
+
+    // 🔄 ESCALA (SIEMPRE ENTRA)
+    const ratio = Math.min(boxWidth / imgWidth, boxHeight / imgHeight);
+    imgWidth *= ratio;
+    imgHeight *= ratio;
+
+    // 🎯 CENTRAR
+    const offsetX = (boxWidth - imgWidth) / 2;
+    const offsetY = (boxHeight - imgHeight) / 2;
+
+    doc.addImage(
+      imgData,
+      'JPEG',
+      x + offsetX,
+      y + offsetY,
+      imgWidth,
+      imgHeight
+    );
+
+    col++;
+
+    // 📐 2 POR FILA
+    if (col % 2 === 0) {
+      x = marginLeft;
+      y += 70;
+    } else {
+      x = marginLeft + boxWidth + gap;
+    }
+
+    // 📄 SALTO DE PÁGINA CORREGIDO (SIN HOJA EN BLANCO)
+    if (y + boxHeight > 270 && !esUltima) {
+      doc.addPage();
+
+      y = startY; // 🔥 MISMA ALTURA QUE PRIMERA HOJA
+      x = marginLeft;
+      col = 0;
     }
   }
 }
+}
+
 
 // PDF SIMPLE
 async function generarPDF(id) {
