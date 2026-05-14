@@ -177,9 +177,9 @@ footer {
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
                 📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
-              <button type="button" class="btn btn-sm btn-primary mt-2 btn-paste">
+          <!--<button type="button" class="btn btn-sm btn-primary mt-2 btn-paste">
                 📋 Pegar desde portapapeles
-              </button>
+              </button>-->
             </div>
 
             <div class="progress mt-2">
@@ -210,37 +210,213 @@ footer {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+<script src="app.js" defer></script>
 
 <script>
-
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
 let count = 1;
+let pegando = false;
 
+// =============================
 // 📷 PREVIEW DE IMÁGENES
-document.addEventListener("change", e => {
-  if(e.target.classList.contains("fotos")){
-    const input = e.target;
-    const files = Array.from(input.files);
-    if (files.length > 4) { alert("Máximo 4 imágenes"); input.value = ""; return; }
+// =============================
+function actualizarPreview(input){
+  const files = Array.from(input.files);
 
-    const preview = input.closest(".grupo").querySelector(".preview");
-    preview.innerHTML = "";
+  if (files.length > 4) {
+    alert("Máximo 4 imágenes");
+    input.value = "";
+    return;
+  }
 
-    files.forEach(file=>{
-      const reader = new FileReader();
-      reader.onload = ev=>{
-        preview.innerHTML += `<div class="col-md-3 mb-2">
+  const preview = input.closest(".grupo").querySelector(".preview");
+  preview.innerHTML = "";
+
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      preview.innerHTML += `
+        <div class="col-md-3 mb-2">
           <img src="${ev.target.result}" class="img-fluid rounded border">
         </div>`;
-      };
-      reader.readAsDataURL(file);
-    });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+
+// =============================
+// 🖱️ DRAG & DROP GLOBAL
+// =============================
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+
+
+// =============================
+// 🎯 DRAG SOBRE ZONA
+// =============================
+document.addEventListener("dragenter", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) {
+    zona.classList.add("dragover");
+    zona.textContent = "Soltá la imagen acá 📥";
   }
 });
 
-// ➕ AGREGAR NUEVO GRUPO
+document.addEventListener("dragleave", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) {
+    zona.classList.remove("dragover");
+    zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+  }
+});
+
+
+// =============================
+// 📥 DROP DE IMÁGENES
+// =============================
+document.addEventListener("drop", (e) => {
+
+  const zona = e.target.closest(".paste-zone");
+  if (!zona) return;
+
+  zona.classList.remove("dragover");
+  zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+
+  const grupo = zona.closest(".grupo");
+  const input = grupo.querySelector(".fotos");
+
+  const dt = new DataTransfer();
+
+  // mantener existentes
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+  const files = e.dataTransfer.files;
+
+  for (let i = 0; i < files.length; i++) {
+    if (files[i].type.startsWith("image/")) {
+      dt.items.add(files[i]);
+    }
+  }
+
+  if (dt.files.length > 4) {
+    alert("Máximo 4 imágenes");
+    return;
+  }
+
+  input.files = dt.files;
+  actualizarPreview(input);
+
+});
+
+
+// =============================
+// 🖱️ CLICK EN ZONA
+// =============================
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("paste-zone")) {
+    const zona = e.target;
+
+    zona.textContent = "📋 Ahora presioná CTRL + V para pegar";
+    zona.focus();
+
+    setTimeout(() => {
+      zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+    }, 2000);
+  }
+});
+
+// =============================
+// 📋 PEGAR EN ZONA CON CTRL + v
+// =============================
+document.addEventListener("paste", (e) => {
+
+  if (pegando) return; // 🚫 evita doble ejecución
+  pegando = true;
+
+  setTimeout(() => pegando = false, 100);
+
+  const zona = document.activeElement;
+  if (!zona || !zona.classList.contains("paste-zone")) return;
+
+  e.preventDefault();
+
+  const grupo = zona.closest(".grupo");
+  const input = grupo.querySelector(".fotos");
+
+  const dt = new DataTransfer();
+
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+  const items = e.clipboardData.items;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith("image/")) {
+      const file = items[i].getAsFile();
+      dt.items.add(file);
+    }
+  }
+
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
+// =============================
+// 📋 PEGAR DESDE PORTAPAPELES
+// =============================
+ //document.addEventListener("click", async (e) => {
+
+  //if (!e.target.classList.contains("btn-paste")) return;
+
+ // const grupo = e.target.closest(".grupo");
+ // const input = grupo.querySelector(".fotos");
+
+ // try {
+ //   if (navigator.clipboard && navigator.clipboard.read) {
+
+ //     const items = await navigator.clipboard.read();
+
+ //     const dt = new DataTransfer();
+//      Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+//      let agregado = false;
+
+//      for (const item of items) {
+//        for (const type of item.types) {
+//          if (type.startsWith("image/")) {
+//            const blob = await item.getType(type);
+//            const file = new File([blob], "imagen.png", { type });
+//            dt.items.add(file);
+//            agregado = true;
+//          }
+//        }
+//      }
+
+//     if (agregado) {
+//        if (dt.files.length > 4) {
+//          alert("Máximo 4 imágenes");
+//          return;
+//        }
+
+//        input.files = dt.files;
+//      input.dispatchEvent(new Event("change", { bubbles: true }));
+//        return;
+//      }
+//    }
+//  } catch (err) {
+//    console.log("Clipboard API falló:", err);
+//  }
+
+//  alert("Presioná CTRL + V para pegar la imagen");
+//  input.focus();
+
+//});
+
+
+// =============================
+// ➕ AGREGAR GRUPO
+// =============================
 document.getElementById('addGroup').addEventListener('click', async () => {
   count++;
   const clone = document.querySelector('.grupo').cloneNode(true);
@@ -260,191 +436,6 @@ document.getElementById('addGroup').addEventListener('click', async () => {
   await cargarTareasJerarquicas();
 });
 
-// CARGAR SUBTAREAS DESDE SUPABASE
-async function cargarTareasJerarquicas() {
-  if(window.tareasCache && window.tareasCache.length > 0) return window.tareasCache;
-
-  const { data, error } = await supabaseClient
-    .from('tareas')
-    .select('*')
-    .order('tarea', { ascending: true })
-    .order('subtarea', { ascending: true });
-
-  if(error){ console.error("Error cargando tareas:", error); return []; }
-  window.tareasCache = data;
-
-  document.querySelectorAll('.tarea-select').forEach(select => {
-    select.innerHTML = '';
-    let currentTarea = '';
-    data.forEach(item => {
-      if(item.tarea !== currentTarea){
-        currentTarea = item.tarea;
-        const optGroup = document.createElement('optgroup');
-        optGroup.label = currentTarea;
-        select.appendChild(optGroup);
-        const option = document.createElement('option');
-        option.value = item.subtarea;
-        option.textContent = item.subtarea;
-        optGroup.appendChild(option);
-      } else {
-        const optGroup = select.querySelector(`optgroup[label="${currentTarea}"]`);
-        const option = document.createElement('option');
-        option.value = item.subtarea;
-        option.textContent = item.subtarea;
-        optGroup.appendChild(option);
-      }
-    });
-  });
-  return data;
-}
-
-// 💾 GUARDAR INFORME COMPLETO
-document.getElementById("form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  const { data } = await supabaseClient.auth.getSession();
-  if(!data.session){ alert("Sesión expirada"); return; }
-  const user = data.session.user;
-
-  const grupos = document.querySelectorAll('.grupo');
-  for(let i=0;i<grupos.length;i++){
-    const g = grupos[i];
-    const files = g.querySelector(`[name^="photos_"]`).files;
-    let imagenes = [];
-
-    for(const file of files){
-      const compressed = await compressImage(file);
-      const url = await subirACloudinary(compressed);
-      if(!url){ alert("Error subiendo imagen"); return; }
-      imagenes.push(url);
-    }
-
-    const subtarea = g.querySelector('.tarea-select').value;
-
-    const { error } = await supabaseClient
-      .from('informes')
-      .insert([{
-        fecha: g.querySelector(`[name^="date_"]`).value,
-        tramo: g.querySelector(`[name^="tramo_"]`).value,
-        ruta: g.querySelector(`[name^="ruta_"]`).value,
-        subtramo: g.querySelector(`[name^="subtramo_"]`).value,
-        tarea: subtarea,
-        km: g.querySelector(`[name^="km_"]`).value,
-        sentido: g.querySelector(`[name^="sentido_"]`).value,
-        observacion: g.querySelector(`[name^="observacion_"]`).value,
-        imagenes,
-        user_id: user.id
-      }]);
-    if(error){ alert(error.message); return; }
-  }
-
-  alert("Guardado correctamente ✅");
-  window.location.href = "visor.html";
-});
-
-// 🔧 COMPRESIÓN DE IMÁGENES
-async function compressImage(file){
-  return new Promise(resolve=>{
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = e=> img.src = e.target.result;
-    img.onload = ()=>{
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const scale = 1200/img.width;
-      canvas.width = 1200;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      canvas.toBlob(blob=>{ resolve(new File([blob], file.name, { type: "image/jpeg" })); }, "image/jpeg", 0.7);
-    }
-    reader.readAsDataURL(file);
-  });
-}
-
-// 🖼️ RENDER DE IMÁGENES EXISTENTES
-function renderImagenesActuales(){
-  const cont = document.getElementById("imagenesActuales");
-  cont.innerHTML = "";
-  imagenesExistentes.forEach((img, index)=>{
-    cont.innerHTML += `
-      <div class="col-md-3 mb-2 text-center">
-        <img src="${img}" class="img-fluid rounded border mb-1">
-        <br>
-        <button class="btn btn-sm btn-danger" onclick="eliminarImagen(${index})">Eliminar</button>
-      </div>
-    `;
-  });
-}
-
-function eliminarImagen(index){
-  imagenesExistentes.splice(index,1);
-  renderImagenesActuales();
-}
-
-// ⚡ SUBIR A CLOUDINARY
-async function subirACloudinary(file){
-  return new Promise((resolve,reject)=>{
-    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-    const xhr = new XMLHttpRequest();
-    const fd = new FormData();
-    fd.append("file",file);
-    fd.append("upload_preset",UPLOAD_PRESET);
-    xhr.open("POST",url);
-    xhr.onload = ()=> resolve(JSON.parse(xhr.responseText).secure_url);
-    xhr.onerror = ()=> reject(null);
-    xhr.send(fd);
-  });
-}
-
-
-  // =============================
-// 📋 BOTÓN PEGAR DESDE PORTAPAPELES
-// =============================
-document.addEventListener("click", async (e) => {
-
-  if (!e.target.classList.contains("btn-paste")) return;
-
-  const grupo = e.target.closest(".grupo");
-  const input = grupo.querySelector(".fotos");
-
-  // 🔥 Intento moderno
-  try {
-    if (navigator.clipboard && navigator.clipboard.read) {
-
-      const items = await navigator.clipboard.read();
-
-      const dt = new DataTransfer();
-      Array.from(input.files || []).forEach(f => dt.items.add(f));
-
-      let agregado = false;
-
-      for (const item of items) {
-        for (const type of item.types) {
-          if (type.startsWith("image/")) {
-            const blob = await item.getType(type);
-            const file = new File([blob], "imagen.png", { type });
-            dt.items.add(file);
-            agregado = true;
-          }
-        }
-      }
-
-      if (agregado) {
-        input.files = dt.files;
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        return;
-      }
-    }
-  } catch (err) {
-    console.log("Clipboard API falló:", err);
-  }
-
-  // 🟡 FALLBACK REAL (SIEMPRE FUNCIONA)
-  alert("Ahora presioná CTRL + V para pegar la imagen");
-  
-  input.focus();
-
-});
-  
 </script>
 
 <!--FOOTER-->
