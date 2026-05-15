@@ -1,3 +1,4 @@
+document.addEventListener("DOMContentLoaded", async () => {
 const supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
@@ -72,8 +73,58 @@ async function compressImage(file) {
 // 🌐 CARGAR TAREAS DESDE SUPABASE
 let tareasCache = [];
 
+function llenarSelectsTareas(data) {
+
+  document.querySelectorAll(".tarea-select").forEach((select) => {
+
+    // evitar recargar si ya tiene opciones
+    if (select.options.length > 0) return;
+
+    let currentTarea = "";
+
+    data.forEach((item) => {
+
+      if (item.tarea !== currentTarea) {
+
+        currentTarea = item.tarea;
+
+        const optGroup = document.createElement("optgroup");
+        optGroup.label = currentTarea;
+        select.appendChild(optGroup);
+
+        const option = document.createElement("option");
+        option.value = item.subtarea.toUpperCase();
+        option.textContent = item.subtarea.toUpperCase();
+
+        optGroup.appendChild(option);
+
+      } else {
+
+        const optGroup = select.querySelector(
+          `optgroup[label="${currentTarea}"]`
+        );
+
+        const option = document.createElement("option");
+        option.value = item.subtarea.toUpperCase();
+        option.textContent = item.subtarea.toUpperCase();
+
+        optGroup.appendChild(option);
+      }
+
+    });
+
+  });
+
+}
+
 async function cargarTareasJerarquicas() {
-  if (tareasCache.length > 0) return tareasCache;
+  if (tareasCache.length > 0) {
+
+  // 🔥 rellenar selects nuevos
+  llenarSelectsTareas(tareasCache);
+
+  return tareasCache;
+}
 
   const { data, error } = await supabaseClient
     .from("tareas")
@@ -89,29 +140,7 @@ async function cargarTareasJerarquicas() {
   tareasCache = data;
 
   // Llenar todos los selects existentes
-  document.querySelectorAll(".tarea-select").forEach((select) => {
-    select.innerHTML = "";
-    let currentTarea = "";
-    data.forEach((item) => {
-      if (item.tarea !== currentTarea) {
-        currentTarea = item.tarea;
-        const optGroup = document.createElement("optgroup");
-        optGroup.label = currentTarea;
-        select.appendChild(optGroup);
-
-        const option = document.createElement("option");
-        option.value = item.subtarea.toUpperCase();
-        option.textContent = item.subtarea.toUpperCase();
-        optGroup.appendChild(option);
-      } else {
-        const optGroup = select.querySelector(`optgroup[label="${currentTarea}"]`);
-        const option = document.createElement("option");
-        option.value = item.subtarea.toUpperCase();
-        option.textContent = item.subtarea.toUpperCase();
-        optGroup.appendChild(option);
-      }
-    });
-  });
+  llenarSelectsTareas(data);
 
   return tareasCache;
 }
@@ -280,6 +309,6 @@ function eliminarImagen(index) {
 }
 
 // 🔹 INICIALIZAR TAREAS EN SELECT AL CARGAR
-document.addEventListener("DOMContentLoaded", async () => {
-  await cargarTareasJerarquicas();
+
+await cargarTareasJerarquicas();
 });
