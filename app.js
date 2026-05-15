@@ -200,6 +200,9 @@ let imagenesExistentes = [];
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
+  mostrarCarga();
+  actualizarBarra(0);
+
   const { data } = await supabaseClient.auth.getSession();
   if (!data.session) {
     alert("Sesión expirada");
@@ -208,19 +211,52 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   const user = data.session.user;
 
   const grupos = document.querySelectorAll(".grupo");
+  let totalImagenes = 0;
+
+grupos.forEach(g => {
+  totalImagenes += g.querySelector(`[name^="photos_"]`).files.length;
+});
+
+let procesadas = 0;
 
   for (let i = 0; i < grupos.length; i++) {
     const g = grupos[i];
 
     let imagenes = [...imagenesExistentes];
 
-    const files = g.querySelector(`[name^="photos_"]`).files;
-    for (let file of files) {
-      const compressed = await compressImage(file);
-      const url = await subirACloudinary(compressed);
-      if (!url) { alert("Error subiendo imagen"); return; }
-      imagenes.push(url);
-    }
+  const files = g.querySelector(`[name^="photos_"]`).files;
+
+for (let file of files) {
+
+  const compressed = await compressImage(file);
+
+  const url = await subirACloudinary(compressed, (progress) => {
+
+    // progreso REAL
+    const porcentajeTotal = Math.round(
+      ((procesadas + progress / 100) / totalImagenes) * 100
+    );
+
+    actualizarBarra(porcentajeTotal);
+  });
+
+  if (!url) {
+    alert("Error subiendo imagen");
+    ocultarCarga();
+    return;
+  }
+
+  imagenes.push(url);
+
+  // 🔥 aumentar contador
+  procesadas++;
+
+  const porcentaje = Math.round(
+    (procesadas / totalImagenes) * 100
+  );
+
+  actualizarBarra(porcentaje);
+}
 
     const subtarea = g.querySelector(".tarea-select").value;
 
@@ -253,7 +289,12 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   }
 
   alert("Guardado correctamente ✅");
+  actualizarBarra(100);
+
+setTimeout(() => {
+  ocultarCarga();
   window.location.href = "visor.html";
+}, 800);
 });
 
 // 🔹 CARGAR EDICIÓN
@@ -311,4 +352,23 @@ function eliminarImagen(index) {
 // 🔹 INICIALIZAR TAREAS EN SELECT AL CARGAR
 
 await cargarTareasJerarquicas();
+
+// =============================
+// 🔥 LOADING OVERLAY
+// =============================
+function mostrarCarga() {
+  document.getElementById("loadingOverlay").style.display = "flex";
+}
+
+function ocultarCarga() {
+  document.getElementById("loadingOverlay").style.display = "none";
+}
+
+function actualizarBarra(valor) {
+  const barra = document.getElementById("barraCarga");
+
+  barra.style.width = valor + "%";
+  barra.innerText = valor + "%";
+}
+
 });
