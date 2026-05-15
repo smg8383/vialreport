@@ -334,18 +334,23 @@ function renderImagenesActuales() {
   cont.innerHTML = "";
 
   imagenesExistentes.forEach((img, index) => {
-    cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
-      <img src="${img}" class="img-fluid rounded border mb-1">
-      <br>
-      <button class="btn btn-sm btn-danger" onclick="eliminarImagen(${index})">
-        Eliminar
-      </button>
-    </div>`;
+  cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
+  <img src="${img}" class="img-fluid rounded border mb-1">
+  <br>
+  <button type="button"
+          class="btn btn-sm btn-danger"
+          onclick="eliminarImagen(${index})">
+    Eliminar
+  </button>
+</div>`;
   });
 }
 
-function eliminarImagen(index) {
+window.eliminarImagen = function(index) {
   imagenesExistentes.splice(index, 1);
+
+  document.querySelector(".fotos").value = "";
+
   renderImagenesActuales();
 }
 
