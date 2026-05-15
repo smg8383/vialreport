@@ -448,5 +448,38 @@ document.getElementById('addGroup').addEventListener('click', async () => {
   document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 
+<!-- OVERLAY GUARDANDO -->
+<div id="loadingOverlay" 
+     style="display:none;
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:rgba(0,0,0,0.7);
+            z-index:99999;
+            justify-content:center;
+            align-items:center;
+            flex-direction:column;
+            color:white;">
+
+  <div class="text-center" style="width:350px;">
+    
+    <div class="spinner-border text-light mb-3" role="status"></div>
+
+    <h4 class="mb-3">Guardando informe...</h4>
+
+    <div class="progress" style="height:25px;">
+      <div id="barraCarga"
+           class="progress-bar progress-bar-striped progress-bar-animated"
+           role="progressbar"
+           style="width:0%">
+        0%
+      </div>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>
