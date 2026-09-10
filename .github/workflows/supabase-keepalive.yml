@@ -1,0 +1,33 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Consultar Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          echo "Consultando Supabase..."
+
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/informes?select=*&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          echo "Código HTTP recibido: ${RESPONSE}"
+
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+            echo "Supabase respondió correctamente."
+          else
+            echo "Error al consultar Supabase."
+            exit 1
+          fi
