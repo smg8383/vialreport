@@ -89,7 +89,7 @@
 
 <!-- Título principal -->
 <div class="container mb-4 text-center">
-  <h1 class="text-primary">Visor de  Informes</h1>
+  <h1 class="text-primary">Visor de Informes</h1>
 </div>
 
 <div class="container">
@@ -97,9 +97,18 @@
 
   <a href="index.html" class="btn btn-secondary mb-3">← Volver</a>
 
-  <button class="btn btn-danger mb-3" onclick="generarPDFMultiple()">
-    📄 Generar PDF seleccionados
-  </button>
+  <div class="card shadow-sm mb-3 bg-light">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <button class="btn btn-danger" onclick="generarPDFMultiple()">
+        📄 Generar PDF seleccionados
+      </button>
+
+      <div class="form-check m-0">
+        <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
+        <label class="form-check-label fw-bold" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
+      </div>
+    </div>
+  </div>
 
   <!-- Filtros -->
   <div class="card shadow-sm mb-3">
@@ -118,10 +127,12 @@
           </div>
 
           <div class="col-md-3">
-            <label class="form-label small text-muted">Tramo</label>
-            <select id="filterTramo" class="form-select">
-              <option value="">Todos</option>
-              <option value="III">III</option>
+            <label class="form-label small text-muted">Empresa</label>
+            <select id="filterEmpresa" class="form-select">
+              <option value="">Todas</option>
+              <option value="JCR SA">JCR SA</option>
+              <option value="GUERECHET SA">GUERECHET SA</option>
+              <option value="VIAL PLUS SA">VIAL PLUS SA</option>
             </select>
           </div>
 
@@ -181,7 +192,7 @@ async function cargar() {
 
   // tomar valores de filtros
   const fecha = document.getElementById("filterFecha").value;
-  const tramo = document.getElementById("filterTramo").value;
+  const empresa = document.getElementById("filterEmpresa").value;
   const ruta = document.getElementById("filterRuta").value;
   const subtramo = document.getElementById("filterSubtramo").value;
   const subtarea = document.getElementById("filterSubtarea").value;
@@ -189,7 +200,7 @@ async function cargar() {
   let query = supabaseClient.from("informes").select("*").eq("user_id", user.id);
 
   if (fecha) query = query.eq("fecha", fecha);
-  if (tramo) query = query.eq("tramo", tramo);
+  if (empresa) query = query.eq("empresa", empresa);
   if (ruta) query = query.eq("ruta", ruta);
   if (subtramo) query = query.eq("subtramo", subtramo);
   if (subtarea) query = query.eq("tarea", subtarea);
@@ -221,18 +232,26 @@ function renderInformes(data) {
             <input type="checkbox" class="form-check-input seleccionar" value="${r.id}">
             <label>Seleccionar</label>
           </div>
-          <h5 class="text-primary">TRAMO ${r.tramo} - ${r.fecha}</h5>
+          <h5 class="text-primary">${r.empresa || 'EMPRESA'} - ${r.fecha}</h5>
+          <p><b>Empresa:</b> ${r.empresa || '-'}</p>
           <p><b>Ruta:</b> ${r.ruta}</p>
           <p><b>Subtramo:</b> ${r.subtramo}</p>
           <p><b>Tarea:</b> ${r.tarea}</p>
           <p><b>Km:</b> ${r.km}</p>
           <p><b>Sentido:</b> ${r.sentido}</p>
           <p><b>Observación:</b> ${r.observacion}</p>
-          <div class="row">${imagenesHTML}</div>
-          <button class="btn btn-danger mt-2" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
-          <button class="btn btn-warning mt-2" onclick="editarInforme(${r.id})">✏️ Editar</button>
+          <div class="row mb-2">${imagenesHTML}</div>
+
+          <!-- Checkbox individual para mostrar u ocultar la observación -->
+          <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="obs_${r.id}" checked>
+            <label class="form-check-label small" for="obs_${r.id}">Incluir observación en este PDF</label>
+          </div>
+
+          <button class="btn btn-danger mt-1" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
+          <button class="btn btn-warning mt-1" onclick="editarInforme(${r.id})">✏️ Editar</button>
         </div>
-         <div class="mb-5"></div> <!-- margen inferior -->
+         <div class="mb-5"></div>
       </div>`;
   });
 }
@@ -263,10 +282,10 @@ async function obtenerLogo() {
   return data?.logo || null;
 }
 
-// 📄 GENERAR PDF
-async function dibujarInforme(doc, r, logoBase64) {
-doc.setDrawColor(160);
-doc.setLineWidth(0.3);
+// 📄 GENERAR PDF (Con parámetro para mostrar/ocultar observación)
+async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
+  doc.setDrawColor(160);
+  doc.setLineWidth(0.3);
 
   let y = 10;
 
@@ -274,22 +293,16 @@ doc.setLineWidth(0.3);
   doc.setFillColor(230, 230, 230);
   doc.rect(10, y, 190, 25, 'FD');
 
-  
-
   // 🟦 LOGO IZQUIERDA
   if (logoBase64) {
     const imgProps = doc.getImageProperties(logoBase64);
-
     const maxWidth = 30;
     const maxHeight = 18;
-
     let w = imgProps.width;
     let h = imgProps.height;
-
     const scale = Math.min(maxWidth / w, maxHeight / h);
     w *= scale;
     h *= scale;
-
     doc.addImage(logoBase64, 'PNG', 12, y + 3, w, h);
   }
 
@@ -300,9 +313,10 @@ doc.setLineWidth(0.3);
 
   y += 30;
 
-  // 🟦 CAJA PRINCIPAL (tipo card)
+  // 🟦 CAJA PRINCIPAL (DATOS) - Ajuste automático de altura
+  let alturaCaja = mostrarObservacion ? 60 : 35;
   doc.setDrawColor(180);
-  doc.rect(10, y, 190, 60);
+  doc.rect(10, y, 190, alturaCaja);
 
   // 🟦 TITULO DE SECCIÓN
   doc.setFillColor(240, 240, 240);
@@ -313,7 +327,6 @@ doc.setLineWidth(0.3);
   doc.text("DATOS DEL INFORME", 12, y + 6);
 
   y += 12;
-
   doc.setFontSize(10);
 
   const campo = (label, value, x, y) => {
@@ -325,7 +338,7 @@ doc.setLineWidth(0.3);
 
   // 🔹 FILAS
   campo("Fecha:", r.fecha, 12, y);
-  campo("Tramo:", r.tramo, 130, y);
+  campo("Empresa:", r.empresa, 130, y);
 
   y += 6;
   campo("Ruta:", r.ruta, 12, y);
@@ -334,28 +347,30 @@ doc.setLineWidth(0.3);
   y += 6;
   campo("Tarea:", r.tarea, 12, y);
  
-
   y += 6;
   campo("Sentido:", r.sentido, 12, y);
   campo("Km:", r.km, 130, y);
 
   y += 8;
 
-  // 🟦 OBSERVACIÓN BOX
-  doc.setFont(undefined, "bold");
-  doc.text("Observación:", 12, y);
+  // 🟦 OBSERVACIÓN BOX (Condicional)
+  if (mostrarObservacion) {
+    doc.setFont(undefined, "bold");
+    doc.text("Observación:", 12, y);
 
-  y += 4;
+    y += 4;
+    const obs = doc.splitTextToSize(r.observacion || "-", 180);
 
-  const obs = doc.splitTextToSize(r.observacion || "-", 180);
+    doc.setDrawColor(200);
+    doc.rect(12, y, 186, obs.length * 5 + 4);
 
-  doc.setDrawColor(200);
-  doc.rect(12, y, 186, obs.length * 5 + 4);
+    doc.setFont(undefined, "normal");
+    doc.text(obs, 14, y + 4);
 
-  doc.setFont(undefined, "normal");
-  doc.text(obs, 14, y + 4);
-
-  y += obs.length * 5 + 10;
+    y += obs.length * 5 + 10;
+  } else {
+    y += 2;
+  }
 
   // 🟦 SECCIÓN IMÁGENES
   doc.setFillColor(240, 240, 240);
@@ -366,92 +381,73 @@ doc.setLineWidth(0.3);
 
   y += 12;
 
-// 🖼️ IMÁGENES EN GRID (VERSIÓN FINAL PROLIJA + FIX HOJA EN BLANCO)
+  // 🖼️ IMÁGENES EN GRID
+  const marginLeft = 10;
+  const gap = 10;
+  const boxWidth = 90;
+  const boxHeight = 60;
 
-const marginLeft = 10;
-const gap = 10;
-const boxWidth = 90;
-const boxHeight = 60;
+  let x = marginLeft;
+  let col = 0;
+  const startY = y;
 
-let x = marginLeft;
-let col = 0;
+  if (r.imagenes && r.imagenes.length > 0) {
+    for (let i = 0; i < r.imagenes.length; i++) {
+      const img = r.imagenes[i];
+      const esUltima = (i === r.imagenes.length - 1);
 
-// 🔴 GUARDAR ALTURA INICIAL (CLAVE)
-const startY = y;
+      const imgData = await getBase64ImageFromURL(img);
+      const imgProps = doc.getImageProperties(imgData);
 
-if (r.imagenes && r.imagenes.length > 0) {
+      let imgWidth = imgProps.width;
+      let imgHeight = imgProps.height;
 
-  for (let i = 0; i < r.imagenes.length; i++) {
+      doc.setFillColor(240, 240, 240);
+      doc.rect(x, y, boxWidth, boxHeight, 'F');
 
-    const img = r.imagenes[i];
-    const esUltima = (i === r.imagenes.length - 1);
+      doc.setDrawColor(180);
+      doc.rect(x, y, boxWidth, boxHeight);
 
-    const imgData = await getBase64ImageFromURL(img);
-    const imgProps = doc.getImageProperties(imgData);
+      const ratio = Math.min(boxWidth / imgWidth, boxHeight / imgHeight);
+      imgWidth *= ratio;
+      imgHeight *= ratio;
 
-    let imgWidth = imgProps.width;
-    let imgHeight = imgProps.height;
+      const offsetX = (boxWidth - imgWidth) / 2;
+      const offsetY = (boxHeight - imgHeight) / 2;
 
-    // 🧠 DETECTAR TIPO
-    const esHorizontal = imgWidth >= imgHeight;
+      doc.addImage(imgData, 'JPEG', x + offsetX, y + offsetY, imgWidth, imgHeight);
 
-    // 🧱 FONDO GRIS
-    doc.setFillColor(240, 240, 240);
-    doc.rect(x, y, boxWidth, boxHeight, 'F');
+      col++;
 
-    // 🧱 BORDE
-    doc.setDrawColor(180);
-    doc.rect(x, y, boxWidth, boxHeight);
+      if (col % 2 === 0) {
+        x = marginLeft;
+        y += 70;
+      } else {
+        x = marginLeft + boxWidth + gap;
+      }
 
-    // 🔄 ESCALA (SIEMPRE ENTRA)
-    const ratio = Math.min(boxWidth / imgWidth, boxHeight / imgHeight);
-    imgWidth *= ratio;
-    imgHeight *= ratio;
-
-    // 🎯 CENTRAR
-    const offsetX = (boxWidth - imgWidth) / 2;
-    const offsetY = (boxHeight - imgHeight) / 2;
-
-    doc.addImage(
-      imgData,
-      'JPEG',
-      x + offsetX,
-      y + offsetY,
-      imgWidth,
-      imgHeight
-    );
-
-    col++;
-
-    // 📐 2 POR FILA
-    if (col % 2 === 0) {
-      x = marginLeft;
-      y += 70;
-    } else {
-      x = marginLeft + boxWidth + gap;
-    }
-
-    // 📄 SALTO DE PÁGINA CORREGIDO (SIN HOJA EN BLANCO)
-    if (y + boxHeight > 270 && !esUltima) {
-      doc.addPage();
-
-      y = startY; // 🔥 MISMA ALTURA QUE PRIMERA HOJA
-      x = marginLeft;
-      col = 0;
+      if (y + boxHeight > 270 && !esUltima) {
+        doc.addPage();
+        y = startY; 
+        x = marginLeft;
+        col = 0;
+      }
     }
   }
-}
 }
 
 
 // PDF SIMPLE
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
+  const mostrarObs = document.getElementById(`obs_${id}`).checked;
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const logoUrl = await obtenerLogo();
   const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
-  await dibujarInforme(doc, r, logoBase64);
+  
+  await dibujarInforme(doc, r, logoBase64, mostrarObs);
   doc.save(`informe_${r.fecha}.pdf`);
 }
 
@@ -459,17 +455,23 @@ async function generarPDF(id) {
 async function generarPDFMultiple() {
   const checkboxes = document.querySelectorAll(".seleccionar:checked");
   if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
+  
+  const mostrarObsGlobal = document.getElementById("chkGlobalObservacion").checked;
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   let first = true;
+  
   for (const chk of checkboxes) {
     const id = chk.value;
     const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
     if (!r) continue;
     if (!first) doc.addPage();
+    
     const logoUrl = await obtenerLogo();
     const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
-    await dibujarInforme(doc, r, logoBase64);
+    
+    await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
     first = false;
   }
   doc.save("informe_multiple.pdf");
@@ -494,7 +496,7 @@ async function cargarFiltrosSubtareas() {
 }
 
 // EVENTOS DE FILTROS
-document.querySelectorAll("#filterFecha, #filterTramo, #filterRuta, #filterSubtramo, #filterSubtarea")
+document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSubtramo, #filterSubtarea")
   .forEach(el => el.addEventListener("change", cargar));
 
 // CARGAR INFORMES INICIALES
