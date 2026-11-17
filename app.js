@@ -33,8 +33,12 @@ function subirACloudinary(file, onProgress) {
     });
 
     xhr.onload = () => {
-      const res = JSON.parse(xhr.responseText);
-      resolve(res.secure_url);
+      try {
+        const res = JSON.parse(xhr.responseText);
+        resolve(res.secure_url);
+      } catch (err) {
+        reject(null);
+      }
     };
 
     xhr.onerror = () => reject(null);
@@ -74,18 +78,13 @@ async function compressImage(file) {
 let tareasCache = [];
 
 function llenarSelectsTareas(data) {
-
   document.querySelectorAll(".tarea-select").forEach((select) => {
-
-    // evitar recargar si ya tiene opciones
     if (select.options.length > 0) return;
 
     let currentTarea = "";
 
     data.forEach((item) => {
-
       if (item.tarea !== currentTarea) {
-
         currentTarea = item.tarea;
 
         const optGroup = document.createElement("optgroup");
@@ -97,9 +96,7 @@ function llenarSelectsTareas(data) {
         option.textContent = item.subtarea.toUpperCase();
 
         optGroup.appendChild(option);
-
       } else {
-
         const optGroup = select.querySelector(
           `optgroup[label="${currentTarea}"]`
         );
@@ -110,21 +107,15 @@ function llenarSelectsTareas(data) {
 
         optGroup.appendChild(option);
       }
-
     });
-
   });
-
 }
 
 async function cargarTareasJerarquicas() {
   if (tareasCache.length > 0) {
-
-  // 🔥 rellenar selects nuevos
-  llenarSelectsTareas(tareasCache);
-
-  return tareasCache;
-}
+    llenarSelectsTareas(tareasCache);
+    return tareasCache;
+  }
 
   const { data, error } = await supabaseClient
     .from("tareas")
@@ -138,10 +129,7 @@ async function cargarTareasJerarquicas() {
   }
 
   tareasCache = data;
-
-  // Llenar todos los selects existentes
   llenarSelectsTareas(data);
-
   return tareasCache;
 }
 
@@ -206,6 +194,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   const { data } = await supabaseClient.auth.getSession();
   if (!data.session) {
     alert("Sesión expirada");
+    ocultarCarga();
     return;
   }
   const user = data.session.user;
@@ -213,88 +202,97 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   const grupos = document.querySelectorAll(".grupo");
   let totalImagenes = 0;
 
-grupos.forEach(g => {
-  totalImagenes += g.querySelector(`[name^="photos_"]`).files.length;
-});
-
-let procesadas = 0;
-
-  for (let i = 0; i < grupos.length; i++) {
-    const g = grupos[i];
-
-    let imagenes = [...imagenesExistentes];
-
-  const files = g.querySelector(`[name^="photos_"]`).files;
-
-for (let file of files) {
-
-  const compressed = await compressImage(file);
-
-  const url = await subirACloudinary(compressed, (progress) => {
-
-    // progreso REAL
-    const porcentajeTotal = Math.round(
-      ((procesadas + progress / 100) / totalImagenes) * 100
-    );
-
-    actualizarBarra(porcentajeTotal);
+  grupos.forEach(g => {
+    totalImagenes += g.querySelector(`[name^="photos_"]`).files.length;
   });
 
-  if (!url) {
-    alert("Error subiendo imagen");
-    ocultarCarga();
-    return;
-  }
+  let procesadas = 0;
 
-  imagenes.push(url);
+  try {
+    for (let i = 0; i < grupos.length; i++) {
+      const g = grupos[i];
 
-  // 🔥 aumentar contador
-  procesadas++;
+      let imagenes = [...imagenesExistentes];
+      const files = g.querySelector(`[name^="photos_"]`).files;
 
-  const porcentaje = Math.round(
-    (procesadas / totalImagenes) * 100
-  );
+      for (let file of files) {
+        const compressed = await compressImage(file);
 
-  actualizarBarra(porcentaje);
-}
+        const url = await subirACloudinary(compressed, (progress) => {
+          const porcentajeTotal = totalImagenes > 0 ? Math.round(
+            ((procesadas + progress / 100) / totalImagenes) * 100
+          ) : 100;
 
-    const subtarea = g.querySelector(".tarea-select").value;
+          actualizarBarra(porcentajeTotal);
+        });
 
-    const dataToInsert = {
-      fecha: g.querySelector(`[name^="date_"]`).value,
-      tramo: g.querySelector(`[name^="tramo_"]`).value,
-      ruta: g.querySelector(`[name^="ruta_"]`).value,
-      subtramo: g.querySelector(`[name^="subtramo_"]`).value,
-      tarea: subtarea,
-      km: g.querySelector(`[name^="km_"]`).value,
-      sentido: g.querySelector(`[name^="sentido_"]`).value,
-      observacion: g.querySelector(`[name^="observacion_"]`).value,
-      imagenes,
-      user_id: user.id
-    };
+        if (!url) {
+          alert("Error subiendo imagen");
+          ocultarCarga();
+          return;
+        }
 
-    if (editandoId) {
-      const { error } = await supabaseClient
-        .from("informes")
-        .update(dataToInsert)
-        .eq("id", editandoId);
-      if (error) { alert(error.message); return; }
-      localStorage.removeItem("editandoInforme");
-    } else {
-      const { error } = await supabaseClient
-        .from("informes")
-        .insert([dataToInsert]);
-      if (error) { alert(error.message); return; }
+        imagenes.push(url);
+        procesadas++;
+
+        const porcentaje = totalImagenes > 0 ? Math.round(
+          (procesadas / totalImagenes) * 100
+        ) : 100;
+
+        actualizarBarra(porcentaje);
+      }
+
+      const subtarea = g.querySelector(".tarea-select").value;
+
+      const dataToInsert = {
+        fecha: g.querySelector(`[name^="date_"]`).value,
+        empresa: g.querySelector(`[name^="empresa_"]`).value, // ✅ Corregido a empresa
+        ruta: g.querySelector(`[name^="ruta_"]`).value,
+        subtramo: g.querySelector(`[name^="subtramo_"]`).value,
+        tarea: subtarea,
+        km: g.querySelector(`[name^="km_"]`).value,
+        sentido: g.querySelector(`[name^="sentido_"]`).value,
+        observacion: g.querySelector(`[name^="observacion_"]`).value,
+        imagenes,
+        user_id: user.id
+      };
+
+      if (editandoId) {
+        const { error } = await supabaseClient
+          .from("informes")
+          .update(dataToInsert)
+          .eq("id", editandoId);
+        if (error) { 
+          alert(error.message); 
+          ocultarCarga(); 
+          return; 
+        }
+        localStorage.removeItem("editandoInforme");
+      } else {
+        const { error } = await supabaseClient
+          .from("informes")
+          .insert([dataToInsert]);
+        if (error) { 
+          alert(error.message); 
+          ocultarCarga(); 
+          return; 
+        }
+      }
     }
+
+    actualizarBarra(100);
+    alert("Guardado correctamente ✅");
+
+    setTimeout(() => {
+      ocultarCarga();
+      window.location.href = "visor.html";
+    }, 800);
+
+  } catch (err) {
+    console.error(err);
+    alert("Ocurrió un error inesperado al guardar.");
+    ocultarCarga();
   }
-
-  alert("Guardado correctamente ✅");
-  actualizarBarra(100);
-
-setTimeout(() => {
-  ocultarCarga();
-  window.location.href = "visor.html";
-}, 800);
 });
 
 // 🔹 CARGAR EDICIÓN
@@ -302,6 +300,7 @@ async function cargarEdicion() {
   if (!editandoId) return;
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) return;
   const user = sessionData.session.user;
 
   const { data, error } = await supabaseClient
@@ -315,7 +314,7 @@ async function cargarEdicion() {
 
   document.querySelector(`[name=tarea_1]`).value = data.tarea;
   document.querySelector(`[name^="date_"]`).value = data.fecha || "";
-  document.querySelector(`[name^="tramo_"]`).value = data.tramo || "";
+  document.querySelector(`[name^="empresa_"]`).value = data.empresa || ""; // ✅ Corregido a empresa
   document.querySelector(`[name^="ruta_"]`).value = data.ruta || "";
   document.querySelector(`[name^="subtramo_"]`).value = data.subtramo || "";
   document.querySelector(`[name^="km_"]`).value = data.km || "";
@@ -334,28 +333,25 @@ function renderImagenesActuales() {
   cont.innerHTML = "";
 
   imagenesExistentes.forEach((img, index) => {
-  cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
-  <img src="${img}" class="img-fluid rounded border mb-1">
-  <br>
-  <button type="button"
-          class="btn btn-sm btn-danger"
-          onclick="eliminarImagen(${index})">
-    Eliminar
-  </button>
-</div>`;
+    cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
+      <img src="${img}" class="img-fluid rounded border mb-1">
+      <br>
+      <button type="button"
+              class="btn btn-sm btn-danger"
+              onclick="eliminarImagen(${index})">
+        Eliminar
+      </button>
+    </div>`;
   });
 }
 
 window.eliminarImagen = function(index) {
   imagenesExistentes.splice(index, 1);
-
   document.querySelector(".fotos").value = "";
-
   renderImagenesActuales();
 }
 
 // 🔹 INICIALIZAR TAREAS EN SELECT AL CARGAR
-
 await cargarTareasJerarquicas();
 
 // =============================
@@ -371,9 +367,10 @@ function ocultarCarga() {
 
 function actualizarBarra(valor) {
   const barra = document.getElementById("barraCarga");
-
-  barra.style.width = valor + "%";
-  barra.innerText = valor + "%";
+  if (barra) {
+    barra.style.width = valor + "%";
+    barra.innerText = valor + "%";
+  }
 }
 
 });
