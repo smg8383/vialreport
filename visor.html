@@ -250,6 +250,7 @@ function renderInformes(data) {
 
           <button class="btn btn-danger mt-1" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
           <button class="btn btn-warning mt-1" onclick="editarInforme(${r.id})">✏️ Editar</button>
+          <button class="btn btn-outline-danger mt-1" onclick="eliminarInforme(${r.id})">🗑️ Eliminar</button>
         </div>
          <div class="mb-5"></div>
       </div>`;
@@ -481,6 +482,25 @@ async function generarPDFMultiple() {
 function editarInforme(id){
   localStorage.setItem("editandoInforme", id);
   window.location.href = "index.html";
+}
+
+// 🗑️ ELIMINAR INFORME
+async function eliminarInforme(id) {
+  if (!confirm("¿Estás seguro de que querés eliminar este informe?")) return;
+
+  const { error } = await supabaseClient
+    .from("informes")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al eliminar:", error);
+    alert("No se pudo eliminar el registro: " + error.message);
+    return;
+  }
+
+  alert("Informe eliminado correctamente 🗑️");
+  cargar(); // Recarga la lista automáticamente
 }
 
 // CARGAR FILTROS SUBTAREAS
