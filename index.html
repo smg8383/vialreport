@@ -186,12 +186,12 @@ footer {
               <input type="text" name="observacion_1" class="form-control form-control-lg" placeholder="Ingrese observación">
             </div>
 
-            <!-- SECCIÓN DE FOTOS CON BOTONES DE GALERÍA Y CÁMARA NATIVA -->
+            <!-- SECCIÓN DE FOTOS UNIFICADA -->
             <div class="col-md-12">
               <label>Fotos (máx 4)</label>
               
               <div class="row g-2 mb-2">
-                <!-- Botón 1: Galería / Archivos -->
+                <!-- Botón 1: Galería / Múltiples archivos -->
                 <div class="col-6">
                   <label class="btn btn-outline-primary w-100 mb-0 py-2" style="cursor: pointer;">
                     <i class="bi bi-image"></i> Galería
@@ -199,17 +199,17 @@ footer {
                   </label>
                 </div>
 
-                <!-- Botón 2: Cámara directa nativa (Ideal iPhone / PWA) -->
+                <!-- Botón 2: Cámara directa que inyecta directo al input principal "fotos" -->
                 <div class="col-6">
                   <label class="btn btn-dark w-100 mb-0 py-2 text-white" style="cursor: pointer;">
                     <i class="bi bi-camera-fill"></i> Cámara
-                    <input type="file" class="camara-directa d-none" accept="image/*" capture="environment">
+                    <input type="file" class="camara-directa d-none" accept="image/*" capture="environment" onchange="agregarFotoCamara(this)">
                   </label>
                 </div>
               </div>
 
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
-                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
+                📷 Pegá imágenes здесь (Ctrl+V) o arrastralas
               </div>
             </div>
 
@@ -274,31 +274,33 @@ function actualizarPreview(input){
 }
 
 // =============================
-// 📸 CAPTURA DIRECTA CÁMARA MÓVIL
+// 📸 CAPTURA DIRECTA DE CÁMARA (UNIFICADA)
 // =============================
-document.addEventListener("change", (e) => {
-  if (e.target.classList.contains("camara-directa")) {
-    const inputCamara = e.target;
-    const grupo = inputCamara.closest(".grupo");
-    const inputPrincipal = grupo.querySelector(".fotos");
+function agregarFotoCamara(inputCamara) {
+  if (inputCamara.files.length === 0) return;
 
-    if (inputCamara.files.length > 0) {
-      const dt = new DataTransfer();
-      Array.from(inputPrincipal.files || []).forEach(f => dt.items.add(f));
-      Array.from(inputCamara.files).forEach(f => dt.items.add(f));
+  const grupo = inputCamara.closest(".grupo");
+  const inputPrincipal = grupo.querySelector(".fotos");
 
-      if (dt.files.length > 4) {
-        alert("Máximo 4 imágenes en total por tarea.");
-        inputCamara.value = "";
-        return;
-      }
+  const dt = new DataTransfer();
+  // Mantener las fotos que ya estaban seleccionadas
+  Array.from(inputPrincipal.files || []).forEach(f => dt.items.add(f));
+  // Agregar la nueva foto sacada con la cámara
+  Array.from(inputCamara.files).forEach(f => dt.items.add(f));
 
-      inputPrincipal.files = dt.files;
-      actualizarPreview(inputPrincipal);
-      inputCamara.value = "";
-    }
+  if (dt.files.length > 4) {
+    alert("Máximo 4 imágenes en total por tarea.");
+    inputCamara.value = "";
+    return;
   }
 
+  inputPrincipal.files = dt.files;
+  actualizarPreview(inputPrincipal);
+  inputCamara.value = ""; // Limpiar para permitir sacar otra foto si se desea
+}
+
+// Escuchar cambios tradicionales de la galería
+document.addEventListener("change", (e) => {
   if (e.target.classList.contains("fotos")) {
     actualizarPreview(e.target);
   }
@@ -381,3 +383,74 @@ document.addEventListener("click", (e) => {
 // =============================
 // 📋 PEGAR EN ZONA CON CTRL + V
 // =============================
+document.addEventListener("paste", (e) => {
+  if (pegando) return;
+  pegando = true;
+  setTimeout(() => pegando = false, 100);
+
+  const zona = document.activeElement;
+  if (!zona || !zona.classList.contains("paste-zone")) return;
+
+  e.preventDefault();
+
+  const grupo = zona.closest(".grupo");
+  const input = grupo.querySelector(".fotos");
+
+  const dt = new DataTransfer();
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+  const items = e.clipboardData.items;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith("image/")) {
+      const file = items[i].getAsFile();
+      dt.items.add(file);
+    }
+  }
+
+  input.files = dt.files;
+  actualizarPreview(input);
+});
+</script>
+
+<!--FOOTER-->
+<footer class="text-center">
+  © <span id="year"></span> - VIAL REPORT  
+  <br>
+  Powered by <b>SMG DESARROLLOS</b>
+</footer>
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
+</script>
+
+<!-- OVERLAY GUARDANDO -->
+<div id="loadingOverlay" 
+     style="display:none;
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:rgba(0,0,0,0.7);
+            z-index:99999;
+            justify-content:center;
+            align-items:center;
+            flex-direction:column;
+            color:white;">
+
+  <div class="text-center" style="width:350px;">
+    <div class="spinner-border text-light mb-3" role="status"></div>
+    <h4 class="mb-3">Guardando informe...</h4>
+    <div class="progress" style="height:25px;">
+      <div id="barraCarga"
+           class="progress-bar progress-bar-striped progress-bar-animated"
+           role="progressbar"
+           style="width:0%">
+        0%
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
