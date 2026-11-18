@@ -12,6 +12,9 @@
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+<!-- ExifReader para leer GPS de las fotos automáticamente -->
+<script src="https://cdn.jsdelivr.net/npm/exifreader@4.23.0/dist/exif-reader.min.js"></script>
+
 <style>
 :root {
   --primary-color: #0d6efd;
@@ -25,7 +28,6 @@ body {
   color: #333;
 }
 
-/* Navbar Moderna */
 .navbar {
   background: #ffffff !important;
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
@@ -35,12 +37,10 @@ body {
   object-fit: contain;
 }
 
-/* Tarjetas de Tareas */
 .card.grupo {
   border: none;
   border-radius: var(--card-radius);
   box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
   margin-bottom: 1.5rem;
 }
@@ -52,7 +52,6 @@ body {
   border-bottom: none;
 }
 
-/* Contenedor del Mapa */
 .mapa-tarea {
   height: 280px !important;
   width: 100% !important;
@@ -61,7 +60,6 @@ body {
   z-index: 1;
 }
 
-/* Zona de Fotos y Drag & Drop */
 .paste-zone {
   border: 2px dashed #cbd5e1;
   border-radius: 10px;
@@ -77,14 +75,7 @@ body {
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
-.paste-zone.dragover {
-  background: #e0f2fe;
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  transform: scale(1.01);
-}
 
-/* Previews de imágenes */
 .preview img {
   height: 100px;
   width: 100%;
@@ -94,18 +85,13 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* Botones de acción principales */
 .btn-primary-custom {
   background: linear-gradient(135deg, #0d6efd, #0b5ed7);
   border: none;
   font-weight: 600;
   box-shadow: 0 4px 10px rgba(13,110,253,0.2);
 }
-.btn-primary-custom:hover {
-  background: linear-gradient(135deg, #0b5ed7, #0a58ca);
-}
 
-/* Footer Minimalista */
 footer {
   background: rgba(255,255,255,0.8);
   backdrop-filter: blur(5px);
@@ -116,18 +102,10 @@ footer {
   margin-top: 3rem;
 }
 </style>
-
-<!-- Configuración PWA / iOS -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Vial Report">
-<link rel="apple-touch-icon" href="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png">
-<link rel="manifest" href="manifest.json">
 </head>
 
 <body class="py-3">
 
-<!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-light fixed-top">
   <div class="container-fluid px-3">
     <a class="navbar-brand d-flex align-items-center" href="index.html">
@@ -144,7 +122,6 @@ footer {
 </nav>
 <div style="height: 75px;"></div>
 
-<!-- Contenido Principal -->
 <div class="container py-3" style="max-width: 900px;">
 
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -221,9 +198,9 @@ footer {
               <input type="text" name="observacion_1" class="form-control" placeholder="Ingrese detalles de la inspección">
             </div>
 
-            <!-- SECCIÓN DE FOTOS -->
+            <!-- SECCIÓN DE FOTOS CON EXIF -->
             <div class="col-md-12 mt-3">
-              <label class="form-label fw-semibold text-secondary small">Fotografías (Máximo 4)</label>
+              <label class="form-label fw-semibold text-secondary small">Fotografías (Máximo 4) — *Extrae GPS de la cámara*</label>
               
               <div class="row g-2 mb-3">
                 <div class="col-6">
@@ -254,16 +231,16 @@ footer {
             <div class="row preview mt-2 g-2"></div>
             <div class="row mt-2 g-2" id="imagenesActuales"></div>
 
-            <!-- 🗺️ MAPA Y GPS -->
+            <!-- 🗺️ MAPA Y GPS MANUAL -->
             <div class="col-md-12 mt-4 pt-3 border-top">
               <div class="d-flex align-items-center mb-2">
                 <i class="bi bi-geo-alt-fill text-primary fs-5 me-1"></i>
-                <span class="fw-bold text-dark">Geolocalización y Progresiva Automática</span>
+                <span class="fw-bold text-dark">Geolocalización GPS (Manual o por Cámara)</span>
               </div>
               
               <div class="mb-3">
                 <button type="button" class="btn btn-primary-custom w-100 py-2 rounded-pill text-white shadow-sm" onclick="activarUbicacionGPS(this)">
-                  <i class="bi bi-crosshair fs-6"></i> Activar mi GPS y autocompletar Km
+                  <i class="bi bi-crosshair fs-6"></i> Activar mi GPS actual y autocompletar Km
                 </button>
               </div>
 
@@ -277,7 +254,6 @@ footer {
       </div>
     </div>
 
-    <!-- Botones de pie de formulario (Botón Agregar Tarea oculto mediante d-none) -->
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-4 mb-5">
       <button type="button" id="addGroup" class="btn btn-outline-primary px-4 rounded-pill fw-semibold d-none">
         <i class="bi bi-plus-circle"></i> Agregar tarea
@@ -295,14 +271,12 @@ footer {
   </form>
 </div>
 
-<!-- Footer -->
 <footer class="text-center">
   <div class="container">
     © <span id="year"></span> — <strong>VIAL REPORT</strong> | Powered by <b>SMG DESARROLLOS</b>
   </div>
 </footer>
 
-<!-- Supabase y Leaflet JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>
@@ -362,22 +336,74 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("year").textContent = new Date().getFullYear();
 });
 
-// Interceptar "Agregar tarea" (por si se llega a mostrar en el futuro)
-document.getElementById("addGroup").addEventListener("click", () => {
-  setTimeout(() => {
-    const totalGroups = document.querySelectorAll(".grupo").length;
-    const ultimaTarjeta = document.querySelectorAll(".grupo")[totalGroups - 1];
-    ultimaTarjeta.setAttribute("data-grupo-id", totalGroups);
+// =============================
+// 📸 EXIF: EXTRAER GPS DE LA FOTO AUTOMÁTICAMENTE
+// =============================
+async function procesarExifYPosicionar(file, grupoId) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const exifData = ExifReader.load(buffer);
+
+    if (exifData.Latitude && exifData.Longitude) {
+      const lat = exifData.Latitude;
+      const lon = exifData.Longitude;
+
+      const cardGrupo = document.querySelector(`[data-grupo-id="${grupoId}"]`);
+      const inputLat = cardGrupo.querySelector(`#lat_${grupoId}`);
+      const inputLon = cardGrupo.querySelector(`#lon_${grupoId}`);
+
+      if (inputLat) inputLat.value = lat;
+      if (inputLon) inputLon.value = lon;
+
+      const map = mapasInstanciados[grupoId];
+      if (map) {
+        map.invalidateSize();
+        map.setView([lat, lon], 16);
+        if (marcadoresUsuario[grupoId]) {
+          map.removeLayer(marcadoresUsuario[grupoId].marker);
+          map.removeLayer(marcadoresUsuario[grupoId].circle);
+        }
+        const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 GPS extraído de la foto").openPopup();
+        marcadoresUsuario[grupoId] = { marker: userMarker };
+      }
+
+      // Consultar progresiva automáticamente con las coordenadas de la foto
+      const clienteDB = window.supabaseClient || window.supabase;
+      if (clienteDB) {
+        const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
+          p_longitud: lon,
+          p_latitud: lat,
+          p_radio_metros: 20000 
+        });
+
+        if (!error && data && data.length > 0) {
+          const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
+          if (inputKm) inputKm.value = data[0].progresiva;
+          console.log("Km autocompletado por EXIF:", data[0].progresiva);
+        }
+      }
+    }
+  } catch (e) {
+    console.log("La foto no contiene metadatos GPS EXIF o hubo un error al leerla:", e);
+  }
+}
+
+// Interceptar cambios en el input de fotos para analizar EXIF
+document.addEventListener("change", async (e) => {
+  if (e.target.classList.contains("fotos")) {
+    const input = e.target;
+    const grupo = input.closest(".grupo");
+    const grupoId = grupo.getAttribute("data-grupo-id");
     
-    const mapaDiv = ultimaTarjeta.querySelector(".mapa-tarea");
-    mapaDiv.id = `map_${totalGroups}`;
-    
-    inicializarMapa(totalGroups);
-  }, 300);
+    if (input.files.length > 0) {
+      // Analizamos la primera foto para extraer el GPS de la cámara
+      await procesarExifYPosicionar(input.files[0], grupoId);
+    }
+  }
 });
 
 // =============================
-// 📍 GPS Y PROGRESIVA
+// 📍 GPS MANUAL (Botón)
 // =============================
 async function activarUbicacionGPS(btn) {
   const cardGrupo = btn.closest(".grupo");
@@ -443,12 +469,12 @@ async function activarUbicacionGPS(btn) {
       console.error("Excepción:", err);
       alert("Error de conexión al consultar Supabase.");
     } finally {
-      btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km`;
+      btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
       btn.disabled = false;
     }
 
   }, (error) => {
-    btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km`;
+    btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
     btn.disabled = false;
     alert("No se pudo obtener la ubicación GPS. Verifica los permisos en los ajustes de tu celular.");
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
