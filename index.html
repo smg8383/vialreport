@@ -142,7 +142,7 @@ footer {
     </button>
   </div>
 </nav>
-<div style="height: 75px;"></div> <!-- Spacer navbar fija -->
+<div style="height: 75px;"></div>
 
 <!-- Contenido Principal -->
 <div class="container py-3" style="max-width: 900px;">
@@ -173,10 +173,10 @@ footer {
             <div class="col-md-4">
               <label class="form-label fw-semibold text-secondary small">Empresa</label>
               <select name="empresa_1" class="form-select">
-                <option value="JCR SA" selected>JCR SA</option>
+                <option value="JCR SA">JCR SA</option>
                 <option value="GUERECHET SA">GUERECHET SA</option>
                 <option value="VIAL PLUS SA">VIAL PLUS SA</option>
-                <option value="CORREDOR LITORAL SA">CORREDOR LITORAL SA</option>
+                <option value="CORREDOR LITORAL SA" selected>CORREDOR LITORAL SA</option>
               </select>
             </div>
 
@@ -277,12 +277,12 @@ footer {
       </div>
     </div>
 
-    <!-- Botones de pie de formulario -->
+    <!-- Botones de pie de formulario (Botón Agregar Tarea oculto mediante d-none) -->
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-4 mb-5">
-      <button type="button" id="addGroup" class="btn btn-outline-primary px-4 rounded-pill fw-semibold">
+      <button type="button" id="addGroup" class="btn btn-outline-primary px-4 rounded-pill fw-semibold d-none">
         <i class="bi bi-plus-circle"></i> Agregar tarea
       </button>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 ms-auto">
         <button type="button" id="clearForm" class="btn btn-outline-danger px-4 rounded-pill fw-semibold">
           <i class="bi bi-x-circle"></i> Limpiar
         </button>
@@ -362,7 +362,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("year").textContent = new Date().getFullYear();
 });
 
-// Interceptar "Agregar tarea"
+// Interceptar "Agregar tarea" (por si se llega a mostrar en el futuro)
 document.getElementById("addGroup").addEventListener("click", () => {
   setTimeout(() => {
     const totalGroups = document.querySelectorAll(".grupo").length;
