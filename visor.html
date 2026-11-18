@@ -446,18 +446,21 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
   // 🟦 ENCABEZADO (FONDO)
   doc.setFillColor(230, 230, 230);
   doc.rect(10, y, 190, 25, 'FD');
-
-  // 🟦 LOGO IZQUIERDA
+  
+   // 🟦 LOGO IZQUIERDA (Ampliamos tamaño y centramos verticalmente)
   if (logoBase64) {
     const imgProps = doc.getImageProperties(logoBase64);
-    const maxWidth = 30;
-    const maxHeight = 18;
+    const maxWidth = 50;  // Aumentamos el ancho máximo
+    const maxHeight = 20; // Aumentamos la altura máxima (la caja mide 25)
     let w = imgProps.width;
     let h = imgProps.height;
     const scale = Math.min(maxWidth / w, maxHeight / h);
     w *= scale;
     h *= scale;
-    doc.addImage(logoBase64, 'PNG', 12, y + 3, w, h);
+
+    // Centramos el logo de forma vertical exacta dentro de la caja de 25 de alto
+    const posY = y + (25 - h) / 2;
+    doc.addImage(logoBase64, 'PNG', 12, posY, w, h);
   }
 
   // 🟦 TITULO CENTRADO
