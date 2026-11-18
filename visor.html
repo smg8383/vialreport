@@ -258,11 +258,11 @@ function renderInformes(data) {
           <!-- Checkbox individual para mostrar u ocultar la observación -->
           <div class="form-check mb-2">
             <input type="checkbox" class="form-check-input" id="obs_${r.id}" checked>
-            <label class="form-check-label small" for="obs_${r.id}">Incluir observación en este PDF / WhatsApp</label>
+            <label class="form-check-label small" for="obs_${r.id}">Incluir observación en la estampa</label>
           </div>
 
           <button class="btn btn-danger mt-1" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
-          <button class="btn btn-success mt-1" onclick="compartirWhatsApp(${r.id})">📲 Compartir WhatsApp</button>
+          <button class="btn btn-success mt-1" onclick="compartirWhatsApp(${r.id})">📲 Preparar Fotos para WhatsApp</button>
           <button class="btn btn-warning mt-1" onclick="editarInforme(${r.id})">✏️ Editar</button>
           <button class="btn btn-outline-danger mt-1" onclick="eliminarInforme(${r.id})">🗑️ Eliminar</button>
         </div>
@@ -352,7 +352,7 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
   });
 }
 
-// 📲 COMPARTIR POR WHATSAPP (CON FOTO ESTAMPADA)
+// 📲 PREPARAR Y COMPARTIR FOTOS CON ESTAMPA (SIN MENSAJE DE TEXTO)
 async function compartirWhatsApp(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
   if (!r) return;
@@ -370,49 +370,46 @@ async function compartirWhatsApp(id) {
     observacion: observacionTexto
   };
 
-  // Texto para el mensaje de WhatsApp
-  let textoWp = `*INFORME VIAL* 🚧\n` +
-                `• Empresa: ${datosReporte.empresa}\n` +
-                `• Tarea: ${datosReporte.tarea}\n` +
-                `• Ubicación: ${datosReporte.ruta} - Km: ${datosReporte.km} (${datosReporte.sentido})`;
-  
-  if (incluirObs && observacionTexto) {
-    textoWp += `\n• Obs: ${observacionTexto}`;
-  }
-
-  // Si tiene imágenes, toma la primera para estamparla y compartirla
   if (r.imagenes && r.imagenes.length > 0) {
     try {
-      const fotoSrc = r.imagenes[0];
-      const blobFoto = await procesarFotoConMarcaDeAgua(fotoSrc, datosReporte);
-      const file = new File([blobFoto], `Informe_${datosReporte.ruta}_Km_${datosReporte.km}.jpg`, { type: 'image/jpeg' });
+      let archivosParaCompartir = [];
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // Procesar cada una de las fotos con la marca de agua
+      for (let i = 0; i < r.imagenes.length; i++) {
+        const fotoSrc = r.imagenes[i];
+        const blobFoto = await procesarFotoConMarcaDeAgua(fotoSrc, datosReporte);
+        const file = new File([blobFoto], `Informe_${datosReporte.ruta}_Km_${datosReporte.km}_(${i + 1}).jpg`, { type: 'image/jpeg' });
+        archivosParaCompartir.push(file);
+      }
+
+      // Intentar compartir mediante el selector nativo si el dispositivo lo soporta
+      if (navigator.canShare && navigator.canShare({ files: archivosParaCompartir })) {
         await navigator.share({
-          title: 'Reporte Vial',
-          text: textoWp,
-          files: [file]
+          files: archivosParaCompartir
         });
         return;
       } else {
-        // Plan B para PC / Navegadores sin soporte de archivos directos
-        const url = URL.createObjectURL(blobFoto);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        navigator.clipboard.writeText(textoWp);
-        alert("¡Foto procesada y descargada con éxito!\n\nEl texto del informe se copió al portapapeles. Adjuntá la foto descargada en WhatsApp y pegá el texto.");
+        // Plan B: Descargar todas las fotos de golpe con su estampa aplicada
+        archivosParaCompartir.forEach((file, index) => {
+          const url = URL.createObjectURL(file);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          setTimeout(() => {
+            a.click();
+          }, index * 300);
+        });
+
+        alert(`¡Se procesaron y descargaron las ${archivosParaCompartir.length} fotos con sus marcas de agua en la esquina inferior izquierda! Ya podés adjuntarlas directamente.`);
         return;
       }
     } catch (e) {
-      console.error("Error al procesar la foto para WhatsApp:", e);
+      console.error("Error al procesar las fotos:", e);
+      alert("Hubo un error al procesar las imágenes.");
     }
+  } else {
+    alert("Este registro no contiene imágenes asociadas.");
   }
-
-  // Si no tiene foto, abre WhatsApp solo con el texto
-  const urlWp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoWp)}`;
-  window.open(urlWp, '_blank');
 }
 
 // 🔧 OBTENER LOGO
