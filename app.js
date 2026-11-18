@@ -1,7 +1,7 @@
 // 🌍 INICIALIZACIÓN GLOBAL DE SUPABASE (Fuera del DOMContentLoaded para estar disponible de inmediato)
 const supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6Inhwb24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 window.supabaseClient = supabaseClient; // Exponer globalmente para el mapa y el GPS del HTML
 
@@ -180,24 +180,27 @@ document.addEventListener("change", (e) => {
 
 // 🔹 AGREGAR NUEVO GRUPO
 let count = 1;
-document.getElementById("addGroup").addEventListener("click", async () => {
-  count++;
-  const clone = document.querySelector(".grupo").cloneNode(true);
+const btnAddGroup = document.getElementById("addGroup");
+if (addGroup) {
+  addGroup.addEventListener("click", async () => {
+    count++;
+    const clone = document.querySelector(".grupo").cloneNode(true);
 
-  clone.querySelector("h5").innerText = "Tarea " + count;
-  clone.querySelectorAll("[name]").forEach((el) => {
-    el.name = el.name.replace(/_\d+$/, "_" + count);
-    if(el.type !== "file") el.value = "";
+    clone.querySelector("h5").innerText = "Tarea " + count;
+    clone.querySelectorAll("[name]").forEach((el) => {
+      el.name = el.name.replace(/_\d+$/, "_" + count);
+      if(el.type !== "file") el.value = "";
+    });
+
+    clone.querySelector(".preview").innerHTML = "";
+    clone.querySelector(".progress-bar").style.width = "0%";
+
+    document.getElementById("grupos").appendChild(clone);
+    document.getElementById("total_groups").value = count;
+
+    await cargarTareasJerarquicas();
   });
-
-  clone.querySelector(".preview").innerHTML = "";
-  clone.querySelector(".progress-bar").style.width = "0%";
-
-  document.getElementById("grupos").appendChild(clone);
-  document.getElementById("total_groups").value = count;
-
-  await cargarTareasJerarquicas();
-});
+}
 
 // 🔹 LIMPIAR FORMULARIO
 const btnClear = document.getElementById("clearForm");
@@ -239,6 +242,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   try {
     for (let i = 0; i < grupos.length; i++) {
       const g = grupos[i];
+      const grupoId = g.getAttribute("data-grupo-id") || (i + 1);
 
       let imagenes = [...imagenesExistentes];
       const files = g.querySelector(`[name^="photos_"]`).files;
@@ -272,6 +276,10 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
       const subtarea = g.querySelector(".tarea-select").value;
 
+      // Capturar coordenadas de los inputs ocultos correspondientes a este grupo
+      const latInput = g.querySelector(`#lat_${grupoId}`) || g.querySelector(`[id^="lat_"]`);
+      const lonInput = g.querySelector(`#lon_${grupoId}`) || g.querySelector(`[id^="lon_"]`);
+
       const dataToInsert = {
         fecha: g.querySelector(`[name^="date_"]`).value,
         empresa: g.querySelector(`[name^="empresa_"]`).value,
@@ -282,6 +290,8 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         sentido: g.querySelector(`[name^="sentido_"]`).value,
         observacion: g.querySelector(`[name^="observacion_"]`).value,
         imagenes,
+        latitud: latInput && latInput.value ? parseFloat(latInput.value) : null,
+        longitud: lonInput && lonInput.value ? parseFloat(lonInput.value) : null,
         user_id: user.id
       };
 
@@ -359,6 +369,7 @@ cargarEdicion();
 // 🔹 RENDER + ELIMINAR IMAGENES
 function renderImagenesActuales() {
   const cont = document.getElementById("imagenesActuales");
+  if (!cont) return;
   cont.innerHTML = "";
 
   imagenesExistentes.forEach((img, index) => {
@@ -376,7 +387,8 @@ function renderImagenesActuales() {
 
 window.eliminarImagen = function(index) {
   imagenesExistentes.splice(index, 1);
-  document.querySelector(".fotos").value = "";
+  const fotosEl = document.querySelector(".fotos");
+  if (fotosEl) fotosEl.value = "";
   renderImagenesActuales();
 }
 
@@ -384,11 +396,13 @@ window.eliminarImagen = function(index) {
 // 🔥 LOADING OVERLAY
 // =============================
 function mostrarCarga() {
-  document.getElementById("loadingOverlay").style.display = "flex";
+  const overlay = document.getElementById("loadingOverlay");
+  if (overlay) overlay.style.display = "flex";
 }
 
 function ocultarCarga() {
-  document.getElementById("loadingOverlay").style.display = "none";
+  const overlay = document.getElementById("loadingOverlay");
+  if (overlay) overlay.style.display = "none";
 }
 
 function actualizarBarra(valor) {
