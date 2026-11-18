@@ -266,7 +266,7 @@ footer {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- app.js con la conexión segura y centralizada -->
+<!-- app.js con la conexión segura -->
 <script src="app.js"></script>
 
 <script>
@@ -342,7 +342,7 @@ document.getElementById("addGroup").addEventListener("click", () => {
 });
 
 // =============================
-// 📍 ACTIVAR GPS Y CALCULAR PROGRESIVA
+// 📍 ACTIVAR GPS Y CALCULAR PROGRESIVA (Con manejo de rango seguro)
 // =============================
 async function activarUbicacionGPS(btn) {
   const cardGrupo = btn.closest(".grupo");
@@ -354,6 +354,12 @@ async function activarUbicacionGPS(btn) {
 
   if (!navigator.geolocation) {
     alert("Tu dispositivo no soporta geolocalización.");
+    return;
+  }
+
+  const clienteDB = window.supabaseClient || window.supabase;
+  if (!clienteDB) {
+    alert("Error: cliente de Supabase no disponible.");
     return;
   }
 
@@ -383,25 +389,21 @@ async function activarUbicacionGPS(btn) {
     }
 
     try {
-      if (typeof window.supabaseClient === 'undefined') {
-        alert("Error: cliente de Supabase no disponible.");
-        return;
-      }
-
-      const { data, error } = await window.supabaseClient.rpc('fn_obtener_progresiva_cercana', {
+      // Usamos un radio amplio de 20km por seguridad de prueba (puedes ajustarlo luego a 5000)
+      const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
         p_longitud: lon,
         p_latitud: lat,
-        p_radio_metros: 5000 // Radio de búsqueda de 5 km
+        p_radio_metros: 20000 
       });
 
       if (error) {
         console.error("Error en RPC Supabase:", error);
-        alert("Error al calcular la progresiva en la base de datos.");
+        alert("Error al calcular la progresiva en la base de datos: " + (error.message || "Verifique la función SQL"));
       } else if (data && data.length > 0) {
         if (inputKm) inputKm.value = data[0].progresiva;
         alert(`¡Ubicación detectada! Km más cercano: ${data[0].progresiva} (${data[0].ruta})`);
       } else {
-        alert("Estás a más de 5 km de una progresiva registrada.");
+        alert("No se encontró ninguna progresiva cercana a tu ubicación actual (estás fuera de rango del radio de búsqueda).");
       }
     } catch (err) {
       console.error("Excepción:", err);
