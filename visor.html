@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visor de Informes - Vial Report</title>
 
+  <!-- Bootstrap 5 & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
@@ -21,38 +22,58 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    :root {
+      --primary-color: #0d6efd;
+      --bg-body: #f4f6f9;
+      --card-radius: 12px;
+    }
+
     body {
-      background: #f5f5f5;
-      padding-top: 100px;
+      background-color: var(--bg-body);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #333;
+      padding-top: 90px;
       padding-bottom: 60px;
     }
 
+    /* Navbar Moderna */
+    .navbar {
+      background: #ffffff !important;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    }
     .navbar-brand img {
-      height: 60px;
-      margin-right: 10px;
+      height: 50px;
+      object-fit: contain;
     }
 
+    /* Tarjetas de Registros y Mapa */
     .card {
-      transition: transform 0.2s, box-shadow 0.2s;
+      border: none;
+      border-radius: var(--card-radius);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
     }
     .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
     }
 
+    /* Mapa del Visor */
     #mapaVisor {
-      height: 400px;
+      height: 380px;
       width: 100%;
-      border-radius: 12px;
-      border: 1px solid #ced4da;
+      border-radius: 0 0 var(--card-radius) var(--card-radius);
       z-index: 1;
     }
 
+    /* Estilo de las minifotos en los pines del mapa */
     .minipin-container {
       background: white;
       border-radius: 50%;
       padding: 2px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3);
       text-align: center;
       transition: transform 0.2s;
     }
@@ -60,22 +81,34 @@
       transform: scale(1.15);
     }
     .minipin-img {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       object-fit: cover;
     }
 
-    .btn + .btn {
-      margin-left: 5px;
+    /* Previews de imágenes en registros */
+    .img-fluid.rounded.border {
+      height: 110px;
+      width: 100%;
+      object-fit: cover;
+      border-radius: 8px !important;
+      border: 1px solid #e2e8f0 !important;
+      transition: transform 0.2s;
+    }
+    .img-fluid.rounded.border:hover {
+      transform: scale(1.03);
     }
 
+    /* Footer Minimalista */
     footer {
+      background: rgba(255,255,255,0.8);
       backdrop-filter: blur(5px);
-      background: rgba(255,255,255,0.95);
       font-size: 12px;
-      padding: 5px;
-      border-top: 1px solid #ddd;
+      color: #6c757d;
+      padding: 15px 0;
+      border-top: 1px solid #e9ecef;
+      margin-top: 3rem;
       text-align: center;
     }
   </style>
@@ -90,106 +123,106 @@
 <body>
 
 <!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-  <div class="container-fluid d-flex align-items-center justify-content-between">
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
+  <div class="container-fluid px-3">
     <a class="navbar-brand d-flex align-items-center" href="index.html">
       <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
-      <div class="ms-2">
-        <span class="fw-bold text-primary fs-5">VIAL REPORT</span>
-        <br>
-        <span class="text-muted fs-6">Informes Fotográfico</span>
+      <div class="ms-2 lh-sm">
+        <span class="fw-bold text-primary fs-5">VIAL REPORT</span><br>
+        <small class="text-muted fw-semibold">Informes Fotográficos</small>
       </div>
     </a>
-
-    <button type="button" id="btnLogout" class="btn btn-outline-danger">
-      <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    <button type="button" id="btnLogout" class="btn btn-outline-danger btn-sm px-3 rounded-pill fw-semibold">
+      <i class="bi bi-box-arrow-right"></i> Salir
     </button>
   </div>
 </nav>
 
-<div class="container mb-4 text-center">
-  <h1 class="text-primary">Visor de Informes</h1>
-</div>
+<!-- Contenedor Principal -->
+<div class="container py-3" style="max-width: 950px;">
 
-<div class="container">
-  <h2 class="mb-4 text-primary">📂 Historial de registros</h2>
-
-  <a href="index.html" class="btn btn-secondary mb-3">← Volver</a>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-dark fw-bold fs-4 m-0"><i class="bi bi-folder2-open text-primary"></i> Historial de Registros</h2>
+    <a href="index.html" class="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold shadow-sm">
+      <i class="bi bi-arrow-left"></i> Volver al Formulario
+    </a>
+  </div>
 
   <!-- 🗺️ MAPA GENERAL CON MINIFOTOS -->
   <div class="card shadow-sm mb-4">
-    <div class="card-header bg-dark text-white fw-bold">
-      <i class="bi bi-map-fill"></i> Mapa de Avance de Actividades (Geolocalización por Fotos)
+    <div class="card-header bg-dark text-white py-3 px-4 d-flex align-items-center">
+      <i class="bi bi-map-fill me-2 fs-5 text-warning"></i>
+      <span class="fw-bold">Mapa de Avance de Actividades</span>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
       <div id="mapaVisor"></div>
     </div>
   </div>
 
-  <div class="card shadow-sm mb-3 bg-light">
-    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <button class="btn btn-danger" onclick="generarPDFMultiple()">
-        📄 Generar PDF seleccionados
+  <!-- Barra de acciones múltiples -->
+  <div class="card shadow-sm mb-4 bg-white">
+    <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <button class="btn btn-danger btn-sm px-3 rounded-pill fw-semibold shadow-sm" onclick="generarPDFMultiple()">
+        <i class="bi bi-file-earmark-pdf-fill"></i> Generar PDF seleccionados
       </button>
 
       <div class="form-check m-0">
         <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
-        <label class="form-check-label fw-bold" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
+        <label class="form-check-label small fw-semibold text-secondary" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
       </div>
     </div>
   </div>
 
   <!-- Filtros -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0">🔍 Filtros</h6>
+  <div class="card shadow-sm mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center mb-3">
+        <i class="bi bi-search text-primary me-2 fs-6"></i>
+        <h6 class="mb-0 fw-bold text-dark">Filtros de Búsqueda</h6>
       </div>
 
-      <div id="panelFiltros" class="collapse show">
-        <div class="row g-2">
-          <div class="col-md-3">
-            <label class="form-label small text-muted">Fecha</label>
-            <input type="date" id="filterFecha" class="form-control">
-          </div>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-secondary">Fecha</label>
+          <input type="date" id="filterFecha" class="form-control form-control-sm">
+        </div>
 
-          <div class="col-md-3">
-            <label class="form-label small text-muted">Empresa</label>
-            <select id="filterEmpresa" class="form-select">
-              <option value="">Todas</option>
-              <option value="CORREDOR LITORAL SA">CORREDOR LITORAL SA</option>
-              <option value="JCR SA">JCR SA</option>
-              <option value="GUERECHET SA">GUERECHET SA</option>
-              <option value="VIAL PLUS SA">VIAL PLUS SA</option>
-            </select>
-          </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-secondary">Empresa</label>
+          <select id="filterEmpresa" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            <option value="CORREDOR LITORAL SA">CORREDOR LITORAL SA</option>
+            <option value="JCR SA">JCR SA</option>
+            <option value="GUERECHET SA">GUERECHET SA</option>
+            <option value="VIAL PLUS SA">VIAL PLUS SA</option>
+          </select>
+        </div>
 
-          <div class="col-md-2">
-            <label class="form-label small text-muted">Ruta</label>
-            <select id="filterRuta" class="form-select">
-              <option value="">Todas</option>
-              <option value="RN N° 16">RN N° 16</option>
-              <option value="RN N° 12">RN N° 12</option>
-            </select>
-          </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-secondary">Ruta</label>
+          <select id="filterRuta" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            <option value="RN N° 16">RN N° 16</option>
+            <option value="RN N° 12">RN N° 12</option>
+          </select>
+        </div>
 
-          <div class="col-md-2">
-            <label class="form-label small text-muted">Subtramo</label>
-            <select id="filterSubtramo" class="form-select">
-              <option value="">Todos</option>
-              <option value="CHACO">CHACO</option>
-              <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
-              <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
-              <option value="MISIONES">MISIONES</option>
-            </select>
-          </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-secondary">Subtramo</label>
+          <select id="filterSubtramo" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="CHACO">CHACO</option>
+            <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
+            <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
+            <option value="MISIONES">MISIONES</option>
+          </select>
+        </div>
 
-          <div class="col-md-2">
-            <label class="form-label small text-muted">Subtarea</label>
-            <select id="filterSubtarea" class="form-select">
-              <option value="">Todos</option>
-            </select>
-          </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-secondary">Subtarea</label>
+          <select id="filterSubtarea" class="form-select form-select-sm">
+            <option value="">Todos</option>
+          </select>
         </div>
       </div>
     </div>
@@ -260,7 +293,7 @@ async function cargar() {
   actualizarMapaVisor(data);
 }
 
-// 🗺️ ACTUALIZAR PINES (Ignora registros sin lat/lon sin romper la app)
+// 🗺️ ACTUALIZAR PINES
 function actualizarMapaVisor(data) {
   capaMarcadores.clearLayers();
   let bounds = [];
@@ -268,25 +301,24 @@ function actualizarMapaVisor(data) {
   if (!data || data.length === 0) return;
 
   data.forEach(r => {
-    // Si tiene latitud y longitud válidas, dibuja el pin con la minifoto
     if (r.latitud !== null && r.latitud !== undefined && r.longitud !== null && r.longitud !== undefined && r.imagenes && r.imagenes.length > 0) {
       let miniaturaUrl = r.imagenes[0];
 
       let iconoMini = L.divIcon({
         className: '',
         html: `<div class="minipin-container"><img src="${miniaturaUrl}" class="minipin-img"></div>`,
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
       });
 
       let marker = L.marker([r.latitud, r.longitud], { icon: iconoMini });
 
       let contenidoPopup = `
-        <div style="text-align: center; max-width: 180px;">
-          <b>${r.ruta || ''} - Km ${r.km || ''}</b><br>
-          <small>${r.tarea || ''}</small><br>
-          <span class="badge bg-secondary mb-1">${r.fecha || ''}</span><br>
-          <img src="${miniaturaUrl}" style="width: 150px; height: 100px; object-fit: cover; border-radius: 6px; margin-top: 4px;">
+        <div style="text-align: center; max-width: 180px; font-family: sans-serif;">
+          <b style="color: #0d6efd;">${r.ruta || ''} - Km ${r.km || ''}</b><br>
+          <small style="color: #666;">${r.tarea || ''}</small><br>
+          <span class="badge bg-secondary mb-1" style="font-size: 10px;">${r.fecha || ''}</span><br>
+          <img src="${miniaturaUrl}" style="width: 150px; height: 100px; object-fit: cover; border-radius: 6px; margin-top: 4px; border: 1px solid #ddd;">
         </div>
       `;
 
@@ -299,6 +331,11 @@ function actualizarMapaVisor(data) {
   if (bounds.length > 0) {
     mapaVisor.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
   }
+
+  // Refrescar tamaño del mapa para evitar renderizado gris
+  setTimeout(() => {
+    if (mapaVisor) mapaVisor.invalidateSize();
+  }, 300);
 }
 
 // 🔧 RENDER INFORMES
@@ -307,7 +344,7 @@ function renderInformes(data) {
   contenedor.innerHTML = "";
 
   if (!data || data.length === 0) {
-    contenedor.innerHTML = `<div class="alert alert-warning text-center">No se encontraron registros con los filtros seleccionados.</div>`;
+    contenedor.innerHTML = `<div class="alert alert-light border text-center text-muted py-4 shadow-sm rounded-4">No se encontraron registros con los filtros seleccionados.</div>`;
     return;
   }
 
@@ -315,38 +352,56 @@ function renderInformes(data) {
     let imagenesHTML = "";
     if(r.imagenes && r.imagenes.length > 0) {
       r.imagenes.forEach(img => {
-        imagenesHTML += `<div class="col-md-3 mb-2"><img src="${img}" class="img-fluid rounded border img-registro-${r.id}" crossorigin="anonymous"></div>`;
+        imagenesHTML += `<div class="col-6 col-md-3 mb-2"><img src="${img}" class="img-fluid rounded border img-registro-${r.id}" crossorigin="anonymous"></div>`;
       });
     }
 
-    let coordsBadge = (r.latitud && r.longitud) ? `<span class="badge bg-success ms-2"><i class="bi bi-geo-alt-fill"></i> Con GPS</span>` : `<span class="badge bg-secondary ms-2">Sin GPS</span>`;
+    let coordsBadge = (r.latitud && r.longitud) ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-1 ms-2"><i class="bi bi-geo-alt-fill"></i> Con GPS</span>` : `<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 ms-2">Sin GPS</span>`;
 
     contenedor.innerHTML += `
-      <div class="card mb-4 shadow-sm" id="card_${r.id}">
-        <div class="card-body">
-          <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input seleccionar" value="${r.id}">
-            <label>Seleccionar</label>
-          </div>
-          <h5 class="text-primary">${r.empresa || 'EMPRESA'} - ${r.fecha} ${coordsBadge}</h5>
-          <p><b>Empresa:</b> <span id="val_empresa_${r.id}">${r.empresa || '-'}</span></p>
-          <p><b>Ruta:</b> <span id="val_ruta_${r.id}">${r.ruta}</span></p>
-          <p><b>Subtramo:</b> ${r.subtramo}</p>
-          <p><b>Tarea:</b> <span id="val_tarea_${r.id}">${r.tarea}</span></p>
-          <p><b>Km:</b> <span id="val_km_${r.id}">${r.km}</span></p>
-          <p><b>Sentido:</b> <span id="val_sentido_${r.id}">${r.sentido}</span></p>
-          <p><b>Observación:</b> <span id="val_obs_${r.id}">${r.observacion}</span></p>
-          <div class="row mb-2">${imagenesHTML}</div>
-
-          <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input" id="obs_${r.id}" checked>
-            <label class="form-check-label small" for="obs_${r.id}">Incluir observación en la estampa</label>
+      <div class="card shadow-sm mb-4" id="card_${r.id}">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="form-check m-0">
+              <input type="checkbox" class="form-check-input seleccionar" value="${r.id}" id="chk_${r.id}">
+              <label class="form-check-label small fw-semibold text-secondary" for="chk_${r.id}">Seleccionar</label>
+            </div>
+            <div>
+              <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1 fw-bold">${r.fecha}</span>
+              ${coordsBadge}
+            </div>
           </div>
 
-          <button class="btn btn-danger mt-1" onclick="generarPDF(${r.id})">📄 Generar PDF de Tarea</button>
-          <button class="btn btn-success mt-1" onclick="compartirWhatsApp(${r.id})">📲 WhatsApp</button>
-          <button class="btn btn-warning mt-1" onclick="editarInforme(${r.id})">✏️ Editar</button>
-          <button class="btn btn-outline-danger mt-1" onclick="eliminarInforme(${r.id})">🗑️ Eliminar</button>
+          <h5 class="text-dark fw-bold fs-5 mb-3">${r.empresa || 'EMPRESA'}</h5>
+
+          <div class="row g-2 small text-secondary mb-3">
+            <div class="col-md-4"><b>Ruta:</b> <span class="text-dark">${r.ruta}</span></div>
+            <div class="col-md-4"><b>Subtramo:</b> <span class="text-dark">${r.subtramo || '-'}</span></div>
+            <div class="col-md-4"><b>Km:</b> <span class="text-dark">${r.km || '-'}</span></div>
+            <div class="col-md-6"><b>Tarea:</b> <span class="text-dark">${r.tarea}</span></div>
+            <div class="col-md-6"><b>Sentido:</b> <span class="text-dark">${r.sentido || '-'}</span></div>
+          </div>
+
+          <div class="p-3 bg-light rounded-3 mb-3 border border-opacity-50">
+            <small class="text-muted fw-semibold d-block mb-1">Observación:</small>
+            <span class="text-dark">${r.observacion || 'Sin observaciones'}</span>
+          </div>
+
+          <div class="row mb-3">${imagenesHTML}</div>
+
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
+            <div class="form-check m-0">
+              <input type="checkbox" class="form-check-input" id="obs_${r.id}" checked>
+              <label class="form-check-label small text-muted" for="obs_${r.id}">Incluir observación en PDF</label>
+            </div>
+
+            <div class="d-flex flex-wrap gap-1">
+              <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="generarPDF(${r.id})"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+              <button class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold" onclick="compartirWhatsApp(${r.id})"><i class="bi bi-whatsapp"></i> WhatsApp</button>
+              <button class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-semibold text-dark" onclick="editarInforme(${r.id})"><i class="bi bi-pencil"></i> Editar</button>
+              <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold text-danger border-danger border-opacity-50" onclick="eliminarInforme(${r.id})"><i class="bi bi-trash"></i></button>
+            </div>
+          </div>
         </div>
       </div>`;
   });
@@ -741,9 +796,9 @@ inicializar();
 </script>
 
 <footer>
-  © <span id="year"></span> - VIAL REPORT  
-  <br>
-  Powered by <b>SMG DESARROLLOS</b>
+  <div class="container">
+    © <span id="year"></span> — <strong>VIAL REPORT</strong> | Powered by <b>SMG DESARROLLOS</b>
+  </div>
 </footer>
 
 <script>
