@@ -35,7 +35,7 @@
   min-height: 150px;
   width: 100%;
   position: relative;
-  z-index: 999; /* 🔥 importante */
+  z-index: 999;
   pointer-events: all;
   border: 2px dashed #ccc;
   border-radius: 8px;
@@ -81,10 +81,10 @@ footer {
 
 <body class="bg-light p-4">
 
-<!-- Navbar con logo -->
+<!-- Navbar con logo y Cerrar Sesión -->
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
-  <div class="container-fluid d-flex align-items-center">
-    <a class="navbar-brand d-flex align-items-center" href="#">
+  <div class="container-fluid d-flex align-items-center justify-content-between">
+    <a class="navbar-brand d-flex align-items-center" href="index.html">
       <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
       <div class="ms-2">
         <span class="fw-bold text-primary fs-5">VIAL REPORT</span>
@@ -92,6 +92,10 @@ footer {
         <span class="text-muted fs-6">Informes Fotográfico</span>
       </div>
     </a>
+
+    <button type="button" id="btnLogout" class="btn btn-outline-danger">
+      <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    </button>
   </div>
 </nav>
 
@@ -102,7 +106,6 @@ footer {
 
 <div class="container">
   
-
   <a href="visor.html" class="btn btn-info mb-3">
     <i class="bi bi-folder2-open"></i> Ver registros
   </a>
@@ -181,9 +184,6 @@ footer {
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
                 📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
-          <!--<button type="button" class="btn btn-sm btn-primary mt-2 btn-paste">
-                📋 Pegar desde portapapeles
-              </button>-->
             </div>
 
             <div class="progress mt-2">
@@ -217,9 +217,6 @@ footer {
 <script src="app.js" defer></script>
 
 <script>
-let editandoId = localStorage.getItem("editandoInforme");
-let imagenesExistentes = [];
-let count = 1;
 let pegando = false;
 
 // =============================
@@ -249,13 +246,11 @@ function actualizarPreview(input){
   });
 }
 
-
 // =============================
 // 🖱️ DRAG & DROP GLOBAL
 // =============================
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
-
 
 // =============================
 // 🎯 DRAG SOBRE ZONA
@@ -276,12 +271,10 @@ document.addEventListener("dragleave", (e) => {
   }
 });
 
-
 // =============================
 // 📥 DROP DE IMÁGENES
 // =============================
 document.addEventListener("drop", (e) => {
-
   const zona = e.target.closest(".paste-zone");
   if (!zona) return;
 
@@ -292,8 +285,6 @@ document.addEventListener("drop", (e) => {
   const input = grupo.querySelector(".fotos");
 
   const dt = new DataTransfer();
-
-  // mantener existentes
   Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   const files = e.dataTransfer.files;
@@ -311,9 +302,7 @@ document.addEventListener("drop", (e) => {
 
   input.files = dt.files;
   actualizarPreview(input);
-
 });
-
 
 // =============================
 // 🖱️ CLICK EN ZONA
@@ -332,13 +321,11 @@ document.addEventListener("click", (e) => {
 });
 
 // =============================
-// 📋 PEGAR EN ZONA CON CTRL + v
+// 📋 PEGAR EN ZONA CON CTRL + V
 // =============================
 document.addEventListener("paste", (e) => {
-
-  if (pegando) return; // 🚫 evita doble ejecución
+  if (pegando) return;
   pegando = true;
-
   setTimeout(() => pegando = false, 100);
 
   const zona = document.activeElement;
@@ -350,7 +337,6 @@ document.addEventListener("paste", (e) => {
   const input = grupo.querySelector(".fotos");
 
   const dt = new DataTransfer();
-
   Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   const items = e.clipboardData.items;
@@ -365,30 +351,6 @@ document.addEventListener("paste", (e) => {
   input.files = dt.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
 });
-
-
-// =============================
-// ➕ AGREGAR GRUPO
-// =============================
-document.getElementById('addGroup').addEventListener('click', async () => {
-  count++;
-  const clone = document.querySelector('.grupo').cloneNode(true);
-
-  clone.querySelector("h5").innerText = "Tarea " + count;
-  clone.querySelectorAll("[name]").forEach(el => {
-    el.name = el.name.replace(/_\d+$/, "_" + count);
-    if(el.type !== "file") el.value = "";
-  });
-
-  clone.querySelector(".preview").innerHTML = "";
-  clone.querySelector(".progress-bar").style.width = "0%";
-
-  document.getElementById("grupos").appendChild(clone);
-  document.getElementById("total_groups").value = count;
-
-  await cargarTareasJerarquicas();
-});
-
 </script>
 
 <!--FOOTER-->
@@ -417,11 +379,8 @@ document.getElementById('addGroup').addEventListener('click', async () => {
             color:white;">
 
   <div class="text-center" style="width:350px;">
-    
     <div class="spinner-border text-light mb-3" role="status"></div>
-
     <h4 class="mb-3">Guardando informe...</h4>
-
     <div class="progress" style="height:25px;">
       <div id="barraCarga"
            class="progress-bar progress-bar-striped progress-bar-animated"
@@ -430,7 +389,6 @@ document.getElementById('addGroup').addEventListener('click', async () => {
         0%
       </div>
     </div>
-
   </div>
 </div>
 
