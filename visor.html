@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Visor de Informes</title>
+  <title>Visor de Informes - Vial Report</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -27,13 +27,11 @@
       padding-bottom: 60px;
     }
 
-    /* Navbar */
     .navbar-brand img {
       height: 60px;
       margin-right: 10px;
     }
 
-    /* Cards */
     .card {
       transition: transform 0.2s, box-shadow 0.2s;
     }
@@ -42,7 +40,6 @@
       box-shadow: 0 8px 15px rgba(0,0,0,0.1);
     }
 
-    /* Mapa del Visor */
     #mapaVisor {
       height: 400px;
       width: 100%;
@@ -51,7 +48,6 @@
       z-index: 1;
     }
 
-    /* Estilo de las minifotos en los pines del mapa */
     .minipin-container {
       background: white;
       border-radius: 50%;
@@ -70,12 +66,10 @@
       object-fit: cover;
     }
 
-    /* Botones */
     .btn + .btn {
       margin-left: 5px;
     }
 
-    /* Footer */
     footer {
       backdrop-filter: blur(5px);
       background: rgba(255,255,255,0.95);
@@ -84,28 +78,8 @@
       border-top: 1px solid #ddd;
       text-align: center;
     }
-
-    /* Previews */
-    .preview img {
-      height: 120px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      transition: transform 0.2s;
-    }
-    .preview img:hover {
-      transform: scale(1.05);
-    }
-
-    /* Filtros */
-    .filtros .col-md-2,
-    .filtros .col-md-3 {
-      margin-bottom: 10px;
-    }
   </style>
 
-  <!-- Configuración PWA / Pantalla completa iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Vial Report">
@@ -115,7 +89,7 @@
 
 <body>
 
-<!-- Navbar con logo y Cerrar Sesión -->
+<!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
   <div class="container-fluid d-flex align-items-center justify-content-between">
     <a class="navbar-brand d-flex align-items-center" href="index.html">
@@ -133,7 +107,6 @@
   </div>
 </nav>
 
-<!-- Título principal -->
 <div class="container mb-4 text-center">
   <h1 class="text-primary">Visor de Informes</h1>
 </div>
@@ -228,7 +201,7 @@
 <script>
 const supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6Inhwb24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 
 // 🗺️ INICIALIZAR MAPA DEL VISOR
@@ -245,7 +218,6 @@ let capaMarcadores = L.layerGroup().addTo(mapaVisor);
   if (!data.session) window.location.href = "login.html";
 })();
 
-// 🚪 CERRAR SESIÓN
 const btnLogout = document.getElementById("btnLogout");
 if (btnLogout) {
   btnLogout.addEventListener("click", async () => {
@@ -256,7 +228,7 @@ if (btnLogout) {
   });
 }
 
-// 🚀 CARGAR DATOS CON FILTROS Y ORDENAMIENTO DESCENDENTE (FECHA Y KM)
+// 🚀 CARGAR DATOS
 async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
@@ -276,27 +248,30 @@ async function cargar() {
   if (subtramo) query = query.eq("subtramo", subtramo);
   if (subtarea) query = query.eq("tarea", subtarea);
 
-  const { data, error } = await query
-    .order("fecha", { ascending: false })
-    .order("km", { ascending: false });
+  const { data, error } = await query.order("fecha", { ascending: false });
 
-  if (error) { console.log(error); alert("Error cargando datos"); return; }
+  if (error) { 
+    console.error("Error al cargar de Supabase:", error);
+    document.getElementById("contenedor").innerHTML = `<div class="alert alert-danger text-center">Error al cargar los registros: ${error.message}</div>`;
+    return; 
+  }
 
   renderInformes(data);
   actualizarMapaVisor(data);
 }
 
-// 🗺️ ACTUALIZAR PINES CON MINIFOTOS EN EL MAPA
+// 🗺️ ACTUALIZAR PINES (Ignora registros sin lat/lon sin romper la app)
 function actualizarMapaVisor(data) {
   capaMarcadores.clearLayers();
   let bounds = [];
 
-  data.forEach(r => {
-    // Verificamos si el registro tiene coordenadas válidas (lat y lon) y fotos
-    if (r.latitud && r.longitud && r.imagenes && r.imagenes.length > 0) {
-      let miniaturaUrl = r.imagenes[0]; // Usamos la primera foto como miniatura
+  if (!data || data.length === 0) return;
 
-      // Creamos un ícono personalizado con la minifoto redonda
+  data.forEach(r => {
+    // Si tiene latitud y longitud válidas, dibuja el pin con la minifoto
+    if (r.latitud !== null && r.latitud !== undefined && r.longitud !== null && r.longitud !== undefined && r.imagenes && r.imagenes.length > 0) {
+      let miniaturaUrl = r.imagenes[0];
+
       let iconoMini = L.divIcon({
         className: '',
         html: `<div class="minipin-container"><img src="${miniaturaUrl}" class="minipin-img"></div>`,
@@ -306,12 +281,11 @@ function actualizarMapaVisor(data) {
 
       let marker = L.marker([r.latitud, r.longitud], { icon: iconoMini });
 
-      // Popup al hacer clic en la minifoto
       let contenidoPopup = `
         <div style="text-align: center; max-width: 180px;">
-          <b>${r.ruta} - Km ${r.km}</b><br>
-          <small>${r.tarea}</small><br>
-          <span class="badge bg-secondary mb-1">${r.fecha}</span><br>
+          <b>${r.ruta || ''} - Km ${r.km || ''}</b><br>
+          <small>${r.tarea || ''}</small><br>
+          <span class="badge bg-secondary mb-1">${r.fecha || ''}</span><br>
           <img src="${miniaturaUrl}" style="width: 150px; height: 100px; object-fit: cover; border-radius: 6px; margin-top: 4px;">
         </div>
       `;
@@ -322,7 +296,6 @@ function actualizarMapaVisor(data) {
     }
   });
 
-  // Si hay puntos en el mapa, ajustamos el zoom automáticamente para abarcarlos todos
   if (bounds.length > 0) {
     mapaVisor.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
   }
@@ -346,7 +319,7 @@ function renderInformes(data) {
       });
     }
 
-    let coordsBadge = (r.latitud && r.longitud) ? `<span class="badge bg-success ms-2"><i class="bi bi-geo-alt-fill"></i> Con GPS (EXIF)</span>` : `<span class="badge bg-secondary ms-2">Sin GPS</span>`;
+    let coordsBadge = (r.latitud && r.longitud) ? `<span class="badge bg-success ms-2"><i class="bi bi-geo-alt-fill"></i> Con GPS</span>` : `<span class="badge bg-secondary ms-2">Sin GPS</span>`;
 
     contenedor.innerHTML += `
       <div class="card mb-4 shadow-sm" id="card_${r.id}">
@@ -365,7 +338,6 @@ function renderInformes(data) {
           <p><b>Observación:</b> <span id="val_obs_${r.id}">${r.observacion}</span></p>
           <div class="row mb-2">${imagenesHTML}</div>
 
-          <!-- Checkbox individual para mostrar u ocultar la observación -->
           <div class="form-check mb-2">
             <input type="checkbox" class="form-check-input" id="obs_${r.id}" checked>
             <label class="form-check-label small" for="obs_${r.id}">Incluir observación en la estampa</label>
@@ -391,7 +363,7 @@ async function getBase64ImageFromURL(url) {
   });
 }
 
-// 🖼️ FUNCIÓN DE ESTAMPADO DE DATOS EN LA FOTO (CANVAS)
+// 🖼️ ESTAMPADO DE DATOS EN LA FOTO (CANVAS)
 async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -669,7 +641,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
   }
 }
 
-// PDF SIMPLE
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
   const mostrarObs = document.getElementById(`obs_${id}`).checked;
@@ -683,7 +654,6 @@ async function generarPDF(id) {
   doc.save(`informe_${r.fecha}.pdf`);
 }
 
-// PDF MÚLTIPLE
 async function generarPDFMultiple() {
   const checkboxes = document.querySelectorAll(".seleccionar:checked");
   if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
@@ -709,13 +679,11 @@ async function generarPDFMultiple() {
   doc.save("informe_multiple.pdf");
 }
 
-// EDITAR INFORME
 function editarInforme(id){
   localStorage.setItem("editandoInforme", id);
   window.location.href = "index.html";
 }
 
-// 🗑️ ELIMINAR INFORME
 async function eliminarInforme(id) {
   if (!confirm("¿Estás seguro de que querés eliminar este informe?")) return;
 
@@ -734,7 +702,6 @@ async function eliminarInforme(id) {
   cargar();
 }
 
-// CARGAR FILTROS SUBTAREAS DIRECTAMENTE DE LOS INFORMES
 async function cargarFiltrosSubtareas() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return;
@@ -759,14 +726,12 @@ async function cargarFiltrosSubtareas() {
   });
 }
 
-// EVENTOS DE FILTROS ACTIVOS
 document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSubtramo, #filterSubtarea")
   .forEach(el => {
     el.addEventListener("change", cargar);
     el.addEventListener("input", cargar);
   });
 
-// INICIALIZACIÓN
 async function inicializar() {
   await cargarFiltrosSubtareas();
   await cargar();
@@ -775,7 +740,6 @@ async function inicializar() {
 inicializar();
 </script>
 
-<!--MI MARCA-->
 <footer>
   © <span id="year"></span> - VIAL REPORT  
   <br>
