@@ -10,6 +10,17 @@ const supabaseClient = supabase.createClient(
   if (!data.session) window.location.href = "login.html";
 })();
 
+// 🚪 CERRAR SESIÓN
+const btnLogout = document.getElementById("btnLogout");
+if (btnLogout) {
+  btnLogout.addEventListener("click", async () => {
+    if (!confirm("¿Querés cerrar sesión para ingresar con otra cuenta?")) return;
+    await supabaseClient.auth.signOut();
+    localStorage.removeItem("editandoInforme");
+    window.location.href = "login.html";
+  });
+}
+
 // 🌩 CLOUDINARY
 const CLOUD_NAME = "ddgc2azm8";
 const UPLOAD_PRESET = "unsigned_upload";
@@ -35,7 +46,11 @@ function subirACloudinary(file, onProgress) {
     xhr.onload = () => {
       try {
         const res = JSON.parse(xhr.responseText);
-        resolve(res.secure_url);
+        if (res.secure_url) {
+          resolve(res.secure_url);
+        } else {
+          reject(null);
+        }
       } catch (err) {
         reject(null);
       }
@@ -181,6 +196,16 @@ document.getElementById("addGroup").addEventListener("click", async () => {
   await cargarTareasJerarquicas();
 });
 
+// 🔹 LIMPIAR FORMULARIO
+const btnClear = document.getElementById("clearForm");
+if (btnClear) {
+  btnClear.addEventListener("click", () => {
+    if (!confirm("¿Querés limpiar todos los campos del formulario?")) return;
+    localStorage.removeItem("editandoInforme");
+    window.location.reload();
+  });
+}
+
 // 🔹 GUARDAR FORMULARIO
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
@@ -227,7 +252,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         });
 
         if (!url) {
-          alert("Error subiendo imagen");
+          alert("Error subiendo imagen a Cloudinary");
           ocultarCarga();
           return;
         }
@@ -246,7 +271,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
       const dataToInsert = {
         fecha: g.querySelector(`[name^="date_"]`).value,
-        empresa: g.querySelector(`[name^="empresa_"]`).value, // ✅ Corregido a empresa
+        empresa: g.querySelector(`[name^="empresa_"]`).value,
         ruta: g.querySelector(`[name^="ruta_"]`).value,
         subtramo: g.querySelector(`[name^="subtramo_"]`).value,
         tarea: subtarea,
@@ -263,7 +288,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           .update(dataToInsert)
           .eq("id", editandoId);
         if (error) { 
-          alert(error.message); 
+          alert("Error al actualizar: " + error.message); 
           ocultarCarga(); 
           return; 
         }
@@ -273,7 +298,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           .from("informes")
           .insert([dataToInsert]);
         if (error) { 
-          alert(error.message); 
+          alert("Error al insertar: " + error.message); 
           ocultarCarga(); 
           return; 
         }
@@ -314,7 +339,7 @@ async function cargarEdicion() {
 
   document.querySelector(`[name=tarea_1]`).value = data.tarea;
   document.querySelector(`[name^="date_"]`).value = data.fecha || "";
-  document.querySelector(`[name^="empresa_"]`).value = data.empresa || ""; // ✅ Corregido a empresa
+  document.querySelector(`[name^="empresa_"]`).value = data.empresa || "";
   document.querySelector(`[name^="ruta_"]`).value = data.ruta || "";
   document.querySelector(`[name^="subtramo_"]`).value = data.subtramo || "";
   document.querySelector(`[name^="km_"]`).value = data.km || "";
@@ -325,6 +350,7 @@ async function cargarEdicion() {
   renderImagenesActuales();
 }
 
+await cargarTareasJerarquicas();
 cargarEdicion();
 
 // 🔹 RENDER + ELIMINAR IMAGENES
@@ -350,9 +376,6 @@ window.eliminarImagen = function(index) {
   document.querySelector(".fotos").value = "";
   renderImagenesActuales();
 }
-
-// 🔹 INICIALIZAR TAREAS EN SELECT AL CARGAR
-await cargarTareasJerarquicas();
 
 // =============================
 // 🔥 LOADING OVERLAY
