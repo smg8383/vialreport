@@ -8,6 +8,9 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
+<!-- Leaflet CSS para los mapas -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
 <style>
 /* Cards de tareas */
 .card.grupo {
@@ -16,6 +19,16 @@
 .card.grupo:hover {
   transform: translateY(-5px);
   box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+}
+
+/* Contenedor del Mapa */
+.mapa-tarea {
+  height: 250px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  margin-bottom: 10px;
+  z-index: 1;
 }
 
 /* Previews de imágenes */
@@ -30,13 +43,13 @@
 .preview img:hover {
   transform: scale(1.05);
 }
+
 /* Efecto dragover */
 .paste-zone {
   min-height: 150px;
   width: 100%;
   position: relative;
-  z-index: 999;
-  pointer-events: all;
+  z-index: 10;
   border: 2px dashed #ccc;
   border-radius: 8px;
   padding: 12px;
@@ -83,7 +96,6 @@ footer {
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Vial Report">
 <link rel="apple-touch-icon" href="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png">
-
 <link rel="manifest" href="manifest.json">
  
 </head>
@@ -123,8 +135,8 @@ footer {
     <input type="hidden" id="total_groups" value="1">
 
     <div id="grupos">
-      <div class="card shadow-sm mb-4 grupo">
-        <div class="card-header bg-secondary text-white">
+      <div class="card shadow-sm mb-4 grupo" data-grupo-id="1">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Tarea 1</h5>
         </div>
         <div class="card-body">
@@ -159,7 +171,6 @@ footer {
                 <option value="CHACO" selected>CHACO</option>
                 <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
                 <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
-                
               </select>
             </div>
 
@@ -170,7 +181,20 @@ footer {
             
             <div class="col-md-4">
               <label>Km</label>
-              <input type="text" name="km_1" class="form-control form-control-lg" placeholder="Ingrese km">
+              <input type="text" name="km_1" class="form-control form-control-lg" placeholder="Ingrese km o use el GPS">
+            </div>
+
+            <!-- SECCIÓN DE MAPA Y GEOLOCALIZACIÓN PARA LA TAREA -->
+            <div class="col-md-12 mt-3">
+              <label class="fw-bold text-primary mb-2"><i class="bi bi-geo-alt-fill"></i> Ubicación y Mapa de Referencia</label>
+              <div class="mb-2">
+                <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2" onclick="activarUbicacionGPS(this)">
+                  <i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km
+                </button>
+              </div>
+              <div id="map_1" class="mapa-tarea"></div>
+              <input type="hidden" name="lat_1" id="lat_1">
+              <input type="hidden" name="lon_1" id="lon_1">
             </div>
 
             <div class="col-md-4">
@@ -182,7 +206,7 @@ footer {
               </select>
             </div>
 
-            <div class="col-md-12">
+            <div class="col-md-8">
               <label>Observación</label>
               <input type="text" name="observacion_1" class="form-control form-control-lg" placeholder="Ingrese observación">
             </div>
@@ -192,7 +216,6 @@ footer {
               <label>Fotos (máx 4)</label>
               
               <div class="row g-2 mb-2">
-                <!-- Botón 1: Galería / Múltiples archivos -->
                 <div class="col-6">
                   <label class="btn btn-outline-primary w-100 mb-0 py-2" style="cursor: pointer;">
                     <i class="bi bi-image"></i> Galería
@@ -200,7 +223,6 @@ footer {
                   </label>
                 </div>
 
-                <!-- Botón 2: Cámara directa que inyecta directo al input principal "fotos" -->
                 <div class="col-6">
                   <label class="btn btn-dark w-100 mb-0 py-2 text-white" style="cursor: pointer;">
                     <i class="bi bi-camera-fill"></i> Cámara
@@ -210,7 +232,7 @@ footer {
               </div>
 
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
-                📷 Pegá imágenes здесь (Ctrl+V) o arrastralas
+                📷 Pegá imágenes aquí (Ctrl+V) o arrastralas
               </div>
             </div>
 
@@ -241,11 +263,147 @@ footer {
   </form>
 </div>
 
+<!-- Supabase y Leaflet JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js" defer></script>
 
 <script>
 let pegando = false;
+
+// =============================
+// 🗺️ INICIALIZACIÓN DE MAPAS Y PROGRESIVAS
+// =============================
+// Asegúrate de definir tus credenciales de Supabase aquí o en tu app.js si ya las maneja globalmente
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const mapasInstanciados = {};
+const marcadoresUsuario = {};
+
+async function inicializarMapa(grupoId) {
+  const mapElementId = `map_${grupoId}`;
+  if (mapasInstanciados[grupoId]) return;
+
+  // Crear mapa centrado predeterminado en el Litoral (Corrientes/Chaco)
+  const map = L.map(mapElementId).setView([-27.4692, -58.8341], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  mapasInstanciados[grupoId] = map;
+
+  // Cargar TODAS las progresivas de la tabla en Supabase para mostrarlas en el mapa
+  try {
+    const { data, error } = await supabaseClient
+      .from('progresivas_viales')
+      .select('id, ruta, progresiva, distrito, latitud, longitud');
+
+    if (!error && data) {
+      data.forEach(punto => {
+        if (punto.latitud && punto.longitud) {
+          let colorCirculo = (punto.ruta && punto.ruta.includes('12')) ? '#1F4E78' : '#28a745';
+
+          let circleMarker = L.circleMarker([punto.latitud, punto.longitud], {
+            radius: 5,
+            fillColor: colorCirculo,
+            color: '#fff',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).addTo(map);
+
+          circleMarker.bindPopup(`<b>Ruta:</b> ${punto.ruta}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Error cargando progresivas en el mapa:", err);
+  }
+}
+
+// Inicializar el mapa de la primera tarea al cargar la página
+document.addEventListener("DOMContentLoaded", () => {
+  inicializarMapa(1);
+});
+
+// =============================
+// 📍 ACTIVAR GPS Y CALCULAR PROGRESIVA
+// =============================
+async function activarUbicacionGPS(btn) {
+  const cardGrupo = btn.closest(".grupo");
+  const grupoId = cardGrupo.getAttribute("data-grupo-id");
+  const inputKm = cardGrupo.querySelector(`[name="km_${grupoId}"]`);
+  const inputLat = cardGrupo.querySelector(`#lat_${grupoId}`);
+  const inputLon = cardGrupo.querySelector(`#lon_${grupoId}`);
+  const map = mapasInstanciados[grupoId];
+
+  if (!navigator.geolocation) {
+    alert("Tu dispositivo no soporta geolocalización.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async (position) => {
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
+
+    inputLat.value = lat;
+    inputLon.value = lon;
+
+    // Actualizar vista del mapa y marcador del usuario
+    if (map) {
+      map.setView([lat, lon], 15);
+      if (marcadoresUsuario[grupoId]) {
+        map.removeLayer(marcadoresUsuario[grupoId].marker);
+        map.removeLayer(marcadoresUsuario[grupoId].circle);
+      }
+
+      const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
+      const accuracyCircle = L.circle([lat, lon], { radius: accuracy, color: '#dc3545', fillColor: '#f03', fillOpacity: 0.2 }).addTo(map);
+      
+      marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
+    }
+
+    // Consultar a Supabase la función espacial PostGIS para hallar la progresiva más cercana
+    try {
+      const { data, error } = await supabaseClient.rpc('fn_obtener_progresiva_cercana', {
+        p_longitud: lon,
+        p_latitud: lat,
+        p_radio_metros: 2500 // Radio de búsqueda de 2.5 km
+      });
+
+      if (error) {
+        console.error("Error en RPC Supabase:", error);
+        alert("No se pudo calcular la progresiva automáticamente desde la base de datos.");
+        return;
+      }
+
+      if (data && data.length > 0) {
+        inputKm.value = data[0].progresiva;
+        // Opcional: autocomseccionar ruta si coincide
+        const selectRuta = cardGrupo.querySelector(`[name="ruta_${grupoId}"]`);
+        if (selectRuta && data[0].ruta) {
+          // Ajustar según el valor devuelto por la BD
+          for (let option of selectRuta.options) {
+            if (option.value.includes(data[0].ruta.replace('RN', '').trim())) {
+              selectRuta.value = option.value;
+              break;
+            }
+          }
+        }
+      } else {
+        alert("Estás a más de 2.5 km de una progresiva registrada.");
+      }
+    } catch (err) {
+      console.error("Excepción al consultar progresiva:", err);
+    }
+
+  }, (error) => {
+    alert("Error al obtener la ubicación GPS: " + error.message);
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
 
 // =============================
 // 📷 PREVIEW DE IMÁGENES
@@ -275,7 +433,7 @@ function actualizarPreview(input){
 }
 
 // =============================
-// 📸 CAPTURA DIRECTA DE CÁMARA (UNIFICADA)
+// 📸 CAPTURA DIRECTA DE CÁMARA
 // =============================
 function agregarFotoCamara(inputCamara) {
   if (inputCamara.files.length === 0) return;
@@ -284,9 +442,7 @@ function agregarFotoCamara(inputCamara) {
   const inputPrincipal = grupo.querySelector(".fotos");
 
   const dt = new DataTransfer();
-  // Mantener las fotos que ya estaban seleccionadas
   Array.from(inputPrincipal.files || []).forEach(f => dt.items.add(f));
-  // Agregar la nueva foto sacada con la cámara
   Array.from(inputCamara.files).forEach(f => dt.items.add(f));
 
   if (dt.files.length > 4) {
@@ -297,10 +453,9 @@ function agregarFotoCamara(inputCamara) {
 
   inputPrincipal.files = dt.files;
   actualizarPreview(inputPrincipal);
-  inputCamara.value = ""; // Limpiar para permitir sacar otra foto si se desea
+  inputCamara.value = "";
 }
 
-// Escuchar cambios tradicionales de la galería
 document.addEventListener("change", (e) => {
   if (e.target.classList.contains("fotos")) {
     actualizarPreview(e.target);
@@ -313,9 +468,6 @@ document.addEventListener("change", (e) => {
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
 
-// =============================
-// 🎯 DRAG SOBRE ZONA
-// =============================
 document.addEventListener("dragenter", (e) => {
   const zona = e.target.closest(".paste-zone");
   if (zona) {
@@ -332,9 +484,6 @@ document.addEventListener("dragleave", (e) => {
   }
 });
 
-// =============================
-// 📥 DROP DE IMÁGENES
-// =============================
 document.addEventListener("drop", (e) => {
   const zona = e.target.closest(".paste-zone");
   if (!zona) return;
@@ -349,7 +498,6 @@ document.addEventListener("drop", (e) => {
   Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   const files = e.dataTransfer.files;
-
   for (let i = 0; i < files.length; i++) {
     if (files[i].type.startsWith("image/")) {
       dt.items.add(files[i]);
@@ -365,25 +513,17 @@ document.addEventListener("drop", (e) => {
   actualizarPreview(input);
 });
 
-// =============================
-// 🖱️ CLICK EN ZONA
-// =============================
 document.addEventListener("click", (e) => {
   if (e.target.classList.contains("paste-zone")) {
     const zona = e.target;
-
     zona.textContent = "📋 Ahora presioná CTRL + V para pegar";
     zona.focus();
-
     setTimeout(() => {
       zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
     }, 2000);
   }
 });
 
-// =============================
-// 📋 PEGAR EN ZONA CON CTRL + V
-// =============================
 document.addEventListener("paste", (e) => {
   if (pegando) return;
   pegando = true;
@@ -401,7 +541,6 @@ document.addEventListener("paste", (e) => {
   Array.from(input.files || []).forEach(f => dt.items.add(f));
 
   const items = e.clipboardData.items;
-
   for (let i = 0; i < items.length; i++) {
     if (items[i].type.startsWith("image/")) {
       const file = items[i].getAsFile();
@@ -412,6 +551,25 @@ document.addEventListener("paste", (e) => {
   input.files = dt.files;
   actualizarPreview(input);
 });
+
+// Soporte para inicializar nuevos mapas si añaden más tareas dinámicamente
+const observer = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    mutation.addedNodes.forEach((node) => {
+      if (node.nodeType === 1 && node.classList.contains('grupo')) {
+        const nuevoId = node.getAttribute('data-grupo-id');
+        if (nuevoId) {
+          setTimeout(() => inicializarMapa(nuevoId), 200);
+        }
+      }
+    });
+  });
+});
+
+const contenedorGrupos = document.getElementById('grupos');
+if (contenedorGrupos) {
+  observer.observe(contenedorGrupos, { childList: true });
+}
 </script>
 
 <!--FOOTER-->
