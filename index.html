@@ -186,20 +186,26 @@ footer {
               <input type="text" name="observacion_1" class="form-control form-control-lg" placeholder="Ingrese observación">
             </div>
 
-            <!-- SECCIÓN DE FOTOS CON BOTÓN DE CÁMARA DIRECTA -->
+            <!-- SECCIÓN DE FOTOS CON BOTONES DE GALERÍA Y CÁMARA NATIVA -->
             <div class="col-md-12">
               <label>Fotos (máx 4)</label>
               
-              <!-- Input tradicional para adjuntar archivos o galería -->
-              <input type="file" name="photos_1" class="form-control fotos mb-2" multiple accept="image/*">
+              <div class="row g-2 mb-2">
+                <!-- Botón 1: Galería / Archivos -->
+                <div class="col-6">
+                  <label class="btn btn-outline-primary w-100 mb-0 py-2" style="cursor: pointer;">
+                    <i class="bi bi-image"></i> Galería
+                    <input type="file" name="photos_1" class="form-control fotos d-none" multiple accept="image/*">
+                  </label>
+                </div>
 
-              <!-- Botón independiente para abrir la cámara nativa del celular -->
-              <div class="d-grid mb-2">
-                <button type="button" class="btn btn-outline-dark btn-sm" onclick="dispararCamara(this)">
-                  <i class="bi bi-camera-fill"></i> Abrir Cámara del Celular 📸
-                </button>
-                <!-- Input oculto exclusivo con capture para la cámara -->
-                <input type="file" class="camara-directa d-none" accept="image/*" capture="environment">
+                <!-- Botón 2: Cámara directa nativa (Ideal iPhone / PWA) -->
+                <div class="col-6">
+                  <label class="btn btn-dark w-100 mb-0 py-2 text-white" style="cursor: pointer;">
+                    <i class="bi bi-camera-fill"></i> Cámara
+                    <input type="file" class="camara-directa d-none" accept="image/*" capture="environment">
+                  </label>
+                </div>
               </div>
 
               <div class="paste-zone border rounded p-3 text-center text-muted mt-2" tabindex="0">
@@ -241,7 +247,7 @@ footer {
 let pegando = false;
 
 // =============================
-// 📸 PREVIEW DE IMÁGENES
+// 📷 PREVIEW DE IMÁGENES
 // =============================
 function actualizarPreview(input){
   const files = Array.from(input.files);
@@ -259,4 +265,119 @@ function actualizarPreview(input){
     const reader = new FileReader();
     reader.onload = ev=>{
       preview.innerHTML += `
-        <div class="col-md-3 mb
+        <div class="col-md-3 mb-2">
+          <img src="${ev.target.result}" class="img-fluid rounded border">
+        </div>`;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// =============================
+// 📸 CAPTURA DIRECTA CÁMARA MÓVIL
+// =============================
+document.addEventListener("change", (e) => {
+  if (e.target.classList.contains("camara-directa")) {
+    const inputCamara = e.target;
+    const grupo = inputCamara.closest(".grupo");
+    const inputPrincipal = grupo.querySelector(".fotos");
+
+    if (inputCamara.files.length > 0) {
+      const dt = new DataTransfer();
+      Array.from(inputPrincipal.files || []).forEach(f => dt.items.add(f));
+      Array.from(inputCamara.files).forEach(f => dt.items.add(f));
+
+      if (dt.files.length > 4) {
+        alert("Máximo 4 imágenes en total por tarea.");
+        inputCamara.value = "";
+        return;
+      }
+
+      inputPrincipal.files = dt.files;
+      actualizarPreview(inputPrincipal);
+      inputCamara.value = "";
+    }
+  }
+
+  if (e.target.classList.contains("fotos")) {
+    actualizarPreview(e.target);
+  }
+});
+
+// =============================
+// 🖱️ DRAG & DROP GLOBAL
+// =============================
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+
+// =============================
+// 🎯 DRAG SOBRE ZONA
+// =============================
+document.addEventListener("dragenter", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) {
+    zona.classList.add("dragover");
+    zona.textContent = "Soltá la imagen acá 📥";
+  }
+});
+
+document.addEventListener("dragleave", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (zona) {
+    zona.classList.remove("dragover");
+    zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+  }
+});
+
+// =============================
+// 📥 DROP DE IMÁGENES
+// =============================
+document.addEventListener("drop", (e) => {
+  const zona = e.target.closest(".paste-zone");
+  if (!zona) return;
+
+  zona.classList.remove("dragover");
+  zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+
+  const grupo = zona.closest(".grupo");
+  const input = grupo.querySelector(".fotos");
+
+  const dt = new DataTransfer();
+  Array.from(input.files || []).forEach(f => dt.items.add(f));
+
+  const files = e.dataTransfer.files;
+
+  for (let i = 0; i < files.length; i++) {
+    if (files[i].type.startsWith("image/")) {
+      dt.items.add(files[i]);
+    }
+  }
+
+  if (dt.files.length > 4) {
+    alert("Máximo 4 imágenes");
+    return;
+  }
+
+  input.files = dt.files;
+  actualizarPreview(input);
+});
+
+// =============================
+// 🖱️ CLICK EN ZONA
+// =============================
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("paste-zone")) {
+    const zona = e.target;
+
+    zona.textContent = "📋 Ahora presioná CTRL + V para pegar";
+    zona.focus();
+
+    setTimeout(() => {
+      zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
+    }, 2000);
+  }
+});
+
+// =============================
+// 📋 PEGAR EN ZONA CON CTRL + V
+// =============================
