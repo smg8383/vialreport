@@ -265,11 +265,14 @@ footer {
 <!-- Supabase y Leaflet JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js" defer></script>
+
+<!-- Tu app.js modificado ligeramente para que exponga globalmente supabaseClient -->
+<script src="app.js"></script>
 
 <script>
-let pegando = false;
-
+// =============================
+// 🗺️ LÓGICA DE MAPAS Y GPS INTEGRADA
+// =============================
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
 
@@ -278,7 +281,7 @@ async function inicializarMapa(grupoId) {
   const el = document.getElementById(mapElementId);
   if (!el || mapasInstanciados[grupoId]) return;
 
-  // Crear mapa centrado en Corrientes/Chaco (Tramo Litoral)
+  // Crear mapa centrado en el Litoral (Corrientes/Chaco)
   const map = L.map(mapElementId).setView([-27.4692, -58.8341], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -286,13 +289,13 @@ async function inicializarMapa(grupoId) {
 
   mapasInstanciados[grupoId] = map;
 
-  // Forzar redibujado de Leaflet
   setTimeout(() => { map.invalidateSize(); }, 300);
 
-  // Cargar las progresivas desde la instancia de Supabase definida en app.js
   try {
+    // Esperar a que app.js inicialice supabaseClient
     if (typeof supabaseClient === 'undefined') {
-      console.error("supabaseClient no está definido. Asegúrate de inicializarlo en app.js");
+      console.warn("Esperando cliente de Supabase...");
+      setTimeout(() => inicializarMapa(grupoId), 500);
       return;
     }
 
@@ -319,12 +322,29 @@ async function inicializarMapa(grupoId) {
       });
     }
   } catch (err) {
-    console.error("Error cargando progresivas:", err);
+    console.error("Error cargando progresivas en el mapa:", err);
   }
 }
 
+// Inicializar el mapa de la Tarea 1 al cargar la página
 document.addEventListener("DOMContentLoaded", () => {
-  inicializarMapa(1);
+  setTimeout(() => { inicializarMapa(1); }, 400);
+});
+
+// Interceptar cuando se hace clic en "Agregar tarea" para inicializar el mapa de la nueva tarea clonada
+document.getElementById("addGroup").addEventListener("click", () => {
+  // El contador 'count' está definido en app.js; lo leemos del input total_groups
+  setTimeout(() => {
+    const totalGroups = document.querySelectorAll(".grupo").length;
+    const ultimaTarjeta = document.querySelectorAll(".grupo")[totalGroups - 1];
+    ultimaTarjeta.setAttribute("data-grupo-id", totalGroups);
+    
+    // Actualizar IDs internos de los mapas clonados
+    const mapaDiv = ultimaTarjeta.querySelector(".mapa-tarea");
+    mapaDiv.id = `map_${totalGroups}`;
+    
+    inicializarMapa(totalGroups);
+  }, 300);
 });
 
 // =============================
@@ -333,9 +353,9 @@ document.addEventListener("DOMContentLoaded", () => {
 async function activarUbicacionGPS(btn) {
   const cardGrupo = btn.closest(".grupo");
   const grupoId = cardGrupo.getAttribute("data-grupo-id");
-  const inputKm = cardGrupo.querySelector(`[name="km_${grupoId}"]`);
-  const inputLat = cardGrupo.querySelector(`#lat_${grupoId}`);
-  const inputLon = cardGrupo.querySelector(`#lon_${grupoId}`);
+  const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
+  const inputLat = cardGrupo.querySelector(`[id^="lat_"]`);
+  const inputLon = cardGrupo.querySelector(`[id^="lon_"]`);
   const map = mapasInstanciados[grupoId];
 
   if (!navigator.geolocation) {
@@ -351,8 +371,8 @@ async function activarUbicacionGPS(btn) {
     const lon = position.coords.longitude;
     const accuracy = position.coords.accuracy;
 
-    inputLat.value = lat;
-    inputLon.value = lon;
+    if (inputLat) inputLat.value = lat;
+    if (inputLon) inputLon.value = lon;
 
     if (map) {
       map.invalidateSize();
@@ -384,7 +404,7 @@ async function activarUbicacionGPS(btn) {
         console.error("Error en RPC Supabase:", error);
         alert("Error al calcular la progresiva en la base de datos.");
       } else if (data && data.length > 0) {
-        inputKm.value = data[0].progresiva;
+        if (inputKm) inputKm.value = data[0].progresiva;
         alert(`¡Ubicación detectada! Km más cercano: ${data[0].progresiva} (${data[0].ruta})`);
       } else {
         alert("Estás a más de 5 km de una progresiva registrada.");
@@ -405,32 +425,8 @@ async function activarUbicacionGPS(btn) {
 }
 
 // =============================
-// 📷 PREVIEW DE IMÁGENES CORREGIDO (Sin duplicación)
+// 📷 CAPTURA DE CÁMARA DIRECTA (Función auxiliar)
 // =============================
-function actualizarPreview(input){
-  const files = Array.from(input.files);
-
-  if (files.length > 4) {
-    alert("Máximo 4 imágenes");
-    input.value = "";
-    return;
-  }
-
-  const preview = input.closest(".grupo").querySelector(".preview");
-  preview.innerHTML = "";
-
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      preview.innerHTML += `
-        <div class="col-md-3 mb-2">
-          <img src="${ev.target.result}" class="img-fluid rounded border">
-        </div>`;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 function agregarFotoCamara(inputCamara) {
   if (inputCamara.files.length === 0) return;
 
@@ -448,108 +444,12 @@ function agregarFotoCamara(inputCamara) {
   }
 
   inputPrincipal.files = dt.files;
-  actualizarPreview(inputPrincipal);
+  
+  // Disparar evento change simulado para que app.js actualice el preview sin duplicar
+  const event = new Event('change', { bubbles: true });
+  inputPrincipal.dispatchEvent(event);
   inputCamara.value = "";
 }
-
-document.addEventListener("change", (e) => {
-  if (e.target.classList.contains("fotos")) {
-    actualizarPreview(e.target);
-  }
-});
-
-// Drag & drop y portapapeles
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => e.preventDefault());
-
-document.addEventListener("dragenter", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (zona) {
-    zona.classList.add("dragover");
-    zona.textContent = "Soltá la imagen acá 📥";
-  }
-});
-
-document.addEventListener("dragleave", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (zona) {
-    zona.classList.remove("dragover");
-    zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
-  }
-});
-
-document.addEventListener("drop", (e) => {
-  const zona = e.target.closest(".paste-zone");
-  if (!zona) return;
-
-  zona.classList.remove("dragover");
-  zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
-
-  const grupo = zona.closest(".grupo");
-  const input = grupo.querySelector(".fotos");
-
-  const dt = new DataTransfer();
-  Array.from(input.files || []).forEach(f => dt.items.add(f));
-
-  const files = e.dataTransfer.files;
-  for (let i = 0; i < files.length; i++) {
-    if (files[i].type.startsWith("image/")) {
-      dt.items.add(files[i]);
-    }
-  }
-
-  if (dt.files.length > 4) {
-    alert("Máximo 4 imágenes");
-    return;
-  }
-
-  input.files = dt.files;
-  actualizarPreview(input);
-});
-
-document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("paste-zone")) {
-    const zona = e.target;
-    zona.textContent = "📋 Ahora presioná CTRL + V para pegar";
-    zona.focus();
-    setTimeout(() => {
-      zona.textContent = "📷 Pegá imágenes aquí (Ctrl+V) o arrastralas";
-    }, 2000);
-  }
-});
-
-document.addEventListener("paste", (e) => {
-  if (pegando) return;
-  pegando = true;
-  setTimeout(() => pegando = false, 100);
-
-  const zona = document.activeElement;
-  if (!zona || !zona.classList.contains("paste-zone")) return;
-
-  e.preventDefault();
-
-  const grupo = zona.closest(".grupo");
-  const input = grupo.querySelector(".fotos");
-
-  const dt = new DataTransfer();
-  Array.from(input.files || []).forEach(f => dt.items.add(f));
-
-  const items = e.clipboardData.items;
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].type.startsWith("image/")) {
-      const file = items[i].getAsFile();
-      dt.items.add(file);
-    }
-  }
-
-  if (dt.files.length > 4) {
-    alert("Máximo 4 imágenes");
-    return;
-  }
-
-  input.files = dt.files;
-  actualizarPreview(input);
-});
 </script>
 
 <!--FOOTER-->
