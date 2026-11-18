@@ -8,7 +8,7 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
-<!-- Leaflet CSS para los mapas -->
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style>
@@ -21,13 +21,12 @@
   box-shadow: 0 10px 20px rgba(0,0,0,0.15);
 }
 
-/* Contenedor del Mapa */
+/* Contenedor del Mapa - Altura fija obligatoria para Leaflet en móviles */
 .mapa-tarea {
-  height: 250px;
-  width: 100%;
+  height: 260px !important;
+  width: 100% !important;
   border-radius: 8px;
   border: 1px solid #ced4da;
-  margin-bottom: 10px;
   z-index: 1;
 }
 
@@ -184,19 +183,6 @@ footer {
               <input type="text" name="km_1" class="form-control form-control-lg" placeholder="Ingrese km o use el GPS">
             </div>
 
-            <!-- SECCIÓN DE MAPA Y GEOLOCALIZACIÓN PARA LA TAREA -->
-            <div class="col-md-12 mt-3">
-              <label class="fw-bold text-primary mb-2"><i class="bi bi-geo-alt-fill"></i> Ubicación y Mapa de Referencia</label>
-              <div class="mb-2">
-                <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2" onclick="activarUbicacionGPS(this)">
-                  <i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km
-                </button>
-              </div>
-              <div id="map_1" class="mapa-tarea"></div>
-              <input type="hidden" name="lat_1" id="lat_1">
-              <input type="hidden" name="lon_1" id="lon_1">
-            </div>
-
             <div class="col-md-4">
               <label>Sentido</label>
               <select name="sentido_1" class="form-select form-select-lg">
@@ -243,6 +229,19 @@ footer {
             <div class="row preview mt-2"></div>
             <div class="row mt-2" id="imagenesActuales"></div>
 
+            <!-- 🗺️ MAPA Y GPS EN LA PARTE INFERIOR DE LA TAREA -->
+            <div class="col-md-12 mt-4 pt-3 border-top">
+              <label class="fw-bold text-primary mb-2"><i class="bi bi-geo-alt-fill"></i> Mapa de Referencia y Geolocalización GPS</label>
+              <div class="mb-2">
+                <button type="button" class="btn btn-primary w-100 py-2 fw-bold shadow-sm" onclick="activarUbicacionGPS(this)">
+                  <i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km
+                </button>
+              </div>
+              <div id="map_1" class="mapa-tarea mt-2"></div>
+              <input type="hidden" name="lat_1" id="lat_1">
+              <input type="hidden" name="lon_1" id="lon_1">
+            </div>
+
           </div>
         </div>
       </div>
@@ -271,10 +270,7 @@ footer {
 <script>
 let pegando = false;
 
-// =============================
-// 🗺️ INICIALIZACIÓN DE MAPAS Y PROGRESIVAS
-// =============================
-// Asegúrate de definir tus credenciales de Supabase aquí o en tu app.js si ya las maneja globalmente
+// ⚠️ Configura aquí tus credenciales de Supabase
 const SUPABASE_URL = 'TU_SUPABASE_URL';
 const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -284,7 +280,8 @@ const marcadoresUsuario = {};
 
 async function inicializarMapa(grupoId) {
   const mapElementId = `map_${grupoId}`;
-  if (mapasInstanciados[grupoId]) return;
+  const el = document.getElementById(mapElementId);
+  if (!el || mapasInstanciados[grupoId]) return;
 
   // Crear mapa centrado predeterminado en el Litoral (Corrientes/Chaco)
   const map = L.map(mapElementId).setView([-27.4692, -58.8341], 9);
@@ -294,7 +291,10 @@ async function inicializarMapa(grupoId) {
 
   mapasInstanciados[grupoId] = map;
 
-  // Cargar TODAS las progresivas de la tabla en Supabase para mostrarlas en el mapa
+  // Forzar un invalidateSize por si el contenedor estaba oculto o cargando
+  setTimeout(() => { map.invalidateSize(); }, 300);
+
+  // Cargar las progresivas desde Supabase
   try {
     const { data, error } = await supabaseClient
       .from('progresivas_viales')
@@ -323,7 +323,7 @@ async function inicializarMapa(grupoId) {
   }
 }
 
-// Inicializar el mapa de la primera tarea al cargar la página
+// Inicializar el mapa al cargar la página
 document.addEventListener("DOMContentLoaded", () => {
   inicializarMapa(1);
 });
@@ -344,6 +344,10 @@ async function activarUbicacionGPS(btn) {
     return;
   }
 
+  // Indicar al usuario que está buscando señal GPS
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Obteniendo GPS...`;
+  btn.disabled = true;
+
   navigator.geolocation.getCurrentPosition(async (position) => {
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
@@ -354,6 +358,7 @@ async function activarUbicacionGPS(btn) {
 
     // Actualizar vista del mapa y marcador del usuario
     if (map) {
+      map.invalidateSize();
       map.setView([lat, lon], 15);
       if (marcadoresUsuario[grupoId]) {
         map.removeLayer(marcadoresUsuario[grupoId].marker);
@@ -366,43 +371,36 @@ async function activarUbicacionGPS(btn) {
       marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
     }
 
-    // Consultar a Supabase la función espacial PostGIS para hallar la progresiva más cercana
+    // Consultar a Supabase la función espacial PostGIS
     try {
       const { data, error } = await supabaseClient.rpc('fn_obtener_progresiva_cercana', {
         p_longitud: lon,
         p_latitud: lat,
-        p_radio_metros: 2500 // Radio de búsqueda de 2.5 km
+        p_radio_metros: 3000 // Radio de búsqueda de 3 km
       });
 
       if (error) {
         console.error("Error en RPC Supabase:", error);
-        alert("No se pudo calcular la progresiva automáticamente desde la base de datos.");
-        return;
-      }
-
-      if (data && data.length > 0) {
+        alert("Error al calcular la progresiva en la base de datos.");
+      } else if (data && data.length > 0) {
         inputKm.value = data[0].progresiva;
-        // Opcional: autocomseccionar ruta si coincide
-        const selectRuta = cardGrupo.querySelector(`[name="ruta_${grupoId}"]`);
-        if (selectRuta && data[0].ruta) {
-          // Ajustar según el valor devuelto por la BD
-          for (let option of selectRuta.options) {
-            if (option.value.includes(data[0].ruta.replace('RN', '').trim())) {
-              selectRuta.value = option.value;
-              break;
-            }
-          }
-        }
+        alert(`¡Ubicación detectada! Progresiva más cercana: Km ${data[0].progresiva} (${data[0].ruta})`);
       } else {
-        alert("Estás a más de 2.5 km de una progresiva registrada.");
+        alert("Estás a más de 3 km de una progresiva registrada en la base de datos.");
       }
     } catch (err) {
-      console.error("Excepción al consultar progresiva:", err);
+      console.error("Excepción:", err);
+      alert("Error de conexión al consultar Supabase.");
+    } finally {
+      btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km`;
+      btn.disabled = false;
     }
 
   }, (error) => {
-    alert("Error al obtener la ubicación GPS: " + error.message);
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km`;
+    btn.disabled = false;
+    alert("No se pudo obtener la ubicación GPS. Verifica que tengas los permisos de ubicación activados en tu navegador/celular.");
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 // =============================
@@ -432,9 +430,6 @@ function actualizarPreview(input){
   });
 }
 
-// =============================
-// 📸 CAPTURA DIRECTA DE CÁMARA
-// =============================
 function agregarFotoCamara(inputCamara) {
   if (inputCamara.files.length === 0) return;
 
@@ -462,9 +457,7 @@ document.addEventListener("change", (e) => {
   }
 });
 
-// =============================
-// 🖱️ DRAG & DROP GLOBAL
-// =============================
+// Drag & drop y portapapeles
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
 
@@ -542,7 +535,7 @@ document.addEventListener("paste", (e) => {
 
   const items = e.clipboardData.items;
   for (let i = 0; i < items.length; i++) {
-    if (items[i].type.startsWith("image/")) {
+    if (items[i].type.items[i].type.startsWith("image/")) {
       const file = items[i].getAsFile();
       dt.items.add(file);
     }
@@ -551,25 +544,6 @@ document.addEventListener("paste", (e) => {
   input.files = dt.files;
   actualizarPreview(input);
 });
-
-// Soporte para inicializar nuevos mapas si añaden más tareas dinámicamente
-const observer = new MutationObserver((mutations) => {
-  mutations.forEach((mutation) => {
-    mutation.addedNodes.forEach((node) => {
-      if (node.nodeType === 1 && node.classList.contains('grupo')) {
-        const nuevoId = node.getAttribute('data-grupo-id');
-        if (nuevoId) {
-          setTimeout(() => inicializarMapa(nuevoId), 200);
-        }
-      }
-    });
-  });
-});
-
-const contenedorGrupos = document.getElementById('grupos');
-if (contenedorGrupos) {
-  observer.observe(contenedorGrupos, { childList: true });
-}
 </script>
 
 <!--FOOTER-->
@@ -581,35 +555,6 @@ if (contenedorGrupos) {
 <script>
   document.getElementById("year").textContent = new Date().getFullYear();
 </script>
-
-<!-- OVERLAY GUARDANDO -->
-<div id="loadingOverlay" 
-     style="display:none;
-            position:fixed;
-            top:0;
-            left:0;
-            width:100%;
-            height:100%;
-            background:rgba(0,0,0,0.7);
-            z-index:99999;
-            justify-content:center;
-            align-items:center;
-            flex-direction:column;
-            color:white;">
-
-  <div class="text-center" style="width:350px;">
-    <div class="spinner-border text-light mb-3" role="status"></div>
-    <h4 class="mb-3">Guardando informe...</h4>
-    <div class="progress" style="height:25px;">
-      <div id="barraCarga"
-           class="progress-bar progress-bar-striped progress-bar-animated"
-           role="progressbar"
-           style="width:0%">
-        0%
-      </div>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
