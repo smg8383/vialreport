@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", async () => {
-wundows.supabaseClient = supabase.createClient(
+windows.supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
