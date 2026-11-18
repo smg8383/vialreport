@@ -266,12 +266,12 @@ footer {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Tu app.js modificado ligeramente para que exponga globalmente supabaseClient -->
+<!-- Tu app.js donde vive la lógica central y las credenciales -->
 <script src="app.js"></script>
 
 <script>
 // =============================
-// 🗺️ LÓGICA DE MAPAS Y GPS INTEGRADA
+// 🗺️ LÓGICA DE MAPAS Y GPS (Conecta con window.supabaseClient de app.js)
 // =============================
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
@@ -281,7 +281,6 @@ async function inicializarMapa(grupoId) {
   const el = document.getElementById(mapElementId);
   if (!el || mapasInstanciados[grupoId]) return;
 
-  // Crear mapa centrado en el Litoral (Corrientes/Chaco)
   const map = L.map(mapElementId).setView([-27.4692, -58.8341], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -292,14 +291,13 @@ async function inicializarMapa(grupoId) {
   setTimeout(() => { map.invalidateSize(); }, 300);
 
   try {
-    // Esperar a que app.js inicialice supabaseClient
-    if (typeof supabaseClient === 'undefined') {
-      console.warn("Esperando cliente de Supabase...");
+    // Validar que app.js ya haya cargado y asignado supabaseClient al ámbito global
+    if (typeof window.supabaseClient === 'undefined') {
       setTimeout(() => inicializarMapa(grupoId), 500);
       return;
     }
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await window.supabaseClient
       .from('progresivas_viales')
       .select('id, ruta, progresiva, distrito, latitud, longitud');
 
@@ -322,24 +320,21 @@ async function inicializarMapa(grupoId) {
       });
     }
   } catch (err) {
-    console.error("Error cargando progresivas en el mapa:", err);
+    console.error("Error cargando progresivas:", err);
   }
 }
 
-// Inicializar el mapa de la Tarea 1 al cargar la página
 document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => { inicializarMapa(1); }, 400);
 });
 
-// Interceptar cuando se hace clic en "Agregar tarea" para inicializar el mapa de la nueva tarea clonada
+// Interceptar "Agregar tarea" para inicializar el mapa de las nuevas tarjetas
 document.getElementById("addGroup").addEventListener("click", () => {
-  // El contador 'count' está definido en app.js; lo leemos del input total_groups
   setTimeout(() => {
     const totalGroups = document.querySelectorAll(".grupo").length;
     const ultimaTarjeta = document.querySelectorAll(".grupo")[totalGroups - 1];
     ultimaTarjeta.setAttribute("data-grupo-id", totalGroups);
     
-    // Actualizar IDs internos de los mapas clonados
     const mapaDiv = ultimaTarjeta.querySelector(".mapa-tarea");
     mapaDiv.id = `map_${totalGroups}`;
     
@@ -389,12 +384,12 @@ async function activarUbicacionGPS(btn) {
     }
 
     try {
-      if (typeof supabaseClient === 'undefined') {
+      if (typeof window.supabaseClient === 'undefined') {
         alert("Error: cliente de Supabase no disponible.");
         return;
       }
 
-      const { data, error } = await supabaseClient.rpc('fn_obtener_progresiva_cercana', {
+      const { data, error } = await window.supabaseClient.rpc('fn_obtener_progresiva_cercana', {
         p_longitud: lon,
         p_latitud: lat,
         p_radio_metros: 5000 // Radio de búsqueda de 5 km
@@ -425,7 +420,7 @@ async function activarUbicacionGPS(btn) {
 }
 
 // =============================
-// 📷 CAPTURA DE CÁMARA DIRECTA (Función auxiliar)
+// 📷 CAPTURA DE CÁMARA DIRECTA
 // =============================
 function agregarFotoCamara(inputCamara) {
   if (inputCamara.files.length === 0) return;
@@ -445,7 +440,6 @@ function agregarFotoCamara(inputCamara) {
 
   inputPrincipal.files = dt.files;
   
-  // Disparar evento change simulado para que app.js actualice el preview sin duplicar
   const event = new Event('change', { bubbles: true });
   inputPrincipal.dispatchEvent(event);
   inputCamara.value = "";
