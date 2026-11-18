@@ -5,6 +5,7 @@
   <title>Visor de Informes</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
   <!-- SUPABASE -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -69,13 +70,11 @@
   </style>
 </head>
 
-
-
 <body>
 
-<!-- Navbar con logo -->
+<!-- Navbar con logo y Cerrar Sesión -->
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-  <div class="container-fluid d-flex align-items-center">
+  <div class="container-fluid d-flex align-items-center justify-content-between">
     <a class="navbar-brand d-flex align-items-center" href="index.html">
       <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
       <div class="ms-2">
@@ -84,6 +83,10 @@
         <span class="text-muted fs-6">Informes Fotográfico</span>
       </div>
     </a>
+
+    <button type="button" id="btnLogout" class="btn btn-outline-danger">
+      <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    </button>
   </div>
 </nav>
 
@@ -184,13 +187,23 @@ const supabaseClient = supabase.createClient(
   if (!data.session) window.location.href = "login.html";
 })();
 
+// 🚪 CERRAR SESIÓN
+const btnLogout = document.getElementById("btnLogout");
+if (btnLogout) {
+  btnLogout.addEventListener("click", async () => {
+    if (!confirm("¿Querés cerrar sesión para ingresar con otra cuenta?")) return;
+    await supabaseClient.auth.signOut();
+    localStorage.removeItem("editandoInforme");
+    window.location.href = "login.html";
+  });
+}
+
 // 🚀 CARGAR DATOS
 async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
   const user = sessionData.session.user;
 
-  // tomar valores de filtros
   const fecha = document.getElementById("filterFecha").value;
   const empresa = document.getElementById("filterEmpresa").value;
   const ruta = document.getElementById("filterRuta").value;
@@ -283,7 +296,7 @@ async function obtenerLogo() {
   return data?.logo || null;
 }
 
-// 📄 GENERAR PDF (Con parámetro para mostrar/ocultar observación)
+// 📄 GENERAR PDF
 async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
   doc.setDrawColor(160);
   doc.setLineWidth(0.3);
@@ -314,7 +327,7 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
 
   y += 30;
 
-  // 🟦 CAJA PRINCIPAL (DATOS) - Ajuste automático de altura
+  // 🟦 CAJA PRINCIPAL (DATOS)
   let alturaCaja = mostrarObservacion ? 60 : 35;
   doc.setDrawColor(180);
   doc.rect(10, y, 190, alturaCaja);
@@ -354,7 +367,7 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
 
   y += 8;
 
-  // 🟦 OBSERVACIÓN BOX (Condicional)
+  // 🟦 OBSERVACIÓN BOX
   if (mostrarObservacion) {
     doc.setFont(undefined, "bold");
     doc.text("Observación:", 12, y);
@@ -437,7 +450,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
   }
 }
 
-
 // PDF SIMPLE
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
@@ -500,7 +512,7 @@ async function eliminarInforme(id) {
   }
 
   alert("Informe eliminado correctamente 🗑️");
-  cargar(); // Recarga la lista automáticamente
+  cargar();
 }
 
 // CARGAR FILTROS SUBTAREAS
