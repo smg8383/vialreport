@@ -343,7 +343,7 @@ function actualizarMapaVisor(data) {
   }, 300);
 }
 
-// 🔧 RENDER INFORMES (Botones de acción agrupados y botón eliminar integrado)
+// 🔧 RENDER INFORMES (Con botón eliminar perfectamente centrado)
 function renderInformes(data) {
   const contenedor = document.getElementById("contenedor");
   contenedor.innerHTML = "";
@@ -400,7 +400,7 @@ function renderInformes(data) {
               <label class="form-check-label small text-muted" for="obs_${r.id}">Incluir observación en PDF</label>
             </div>
 
-            <!-- Botones de acción agrupados armoniosamente -->
+            <!-- Botones de acción principales -->
             <div class="d-flex flex-wrap gap-2">
               <button class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold shadow-sm" onclick="generarPDF(${r.id})">
                 <i class="bi bi-file-earmark-pdf"></i> PDF
@@ -411,11 +411,16 @@ function renderInformes(data) {
               <button class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-semibold text-dark shadow-sm" onclick="editarInforme(${r.id})">
                 <i class="bi bi-pencil"></i> Editar
               </button>
-              <button class="btn btn-danger btn-sm rounded-pill px-3 fw-semibold shadow-sm" onclick="eliminarInforme(${r.id})" title="Eliminar registro">
-                <i class="bi bi-trash-fill"></i> Eliminar
-              </button>
             </div>
           </div>
+
+          <!-- Botón Eliminar perfectamente centrado -->
+          <div class="text-center mt-3 pt-2 border-top border-opacity-25">
+            <button class="btn btn-danger btn-sm rounded-pill px-4 fw-semibold shadow-sm" onclick="eliminarInforme(${r.id})" title="Eliminar registro">
+              <i class="bi bi-trash-fill"></i> Eliminar informe
+            </button>
+          </div>
+
         </div>
       </div>`;
   });
@@ -787,7 +792,7 @@ async function cargarFiltrosSubtareas() {
   
   const unicas = [...new Set(data.map(item => item.tarea).filter(Boolean))].sort();
   
-  unicas.subtenc = unicas.forEach(sub => {
+  unicas.forEach(sub => {
     const option = document.createElement("option");
     option.value = sub;
     option.textContent = sub;
