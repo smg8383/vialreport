@@ -21,7 +21,7 @@
   box-shadow: 0 10px 20px rgba(0,0,0,0.15);
 }
 
-/* Contenedor del Mapa - Altura fija obligatoria para Leaflet en móviles */
+/* Contenedor del Mapa - Altura fija obligatoria */
 .mapa-tarea {
   height: 260px !important;
   width: 100% !important;
@@ -270,11 +270,6 @@ footer {
 <script>
 let pegando = false;
 
-// ⚠️ Configura aquí tus credenciales de Supabase
-const SUPABASE_URL = 'TU_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
 
@@ -283,7 +278,7 @@ async function inicializarMapa(grupoId) {
   const el = document.getElementById(mapElementId);
   if (!el || mapasInstanciados[grupoId]) return;
 
-  // Crear mapa centrado predeterminado en el Litoral (Corrientes/Chaco)
+  // Crear mapa centrado en Corrientes/Chaco (Tramo Litoral)
   const map = L.map(mapElementId).setView([-27.4692, -58.8341], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -291,11 +286,16 @@ async function inicializarMapa(grupoId) {
 
   mapasInstanciados[grupoId] = map;
 
-  // Forzar un invalidateSize por si el contenedor estaba oculto o cargando
+  // Forzar redibujado de Leaflet
   setTimeout(() => { map.invalidateSize(); }, 300);
 
-  // Cargar las progresivas desde Supabase
+  // Cargar las progresivas desde la instancia de Supabase definida en app.js
   try {
+    if (typeof supabaseClient === 'undefined') {
+      console.error("supabaseClient no está definido. Asegúrate de inicializarlo en app.js");
+      return;
+    }
+
     const { data, error } = await supabaseClient
       .from('progresivas_viales')
       .select('id, ruta, progresiva, distrito, latitud, longitud');
@@ -319,11 +319,10 @@ async function inicializarMapa(grupoId) {
       });
     }
   } catch (err) {
-    console.error("Error cargando progresivas en el mapa:", err);
+    console.error("Error cargando progresivas:", err);
   }
 }
 
-// Inicializar el mapa al cargar la página
 document.addEventListener("DOMContentLoaded", () => {
   inicializarMapa(1);
 });
@@ -344,7 +343,6 @@ async function activarUbicacionGPS(btn) {
     return;
   }
 
-  // Indicar al usuario que está buscando señal GPS
   btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Obteniendo GPS...`;
   btn.disabled = true;
 
@@ -356,7 +354,6 @@ async function activarUbicacionGPS(btn) {
     inputLat.value = lat;
     inputLon.value = lon;
 
-    // Actualizar vista del mapa y marcador del usuario
     if (map) {
       map.invalidateSize();
       map.setView([lat, lon], 15);
@@ -371,12 +368,16 @@ async function activarUbicacionGPS(btn) {
       marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
     }
 
-    // Consultar a Supabase la función espacial PostGIS
     try {
+      if (typeof supabaseClient === 'undefined') {
+        alert("Error: cliente de Supabase no disponible.");
+        return;
+      }
+
       const { data, error } = await supabaseClient.rpc('fn_obtener_progresiva_cercana', {
         p_longitud: lon,
         p_latitud: lat,
-        p_radio_metros: 3000 // Radio de búsqueda de 3 km
+        p_radio_metros: 5000 // Radio de búsqueda de 5 km
       });
 
       if (error) {
@@ -384,9 +385,9 @@ async function activarUbicacionGPS(btn) {
         alert("Error al calcular la progresiva en la base de datos.");
       } else if (data && data.length > 0) {
         inputKm.value = data[0].progresiva;
-        alert(`¡Ubicación detectada! Progresiva más cercana: Km ${data[0].progresiva} (${data[0].ruta})`);
+        alert(`¡Ubicación detectada! Km más cercano: ${data[0].progresiva} (${data[0].ruta})`);
       } else {
-        alert("Estás a más de 3 km de una progresiva registrada en la base de datos.");
+        alert("Estás a más de 5 km de una progresiva registrada.");
       }
     } catch (err) {
       console.error("Excepción:", err);
@@ -399,12 +400,12 @@ async function activarUbicacionGPS(btn) {
   }, (error) => {
     btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS y autocompletar Km`;
     btn.disabled = false;
-    alert("No se pudo obtener la ubicación GPS. Verifica que tengas los permisos de ubicación activados en tu navegador/celular.");
+    alert("No se pudo obtener la ubicación GPS. Verifica los permisos en los ajustes de tu celular.");
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 // =============================
-// 📷 PREVIEW DE IMÁGENES
+// 📷 PREVIEW DE IMÁGENES CORREGIDO (Sin duplicación)
 // =============================
 function actualizarPreview(input){
   const files = Array.from(input.files);
@@ -418,9 +419,9 @@ function actualizarPreview(input){
   const preview = input.closest(".grupo").querySelector(".preview");
   preview.innerHTML = "";
 
-  files.forEach(file=>{
+  files.forEach(file => {
     const reader = new FileReader();
-    reader.onload = ev=>{
+    reader.onload = ev => {
       preview.innerHTML += `
         <div class="col-md-3 mb-2">
           <img src="${ev.target.result}" class="img-fluid rounded border">
@@ -535,10 +536,15 @@ document.addEventListener("paste", (e) => {
 
   const items = e.clipboardData.items;
   for (let i = 0; i < items.length; i++) {
-    if (items[i].type.items[i].type.startsWith("image/")) {
+    if (items[i].type.startsWith("image/")) {
       const file = items[i].getAsFile();
       dt.items.add(file);
     }
+  }
+
+  if (dt.files.length > 4) {
+    alert("Máximo 4 imágenes");
+    return;
   }
 
   input.files = dt.files;
