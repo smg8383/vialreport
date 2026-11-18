@@ -266,12 +266,12 @@ footer {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Tu app.js donde vive la lógica central y las credenciales -->
+<!-- app.js con la conexión segura y centralizada -->
 <script src="app.js"></script>
 
 <script>
 // =============================
-// 🗺️ LÓGICA DE MAPAS Y GPS (Conecta con window.supabaseClient de app.js)
+// 🗺️ LÓGICA DE MAPAS Y GPS
 // =============================
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
@@ -291,7 +291,6 @@ async function inicializarMapa(grupoId) {
   setTimeout(() => { map.invalidateSize(); }, 300);
 
   try {
-    // Validar que app.js ya haya cargado y asignado supabaseClient al ámbito global
     if (typeof window.supabaseClient === 'undefined') {
       setTimeout(() => inicializarMapa(grupoId), 500);
       return;
