@@ -203,7 +203,7 @@ if (btnLogout) {
   });
 }
 
-// 🚀 CARGAR DATOS CON FILTROS Y ORDENAMIENTO DESCENDENTE (FECHA Y KM)
+// 🚀 CARGAR DATOS CON FILTROS Y ORDENAMIENTO DESCENDENTE
 async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
@@ -609,3 +609,77 @@ async function generarPDFMultiple() {
     await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
     first = false;
   }
+  doc.save("informe_multiple.pdf");
+}
+
+// EDITAR INFORME
+function editarInforme(id){
+  localStorage.setItem("editandoInforme", id);
+  window.location.href = "index.html";
+}
+
+// 🗑️ ELIMINAR INFORME
+async function eliminarInforme(id) {
+  if (!confirm("¿Estás seguro de que querés eliminar este informe?")) return;
+
+  const { error } = await supabaseClient
+    .from("informes")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al eliminar:", error);
+    alert("No se pudo eliminar el registro: " + error.message);
+    return;
+  }
+
+  alert("Informe eliminado correctamente 🗑️");
+  cargar();
+}
+
+// CARGAR FILTROS SUBTAREAS
+async function cargarFiltrosSubtareas() {
+  const { data: subtareas, error } = await supabaseClient.from("tareas").select("subtarea").order("subtarea", { ascending: true });
+  const filterSubtarea = document.getElementById("filterSubtarea");
+  
+  if (error || !subtareas) return;
+  
+  const unicas = [...new Set(subtareas.map(item => item.subtarea).filter(Boolean))];
+  
+  unicas.forEach(sub => {
+    const option = document.createElement("option");
+    option.value = sub;
+    option.textContent = sub;
+    filterSubtarea.appendChild(option);
+  });
+}
+
+// EVENTOS DE FILTROS ACTIVOS
+document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSubtramo, #filterSubtarea")
+  .forEach(el => {
+    el.addEventListener("change", cargar);
+    el.addEventListener("input", cargar);
+  });
+
+// INICIALIZACIÓN
+async function inicializar() {
+  await cargarFiltrosSubtareas();
+  await cargar();
+}
+
+inicializar();
+</script>
+
+<!--MI MARCA-->
+<footer>
+  © <span id="year"></span> - VIAL REPORT  
+  <br>
+  Powered by <b>SMG DESARROLLOS</b>
+</footer>
+
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>
