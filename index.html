@@ -144,7 +144,7 @@ footer {
 
             <div class="col-md-4">
               <label class="form-label fw-semibold text-secondary small">Fecha</label>
-              <input type="date" name="date_1" class="form-control" required>
+              <input type="date" name="date_1" id="date_1" class="form-control" required>
             </div>
 
             <div class="col-md-4">
@@ -331,7 +331,20 @@ async function inicializarMapa(grupoId) {
   }
 }
 
+function obtenerFechaHoyLocal() {
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${año}-${mes}-${dia}`;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  const inputFecha1 = document.querySelector('input[name="date_1"]');
+  if (inputFecha1 && !inputFecha1.value) {
+    inputFecha1.value = obtenerFechaHoyLocal();
+  }
+
   setTimeout(() => { inicializarMapa(1); }, 400);
   document.getElementById("year").textContent = new Date().getFullYear();
 });
