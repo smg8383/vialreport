@@ -321,6 +321,7 @@ footer {
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
 let todosLosKmMapa = [];
+let ultimoErrorSupabaseKm = null;
 
 function normalizarRutaDesdeKMZ(rutaKMZ) {
   if (!rutaKMZ) return "";
@@ -344,6 +345,7 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
 }
 
 async function obtenerTodosLosPuntosKMZ(clienteDB) {
+  ultimoErrorSupabaseKm = null;
   let acumulados = [];
   const tamanoPagina = 1000;
   let desde = 0;
@@ -356,6 +358,7 @@ async function obtenerTodosLosPuntosKMZ(clienteDB) {
 
     if (error) {
       console.error("Error cargando progresivas_viales:", error);
+      ultimoErrorSupabaseKm = error.message || "Error desconocido en Supabase";
       break;
     }
 
@@ -579,8 +582,23 @@ async function activarUbicacionGPS(btn) {
 
     try {
       const clienteDB = window.supabaseClient || window.supabase;
-      if (todosLosKmMapa.length === 0 && clienteDB) {
+      if (!clienteDB) {
+        alert("Error de Supabase: no se encontró el cliente de Supabase inicializado.");
+        return;
+      }
+
+      if (todosLosKmMapa.length === 0) {
         todosLosKmMapa = await obtenerTodosLosPuntosKMZ(clienteDB);
+      }
+
+      if (ultimoErrorSupabaseKm) {
+        alert(`Error de Supabase al consultar progresivas_viales: ${ultimoErrorSupabaseKm}`);
+        return;
+      }
+
+      if (todosLosKmMapa.length === 0) {
+        alert("La tabla progresivas_viales devolvió 0 filas.");
+        return;
       }
 
       const puntoCercano = buscarKmMasCercanoEnPuntos(todosLosKmMapa, lat, lon);
@@ -591,11 +609,11 @@ async function activarUbicacionGPS(btn) {
         const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
         alert(`¡Ubicación detectada! Km más cercano: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}`);
       } else {
-        alert("No hay puntos de progresivas cargados en el mapa para calcular el Km.");
+        alert("La tabla progresivas_viales devolvió 0 filas con latitud y longitud válidas.");
       }
     } catch (err) {
       console.error("Error al buscar Km en los puntos del mapa:", err);
-      alert("No se pudo calcular el Km cercano desde los puntos del mapa.");
+      alert(`Error de Supabase / excepción: ${err && err.message ? err.message : err}`);
     } finally {
       btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
       btn.disabled = false;
