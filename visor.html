@@ -638,171 +638,250 @@ async function obtenerLogo() {
   return data?.logo || null;
 }
 
-// 📄 DIBUJAR INFORME (PDF)
+// 📄 NUMERAR PÁGINAS DEL PDF
+function agregarNumeracionPaginas(doc) {
+  const totalPages = doc.getNumberOfPages();
+  doc.setFontSize(8.5);
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(110, 110, 110);
+
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.text(`VIAL REPORT`, 10, 290);
+    doc.text(`Página ${i} de ${totalPages}`, 200, 290, { align: "right" });
+  }
+  doc.setTextColor(0, 0, 0);
+}
+
+// 📄 DIBUJAR INFORME (PDF AGRUPADO POR TAREA)
 async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
-  doc.setDrawColor(160);
+  const pageWidth = 210;
+  const marginX = 10;
+  const contentWidth = pageWidth - marginX * 2; // 190 mm
+  const colRightX = 114;
+  const colRightValX = 136;
+  const colLeftValX = 31;
+  const colLeftMaxWidth = colRightX - colLeftValX - 3; // ~80 mm
+  const colRightMaxWidth = marginX + contentWidth - colRightValX - 2; // ~62 mm
+  const lineStep = 4.8;
+
+  doc.setDrawColor(150);
   doc.setLineWidth(0.3);
 
   let y = 10;
 
-  doc.setFillColor(230, 230, 230);
-  doc.rect(10, y, 190, 25, 'FD');
-  
-  if (logoBase64) {
-    const imgProps = doc.getImageProperties(logoBase64);
-    const maxWidth = 50;  
-    const maxHeight = 20; 
-    let w = imgProps.width;
-    let h = imgProps.height;
-    const scale = Math.min(maxWidth / w, maxHeight / h);
-    w *= scale;
-    h *= scale;
+  // Encabezado
+  doc.setFillColor(235, 238, 242);
+  doc.rect(marginX, y, contentWidth, 24, 'FD');
 
-    const posY = y + (25 - h) / 2;
-    doc.addImage(logoBase64, 'PNG', 12, posY, w, h);
+  if (logoBase64) {
+    try {
+      const imgProps = doc.getImageProperties(logoBase64);
+      const maxWidth = 44;
+      const maxHeight = 19;
+      let w = imgProps.width;
+      let h = imgProps.height;
+      const scale = Math.min(maxWidth / w, maxHeight / h);
+      w *= scale;
+      h *= scale;
+      const posY = y + (24 - h) / 2;
+      doc.addImage(logoBase64, 'PNG', marginX + 3, posY, w, h);
+    } catch (e) {
+      console.warn("No se pudo dibujar el logo en el PDF:", e);
+    }
   }
 
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setFont(undefined, "bold");
-  doc.text("INFORME FOTOGRÁFICO", 105, y + 14, { align: "center" });
+  doc.setTextColor(30, 41, 59);
+  doc.text("INFORME FOTOGRÁFICO", 122, y + 14.5, { align: "center" });
+  doc.setTextColor(0, 0, 0);
 
-  y += 30;
+  y += 28;
 
-  let alturaCaja = mostrarObservacion ? 60 : 35;
-  doc.setDrawColor(180);
-  doc.rect(10, y, 190, alturaCaja);
+  // Preparar líneas de campos con salto automático para evitar superposiciones
+  doc.setFontSize(9.5);
+  const tareaLines = doc.splitTextToSize(String(r.tarea || "-"), colLeftMaxWidth);
+  const obsLines = mostrarObservacion
+    ? doc.splitTextToSize(String(r.observacion || "Sin observaciones"), contentWidth - 8)
+    : [];
 
-  doc.setFillColor(240, 240, 240);
-  doc.rect(10, y, 190, 8, 'FD');
+  const row1Height = Math.max(lineStep, lineStep);
+  const row2Height = Math.max(lineStep, lineStep);
+  const row3Height = Math.max(lineStep, tareaLines.length * lineStep);
+  const row4Height = Math.max(lineStep, lineStep);
 
-  doc.setFontSize(11);
-  doc.setFont(undefined, "bold");
-  doc.text("DATOS DEL INFORME", 12, y + 6);
+  const camposBaseHeight = 10 + row1Height + row2Height + row3Height + row4Height + 3;
+  const obsBlockHeight = mostrarObservacion ? (6 + obsLines.length * 4.4 + 4) : 0;
+  const datosBoxHeight = camposBaseHeight + obsBlockHeight;
 
-  y += 12;
+  // Contenedor de Datos del Informe
+  doc.setDrawColor(175);
+  doc.rect(marginX, y, contentWidth, datosBoxHeight);
+
+  doc.setFillColor(242, 244, 247);
+  doc.rect(marginX, y, contentWidth, 7.5, 'FD');
+
   doc.setFontSize(10);
+  doc.setFont(undefined, "bold");
+  doc.text("DATOS DEL INFORME", marginX + 3, y + 5.2);
 
-  const campo = (label, value, x, y) => {
+  let curY = y + 12;
+  doc.setFontSize(9.5);
+
+  const dibujarCampo = (etiqueta, valor, xLabel, xVal, maxW, yPos) => {
     doc.setFont(undefined, "bold");
-    doc.text(label, x, y);
+    doc.text(etiqueta, xLabel, yPos);
     doc.setFont(undefined, "normal");
-    doc.text(value || "-", x + 28, y);
+    const lineas = doc.splitTextToSize(String(valor || "-"), maxW);
+    doc.text(lineas, xVal, yPos);
+    return lineas.length * lineStep;
   };
 
-  campo("Fecha:", r.fecha, 12, y);
-  campo("Empresa:", r.empresa, 130, y);
+  // Fila 1: Fecha | Empresa
+  dibujarCampo("Fecha:", r.fecha, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
+  dibujarCampo("Empresa:", r.empresa, colRightX, colRightValX, colRightMaxWidth, curY);
+  curY += row1Height;
 
-  y += 6;
-  campo("Ruta:", r.ruta, 12, y);
-  campo("Subtramo:", r.subtramo, 130, y);
+  // Fila 2: Ruta | Subtramo
+  dibujarCampo("Ruta:", r.ruta, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
+  dibujarCampo("Subtramo:", r.subtramo, colRightX, colRightValX, colRightMaxWidth, curY);
+  curY += row2Height;
 
-  y += 6;
-  campo("Tarea:", r.tarea, 12, y);
- 
-  y += 6;
-  campo("Sentido:", r.sentido, 12, y);
-  campo("Km:", r.km, 130, y);
+  // Fila 3: Tarea | Km
+  dibujarCampo("Tarea:", r.tarea, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
+  dibujarCampo("Km:", r.km, colRightX, colRightValX, colRightMaxWidth, curY);
+  curY += row3Height;
 
-  y += 8;
+  // Fila 4: Sentido
+  dibujarCampo("Sentido:", r.sentido, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
+  curY += row4Height;
 
+  // Observación dentro del bloque de datos
   if (mostrarObservacion) {
+    curY += 1.5;
     doc.setFont(undefined, "bold");
-    doc.text("Observación:", 12, y);
+    doc.text("Observación:", marginX + 3, curY);
+    curY += 4.2;
 
-    y += 4;
-    const obs = doc.splitTextToSize(r.observacion || "-", 180);
-
-    doc.setDrawColor(200);
-    doc.rect(12, y, 186, obs.length * 5 + 4);
+    doc.setDrawColor(205);
+    doc.rect(marginX + 3, curY - 2.8, contentWidth - 6, obsLines.length * 4.4 + 2.5);
 
     doc.setFont(undefined, "normal");
-    doc.text(obs, 14, y + 4);
-
-    y += obs.length * 5 + 10;
-  } else {
-    y += 2;
+    doc.text(obsLines, marginX + 5, curY + 0.6);
   }
 
-  doc.setFillColor(240, 240, 240);
-  doc.rect(10, y, 190, 8, 'FD');
+  y += datosBoxHeight + 5;
 
+  // Título Registro Fotográfico
+  doc.setDrawColor(175);
+  doc.setFillColor(242, 244, 247);
+  doc.rect(marginX, y, contentWidth, 7.5, 'FD');
+
+  doc.setFontSize(10);
   doc.setFont(undefined, "bold");
-  doc.text("REGISTRO FOTOGRÁFICO", 12, y + 6);
+  doc.text("REGISTRO FOTOGRÁFICO", marginX + 3, y + 5.2);
 
-  y += 12;
+  y += 10.5;
 
-  const totalFotos = r.imagenes ? r.imagenes.length : 0;
-  const marginLeft = 10;
-  const anchoUtil = 190;
-  const gap = 6;
+  const imagenes = Array.isArray(r.imagenes) ? r.imagenes.filter(Boolean) : [];
+  const totalFotos = imagenes.length;
+  if (totalFotos === 0) return;
 
-  let boxWidth = (anchoUtil - gap) / 2;
+  const footerReserve = 12; // Margen inferior antes del pie de página (290 mm)
+  const availableHeight = 290 - footerReserve - y;
+  const gap = 5;
+
+  // Calcular dimensiones según cantidad de fotos para que entren sin desbordar
+  let boxWidth = (contentWidth - gap) / 2;
   let boxHeight = 68;
-  let rowStep = boxHeight + 8;
+  let rowStep = boxHeight + gap;
+  let singleCentered = false;
 
   if (totalFotos === 1) {
-    boxWidth = anchoUtil;
-    boxHeight = 110;
-    rowStep = boxHeight + 10;
+    singleCentered = true;
+    boxWidth = contentWidth * 0.85;
+    boxHeight = Math.min(115, Math.max(70, availableHeight - 4));
+    rowStep = boxHeight + gap;
   } else if (totalFotos === 2) {
-    boxHeight = 78;
-    rowStep = boxHeight + 10;
+    boxHeight = Math.min(82, Math.max(55, availableHeight - 4));
+    rowStep = boxHeight + gap;
+  } else {
+    // 3 o 4 fotos: 2 columnas x 2 filas dentro del alto disponible
+    boxHeight = Math.min(68, Math.max(48, Math.floor((availableHeight - gap) / 2)));
+    rowStep = boxHeight + gap;
   }
 
-  let x = marginLeft;
+  let x = singleCentered ? marginX + (contentWidth - boxWidth) / 2 : marginX;
   let col = 0;
   const startY = y;
 
-  if (r.imagenes && r.imagenes.length > 0) {
-    for (let i = 0; i < r.imagenes.length; i++) {
-      const img = r.imagenes[i];
-      const esUltima = (i === r.imagenes.length - 1);
+  for (let i = 0; i < totalFotos; i++) {
+    const imgUrl = imagenes[i];
+    const esUltima = (i === totalFotos - 1);
 
-      const imgData = await getBase64ImageFromURL(img);
+    if (!singleCentered && y + boxHeight > 290 - footerReserve) {
+      doc.addPage();
+      y = 14;
+      x = marginX;
+      col = 0;
+    }
+
+    try {
+      const imgData = await getBase64ImageFromURL(imgUrl);
       const imgProps = doc.getImageProperties(imgData);
 
       let imgWidth = imgProps.width;
       let imgHeight = imgProps.height;
 
-      doc.setFillColor(240, 240, 240);
+      doc.setFillColor(245, 247, 250);
       doc.rect(x, y, boxWidth, boxHeight, 'F');
 
-      doc.setDrawColor(180);
+      doc.setDrawColor(185);
       doc.rect(x, y, boxWidth, boxHeight);
 
-      const ratio = Math.min(boxWidth / imgWidth, boxHeight / imgHeight);
+      const innerPad = 1.5;
+      const maxW = boxWidth - innerPad * 2;
+      const maxH = boxHeight - innerPad * 2;
+      const ratio = Math.min(maxW / imgWidth, maxH / imgHeight);
       imgWidth *= ratio;
       imgHeight *= ratio;
 
-      const offsetX = (boxWidth - imgWidth) / 2;
-      const offsetY = (boxHeight - imgHeight) / 2;
+      const offsetX = x + (boxWidth - imgWidth) / 2;
+      const offsetY = y + (boxHeight - imgHeight) / 2;
 
-      doc.addImage(imgData, 'JPEG', x + offsetX, y + offsetY, imgWidth, imgHeight);
+      doc.addImage(imgData, 'JPEG', offsetX, offsetY, imgWidth, imgHeight);
+    } catch (err) {
+      console.warn("Error cargando imagen para PDF:", imgUrl, err);
+      doc.setFillColor(250, 240, 240);
+      doc.rect(x, y, boxWidth, boxHeight, 'F');
+      doc.setDrawColor(200);
+      doc.rect(x, y, boxWidth, boxHeight);
+      doc.setFontSize(8.5);
+      doc.text("Imagen no disponible", x + boxWidth / 2, y + boxHeight / 2, { align: "center" });
+    }
 
-      if (totalFotos === 1) {
-        x = marginLeft;
+    if (singleCentered) {
+      y += rowStep;
+    } else {
+      col++;
+      if (col % 2 === 0) {
+        x = marginX;
         y += rowStep;
       } else {
-        col++;
-        if (col % 2 === 0) {
-          x = marginLeft;
-          y += rowStep;
-        } else {
-          x = marginLeft + boxWidth + gap;
-        }
+        x = marginX + boxWidth + gap;
       }
+    }
 
-      if (y + boxHeight > 270 && !esUltima) {
-        doc.addPage();
-        y = startY; 
-        x = marginLeft;
-        col = 0;
-      }
+    if (y + boxHeight > 290 - footerReserve && !esUltima && singleCentered) {
+      doc.addPage();
+      y = startY;
+      x = marginX + (contentWidth - boxWidth) / 2;
     }
   }
 }
 
-// 📄 PDF INDIVIDUAL (SIN CAMBIOS)
+// 📄 PDF INDIVIDUAL
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
   const mostrarObs = document.getElementById(`obs_${id}`).checked;
@@ -813,10 +892,11 @@ async function generarPDF(id) {
   const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
   
   await dibujarInforme(doc, r, logoBase64, mostrarObs);
+  agregarNumeracionPaginas(doc);
   doc.save(`informe_${r.fecha}.pdf`);
 }
 
-// 📄 PDF MÚLTIPLE POR SELECCIÓN (SIN CAMBIOS)
+// 📄 PDF MÚLTIPLE POR SELECCIÓN
 async function generarPDFMultiple() {
   const checkboxes = document.querySelectorAll(".seleccionar:checked");
   if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
@@ -839,6 +919,7 @@ async function generarPDFMultiple() {
     await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
     first = false;
   }
+  agregarNumeracionPaginas(doc);
   doc.save("informe_multiple.pdf");
 }
 
@@ -916,6 +997,7 @@ async function generarPDFRangoFechas() {
       first = false;
     }
 
+    agregarNumeracionPaginas(doc);
     doc.save(`informe_desde_${fechaDesde}_hasta_${fechaHasta}.pdf`);
   } catch (e) {
     console.error("Error al generar el PDF unificado por rango:", e);
