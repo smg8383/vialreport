@@ -308,6 +308,7 @@ if (btnLogout) {
     if (!confirm("¿Querés cerrar sesión para ingresar con otra cuenta?")) return;
     await supabaseClient.auth.signOut();
     localStorage.removeItem("editandoInforme");
+    localStorage.removeItem("editandoInformeCoords");
     window.location.href = "login.html";
   });
 }
@@ -925,8 +926,30 @@ async function generarPDFRangoFechas() {
   }
 }
 
-function editarInforme(id){
+async function editarInforme(id) {
   localStorage.setItem("editandoInforme", id);
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("informes")
+      .select("id, latitud, longitud")
+      .eq("id", id)
+      .single();
+
+    if (!error && data) {
+      localStorage.setItem("editandoInformeCoords", JSON.stringify({
+        id: data.id,
+        latitud: data.latitud ?? null,
+        longitud: data.longitud ?? null
+      }));
+    } else {
+      localStorage.removeItem("editandoInformeCoords");
+    }
+  } catch (e) {
+    console.warn("No se pudieron precargar las coordenadas del informe:", e);
+    localStorage.removeItem("editandoInformeCoords");
+  }
+
   window.location.href = "index.html";
 }
 
