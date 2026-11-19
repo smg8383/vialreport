@@ -331,6 +331,13 @@ function normalizarRutaDesdeKMZ(rutaKMZ) {
   return rutaKMZ;
 }
 
+function parsearProgresivaNumerica(valor) {
+  if (valor == null) return NaN;
+  const normalizado = String(valor).trim().replace(",", ".");
+  const num = parseFloat(normalizado);
+  return Number.isFinite(num) ? num : NaN;
+}
+
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -372,32 +379,94 @@ async function obtenerTodosLosPuntosKMZ(clienteDB) {
   return acumulados;
 }
 
+function interpolarKmEntreDosPuntos(p1, p2, lat, lon) {
+  const km1 = parsearProgresivaNumerica(p1.progresiva);
+  const km2 = parsearProgresivaNumerica(p2.progresiva);
+  if (Number.isNaN(km1) || Number.isNaN(km2) || km1 === km2) {
+    return null;
+  }
+
+  // Proyección plana local en metros respecto a p1 para calcular proporción t sobre el segmento p1 -> p2
+  const latRef = Number(p1.latitud);
+  const metersPerDegLat = 111320;
+  const metersPerDegLon = 111320 * Math.cos((latRef * Math.PI) / 180);
+
+  const ax = (Number(p1.longitud) - Number(p1.longitud)) * metersPerDegLon;
+  const ay = (Number(p1.latitud) - Number(p1.latitud)) * metersPerDegLat;
+  const bx = (Number(p2.longitud) - Number(p1.longitud)) * metersPerDegLon;
+  const by = (Number(p2.latitud) - Number(p1.latitud)) * metersPerDegLat;
+  const px = (lon - Number(p1.longitud)) * metersPerDegLon;
+  const py = (lat - Number(p1.latitud)) * metersPerDegLat;
+
+  const abx = bx - ax;
+  const aby = by - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq <= 1) return null;
+
+  const tRaw = ((px - ax) * abx + (py - ay) * aby) / lenSq;
+  // Evitar extrapolar lejos si la posición está fuera del tramo
+  if (tRaw < -0.25 || tRaw > 1.25) return null;
+
+  const t = Math.max(0, Math.min(1, tRaw));
+  const kmInterpolado = km1 + t * (km2 - km1);
+  return Number(kmInterpolado.toFixed(2));
+}
+
 function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
   if (!puntos || puntos.length === 0) return null;
 
-  let masCercano = null;
-  let menorDist = Infinity;
-
+  const candidatos = [];
   for (const p of puntos) {
     if (p.latitud != null && p.longitud != null) {
       const latNum = Number(p.latitud);
       const lonNum = Number(p.longitud);
       if (!Number.isNaN(latNum) && !Number.isNaN(lonNum)) {
         const d = calcularDistanciaMetros(lat, lon, latNum, lonNum);
-        if (d < menorDist) {
-          menorDist = d;
-          masCercano = p;
-        }
+        candidatos.push({
+          ...p,
+          latNum,
+          lonNum,
+          distanciaMetros: d,
+          rutaNormalizada: normalizarRutaDesdeKMZ(p.ruta)
+        });
       }
     }
   }
 
-  if (!masCercano) return null;
+  if (candidatos.length === 0) return null;
+
+  candidatos.sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+  const masCercano = candidatos[0];
+
+  // Buscar el segundo punto más cercano dentro de la misma ruta para interpolar
+  const kmPrimero = parsearProgresivaNumerica(masCercano.progresiva);
+  let segundoMismaRuta = null;
+  if (!Number.isNaN(kmPrimero)) {
+    segundoMismaRuta = candidatos.find((c, idx) => {
+      if (idx === 0) return false;
+      const mismaRuta = (c.rutaNormalizada || String(c.ruta || "")) === (masCercano.rutaNormalizada || String(masCercano.ruta || ""));
+      const kmC = parsearProgresivaNumerica(c.progresiva);
+      return mismaRuta && !Number.isNaN(kmC) && kmC !== kmPrimero;
+    }) || null;
+  }
+
+  let progresivaFinal = masCercano.progresiva;
+  let interpolado = false;
+
+  if (segundoMismaRuta) {
+    const kmInterp = interpolarKmEntreDosPuntos(masCercano, segundoMismaRuta, lat, lon);
+    if (kmInterp != null) {
+      progresivaFinal = String(kmInterp);
+      interpolado = true;
+    }
+  }
 
   return {
     ...masCercano,
-    distanciaMetros: Math.round(menorDist),
-    rutaNormalizada: normalizarRutaDesdeKMZ(masCercano.ruta)
+    progresiva: progresivaFinal,
+    progresivaNodo: masCercano.progresiva,
+    interpolado,
+    distanciaMetros: Math.round(masCercano.distanciaMetros)
   };
 }
 
@@ -607,7 +676,9 @@ async function activarUbicacionGPS(btn) {
         aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
         const rutaLabel = puntoCercano.rutaNormalizada || puntoCercano.ruta || "";
         const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
-        alert(`¡Ubicación detectada! Km más cercano: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}`);
+        const modoTexto = puntoCercano.interpolado ? "interpolado" : "más cercano";
+        const accTexto = Number.isFinite(accuracy) ? ` | GPS ±${Math.round(accuracy)} m` : "";
+        alert(`¡Ubicación detectada! Km ${modoTexto}: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}${accTexto}`);
       } else {
         alert("La tabla progresivas devolvió 0 filas con latitud y longitud válidas.");
       }
