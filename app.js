@@ -1,7 +1,7 @@
 // 🌍 INICIALIZACIÓN GLOBAL DE SUPABASE (Fuera del DOMContentLoaded para estar disponible de inmediato)
 const supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6Inhwb24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 window.supabaseClient = supabaseClient; // Exponer globalmente para el mapa y el GPS del HTML
 
@@ -97,7 +97,7 @@ let tareasCache = [];
 
 function llenarSelectsTareas(data) {
   document.querySelectorAll(".tarea-select").forEach((select) => {
-    if (select.options.length > 0) return;
+    select.innerHTML = "";
 
     let currentTarea = "";
 
