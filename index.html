@@ -320,7 +320,6 @@ footer {
 <script>
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
-let progresivasCache = [];
 
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -347,29 +346,29 @@ async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 2
       return { punto: data[0], origen: 'rpc' };
     }
     if (error) {
-      console.warn("RPC falló, usando respaldo local:", error.message);
+      console.warn("RPC falló, usando respaldo filtrado por coordenadas:", error.message);
     }
   } catch (e) {
-    console.warn("Excepción en RPC, usando respaldo local:", e);
+    console.warn("Excepción en RPC, usando respaldo filtrado por coordenadas:", e);
   }
 
-  let lista = progresivasCache;
-  if (!lista || lista.length === 0) {
-    const { data } = await clienteDB
-      .from('progresivas_viales')
-      .select('id, ruta, progresiva, distrito, latitud, longitud');
-    if (data) {
-      progresivasCache = data;
-      lista = data;
-    }
-  }
+  const deltaLat = 0.25;
+  const deltaLon = 0.25;
 
-  if (!lista || lista.length === 0) return null;
+  const { data: cercanos, error: errFiltro } = await clienteDB
+    .from('progresivas_viales')
+    .select('id, ruta, progresiva, distrito, latitud, longitud')
+    .gte('latitud', lat - deltaLat)
+    .lte('latitud', lat + deltaLat)
+    .gte('longitud', lon - deltaLon)
+    .lte('longitud', lon + deltaLon);
+
+  if (errFiltro || !cercanos || cercanos.length === 0) return null;
 
   let masCercano = null;
   let menorDist = Infinity;
 
-  lista.forEach((p) => {
+  cercanos.forEach((p) => {
     if (p.latitud != null && p.longitud != null) {
       const d = calcularDistanciaMetros(lat, lon, Number(p.latitud), Number(p.longitud));
       if (d < menorDist) {
@@ -410,7 +409,6 @@ async function inicializarMapa(grupoId) {
       .select('id, ruta, progresiva, distrito, latitud, longitud');
 
     if (!error && data) {
-      progresivasCache = data;
       data.forEach(punto => {
         if (punto.latitud && punto.longitud) {
           let colorCirculo = (punto.ruta && punto.ruta.includes('12')) ? '#1F4E78' : '#28a745';
