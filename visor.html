@@ -165,16 +165,36 @@
     </div>
   </div>
 
-  <!-- Barra de acciones múltiples -->
+  <!-- Barra de acciones múltiples y PDF unificado por rango de fechas -->
   <div class="card shadow-sm mb-4 bg-white">
-    <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <button class="btn btn-danger btn-sm px-4 rounded-pill fw-semibold shadow-sm" onclick="generarPDFMultiple()">
-        <i class="bi bi-file-earmark-pdf-fill"></i> Generar PDF seleccionados
-      </button>
+    <div class="card-body py-3 px-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 border-bottom">
+        <button type="button" class="btn btn-danger btn-sm px-4 rounded-pill fw-semibold shadow-sm" onclick="generarPDFMultiple()">
+          <i class="bi bi-file-earmark-pdf-fill"></i> Generar PDF seleccionados
+        </button>
 
-      <div class="form-check m-0">
-        <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
-        <label class="form-check-label small fw-semibold text-secondary" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
+        <div class="form-check m-0">
+          <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
+          <label class="form-check-label small fw-semibold text-secondary" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end pt-3">
+        <div class="col-12 col-sm-4">
+          <label for="rangoFechaDesde" class="form-label small fw-semibold text-secondary mb-1">Fecha desde</label>
+          <input type="date" id="rangoFechaDesde" class="form-control form-control-sm">
+        </div>
+
+        <div class="col-12 col-sm-4">
+          <label for="rangoFechaHasta" class="form-label small fw-semibold text-secondary mb-1">Fecha hasta</label>
+          <input type="date" id="rangoFechaHasta" class="form-control form-control-sm">
+        </div>
+
+        <div class="col-12 col-sm-4 d-grid">
+          <button type="button" id="btnGenerarRango" class="btn btn-primary btn-sm rounded-pill fw-semibold shadow-sm" onclick="generarPDFRangoFechas()">
+            <i class="bi bi-file-earmark-medical-fill"></i> PDF unificado por rango
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -715,6 +735,7 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
   }
 }
 
+// 📄 PDF INDIVIDUAL (SIN CAMBIOS)
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
   const mostrarObs = document.getElementById(`obs_${id}`).checked;
@@ -728,6 +749,7 @@ async function generarPDF(id) {
   doc.save(`informe_${r.fecha}.pdf`);
 }
 
+// 📄 PDF MÚLTIPLE POR SELECCIÓN (SIN CAMBIOS)
 async function generarPDFMultiple() {
   const checkboxes = document.querySelectorAll(".seleccionar:checked");
   if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
@@ -737,6 +759,9 @@ async function generarPDFMultiple() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   let first = true;
+
+  const logoUrl = await obtenerLogo();
+  const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
   
   for (const chk of checkboxes) {
     const id = chk.value;
@@ -744,13 +769,94 @@ async function generarPDFMultiple() {
     if (!r) continue;
     if (!first) doc.addPage();
     
-    const logoUrl = await obtenerLogo();
-    const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
-    
     await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
     first = false;
   }
   doc.save("informe_multiple.pdf");
+}
+
+// 📄 NUEVO: PDF UNIFICADO POR RANGO DE FECHAS
+async function generarPDFRangoFechas() {
+  const fechaDesde = document.getElementById("rangoFechaDesde").value;
+  const fechaHasta = document.getElementById("rangoFechaHasta").value;
+
+  if (!fechaDesde || !fechaHasta) {
+    alert("Completá la fecha inicial y la fecha final para generar el PDF unificado.");
+    return;
+  }
+
+  if (fechaDesde > fechaHasta) {
+    alert("La 'Fecha desde' no puede ser mayor que la 'Fecha hasta'.");
+    return;
+  }
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    window.location.href = "login.html";
+    return;
+  }
+  const user = sessionData.session.user;
+
+  const btn = document.getElementById("btnGenerarRango");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Generando...`;
+
+  try {
+    const empresa = document.getElementById("filterEmpresa").value;
+    const ruta = document.getElementById("filterRuta").value;
+    const subtramo = document.getElementById("filterSubtramo").value;
+    const subtarea = document.getElementById("filterSubtarea").value;
+
+    let query = supabaseClient
+      .from("informes")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("fecha", fechaDesde)
+      .lte("fecha", fechaHasta);
+
+    if (empresa) query = query.eq("empresa", empresa);
+    if (ruta) query = query.eq("ruta", ruta);
+    if (subtramo) query = query.eq("subtramo", subtramo);
+    if (subtarea) query = query.eq("tarea", subtarea);
+
+    const { data: registros, error } = await query
+      .order("fecha", { ascending: true })
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.error("Error al consultar rango de fechas:", error);
+      alert("No se pudieron obtener los registros del rango: " + error.message);
+      return;
+    }
+
+    if (!registros || registros.length === 0) {
+      alert(`No se encontraron informes entre ${fechaDesde} y ${fechaHasta}.`);
+      return;
+    }
+
+    const mostrarObsGlobal = document.getElementById("chkGlobalObservacion").checked;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const logoUrl = await obtenerLogo();
+    const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
+
+    let first = true;
+    for (const r of registros) {
+      if (!first) doc.addPage();
+      await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
+      first = false;
+    }
+
+    doc.save(`informe_desde_${fechaDesde}_hasta_${fechaHasta}.pdf`);
+  } catch (e) {
+    console.error("Error al generar el PDF unificado por rango:", e);
+    alert("Ocurrió un error al generar el PDF unificado.");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
 }
 
 function editarInforme(id){
