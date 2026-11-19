@@ -321,6 +321,14 @@ footer {
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
 
+function normalizarRutaDesdeKMZ(rutaKMZ) {
+  if (!rutaKMZ) return "";
+  const limpia = String(rutaKMZ).trim().replace(/^0+/, "");
+  if (limpia === "16") return "RN N° 16";
+  if (limpia === "12") return "RN N° 12";
+  return rutaKMZ;
+}
+
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -334,6 +342,22 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+async function consultarCercanosPorVentana(clienteDB, lat, lon, delta) {
+  const { data, error } = await clienteDB
+    .from('progresivas_viales')
+    .select('id, ruta, progresiva, distrito, latitud, longitud')
+    .gte('latitud', lat - delta)
+    .lte('latitud', lat + delta)
+    .gte('longitud', lon - delta)
+    .lte('longitud', lon + delta);
+
+  if (error) {
+    console.error("Error consultando progresivas_viales:", error);
+    return [];
+  }
+  return data || [];
+}
+
 async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 20000) {
   try {
     const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
@@ -343,7 +367,11 @@ async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 2
     });
 
     if (!error && data && data.length > 0) {
-      return { punto: data[0], origen: 'rpc' };
+      const punto = {
+        ...data[0],
+        rutaNormalizada: normalizarRutaDesdeKMZ(data[0].ruta)
+      };
+      return { punto, origen: 'rpc' };
     }
     if (error) {
       console.warn("RPC falló, usando respaldo filtrado por coordenadas:", error.message);
@@ -352,23 +380,20 @@ async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 2
     console.warn("Excepción en RPC, usando respaldo filtrado por coordenadas:", e);
   }
 
-  const deltaLat = 0.25;
-  const deltaLon = 0.25;
+  let candidatos = await consultarCercanosPorVentana(clienteDB, lat, lon, 0.05);
+  if (!candidatos || candidatos.length === 0) {
+    candidatos = await consultarCercanosPorVentana(clienteDB, lat, lon, 0.25);
+  }
+  if (!candidatos || candidatos.length === 0) {
+    candidatos = await consultarCercanosPorVentana(clienteDB, lat, lon, 0.75);
+  }
 
-  const { data: cercanos, error: errFiltro } = await clienteDB
-    .from('progresivas_viales')
-    .select('id, ruta, progresiva, distrito, latitud, longitud')
-    .gte('latitud', lat - deltaLat)
-    .lte('latitud', lat + deltaLat)
-    .gte('longitud', lon - deltaLon)
-    .lte('longitud', lon + deltaLon);
-
-  if (errFiltro || !cercanos || cercanos.length === 0) return null;
+  if (!candidatos || candidatos.length === 0) return null;
 
   let masCercano = null;
   let menorDist = Infinity;
 
-  cercanos.forEach((p) => {
+  candidatos.forEach((p) => {
     if (p.latitud != null && p.longitud != null) {
       const d = calcularDistanciaMetros(lat, lon, Number(p.latitud), Number(p.longitud));
       if (d < menorDist) {
@@ -378,11 +403,35 @@ async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 2
     }
   });
 
-  if (masCercano && menorDist <= radioMetros) {
-    return { punto: masCercano, origen: 'local' };
+  if (masCercano) {
+    return {
+      punto: {
+        ...masCercano,
+        distanciaMetros: Math.round(menorDist),
+        rutaNormalizada: normalizarRutaDesdeKMZ(masCercano.ruta)
+      },
+      origen: 'local'
+    };
   }
 
   return null;
+}
+
+function aplicarPuntoEnFormulario(cardGrupo, punto) {
+  if (!cardGrupo || !punto) return;
+
+  const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
+  if (inputKm && punto.progresiva != null) {
+    inputKm.value = punto.progresiva;
+  }
+
+  const selectRuta = cardGrupo.querySelector(`[name^="ruta_"]`);
+  if (selectRuta && punto.rutaNormalizada) {
+    const existeOpcion = Array.from(selectRuta.options).some(opt => opt.value === punto.rutaNormalizada);
+    if (existeOpcion) {
+      selectRuta.value = punto.rutaNormalizada;
+    }
+  }
 }
 
 async function inicializarMapa(grupoId) {
@@ -406,12 +455,14 @@ async function inicializarMapa(grupoId) {
 
     const { data, error } = await window.supabaseClient
       .from('progresivas_viales')
-      .select('id, ruta, progresiva, distrito, latitud, longitud');
+      .select('id, ruta, progresiva, distrito, latitud, longitud')
+      .limit(1000);
 
     if (!error && data) {
       data.forEach(punto => {
         if (punto.latitud && punto.longitud) {
-          let colorCirculo = (punto.ruta && punto.ruta.includes('12')) ? '#1F4E78' : '#28a745';
+          const rutaTexto = normalizarRutaDesdeKMZ(punto.ruta) || punto.ruta;
+          let colorCirculo = (String(punto.ruta).includes('12')) ? '#1F4E78' : '#28a745';
 
           let circleMarker = L.circleMarker([punto.latitud, punto.longitud], {
             radius: 5,
@@ -422,7 +473,7 @@ async function inicializarMapa(grupoId) {
             fillOpacity: 0.8
           }).addTo(map);
 
-          circleMarker.bindPopup(`<b>Ruta:</b> ${punto.ruta}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
+          circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
         }
       });
     }
@@ -484,8 +535,7 @@ async function procesarExifYPosicionar(file, grupoId) {
       if (clienteDB) {
         const resultado = await obtenerProgresivaConRespaldo(clienteDB, lat, lon, 20000);
         if (resultado && resultado.punto) {
-          const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
-          if (inputKm) inputKm.value = resultado.punto.progresiva;
+          aplicarPuntoEnFormulario(cardGrupo, resultado.punto);
           console.log("Km autocompletado por EXIF:", resultado.punto.progresiva);
         }
       }
@@ -514,7 +564,6 @@ document.addEventListener("change", async (e) => {
 async function activarUbicacionGPS(btn) {
   const cardGrupo = btn.closest(".grupo");
   const grupoId = cardGrupo.getAttribute("data-grupo-id");
-  const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
   const inputLat = cardGrupo.querySelector(`[id^="lat_"]`);
   const inputLon = cardGrupo.querySelector(`[id^="lon_"]`);
   const map = mapasInstanciados[grupoId];
@@ -559,10 +608,12 @@ async function activarUbicacionGPS(btn) {
       const resultado = await obtenerProgresivaConRespaldo(clienteDB, lat, lon, 20000);
 
       if (resultado && resultado.punto) {
-        if (inputKm) inputKm.value = resultado.punto.progresiva;
-        alert(`¡Ubicación detectada! Km más cercano: ${resultado.punto.progresiva} (${resultado.punto.ruta || ''})`);
+        aplicarPuntoEnFormulario(cardGrupo, resultado.punto);
+        const rutaLabel = resultado.punto.rutaNormalizada || resultado.punto.ruta || "";
+        const distTexto = resultado.punto.distanciaMetros != null ? ` (~${resultado.punto.distanciaMetros} m)` : "";
+        alert(`¡Ubicación detectada! Km más cercano: ${resultado.punto.progresiva} (${rutaLabel})${distTexto}`);
       } else {
-        alert("No se encontró ninguna progresiva cercana a tu ubicación (estás fuera del radio de búsqueda).");
+        alert("No se encontró ninguna progresiva cercana a tu ubicación en la tabla.");
       }
     } catch (err) {
       console.error("Excepción:", err);
