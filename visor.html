@@ -330,27 +330,50 @@ function inicializarTituloInformePDF() {
   });
 }
 
-// 🏢 OBTENER ORGANIZACIÓN DEL USUARIO DESDE "empresas"
-async function obtenerOrganizacionUsuario(userId) {
-  const { data, error } = await supabaseClient
+// 🏢 OBTENER ORGANIZACIÓN Y USER_IDS DE COLEGAS DESDE "empresas"
+async function obtenerContextoOrganizacion(userId) {
+  const { data: empRows, error: empError } = await supabaseClient
     .from("empresas")
-    .select("nombre, logo")
+    .select("nombre, logo, user_id")
     .eq("user_id", userId)
     .limit(1);
 
-  if (error || !data || data.length === 0) {
-    console.warn("No se encontró organización asociada al usuario:", error);
-    return null;
+  if (empError) {
+    console.warn("Error consultando empresa del usuario:", empError);
   }
 
-  return data[0].nombre || null;
+  const miOrganizacion = empRows && empRows.length > 0 && empRows[0].nombre
+    ? String(empRows[0].nombre).trim()
+    : null;
+
+  let idsColegas = [userId];
+
+  if (miOrganizacion) {
+    const { data: colegasRows, error: colegasError } = await supabaseClient
+      .from("empresas")
+      .select("user_id")
+      .eq("nombre", miOrganizacion);
+
+    if (!colegasError && colegasRows && colegasRows.length > 0) {
+      const extraIds = colegasRows.map(c => c.user_id).filter(Boolean);
+      idsColegas = [...new Set([userId, ...extraIds])];
+    }
+  }
+
+  return { miOrganizacion, idsColegas };
 }
 
-function aplicarFiltroOrganizacion(query, userId, miOrganizacion) {
-  if (miOrganizacion) {
-    return query.or(`organizacion_id.eq.${miOrganizacion},user_id.eq.${userId}`);
+function aplicarFiltroOrganizacion(query, contexto) {
+  const { miOrganizacion, idsColegas } = contexto;
+  const listaIds = (idsColegas && idsColegas.length > 0 ? idsColegas : []).join(",");
+
+  if (miOrganizacion && listaIds) {
+    return query.or(`user_id.in.(${listaIds}),organizacion_id.eq."${miOrganizacion}"`);
   }
-  return query.eq("user_id", userId);
+  if (listaIds) {
+    return query.in("user_id", idsColegas);
+  }
+  return query;
 }
 
 // 🗺️ INICIALIZAR MAPA DEL VISOR
@@ -383,7 +406,7 @@ async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
   const user = sessionData.session.user;
-  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+  const contexto = await obtenerContextoOrganizacion(user.id);
 
   const fecha = document.getElementById("filterFecha").value;
   const empresa = document.getElementById("filterEmpresa").value;
@@ -393,8 +416,7 @@ async function cargar() {
 
   let query = aplicarFiltroOrganizacion(
     supabaseClient.from("informes").select("*"),
-    user.id,
-    miOrganizacion
+    contexto
   );
 
   if (fecha) query = query.eq("fecha", fecha);
@@ -698,7 +720,7 @@ async function obtenerLogo() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return null;
   const user = sessionData.session.user;
-  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+  const { miOrganizacion } = await obtenerContextoOrganizacion(user.id);
 
   if (miOrganizacion) {
     const { data: porOrg } = await supabaseClient
@@ -1042,7 +1064,7 @@ async function generarPDFRangoFechas() {
     return;
   }
   const user = sessionData.session.user;
-  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+  const contexto = await obtenerContextoOrganizacion(user.id);
 
   const btn = document.getElementById("btnGenerarRango");
   const textoOriginal = btn.innerHTML;
@@ -1057,8 +1079,7 @@ async function generarPDFRangoFechas() {
 
     let query = aplicarFiltroOrganizacion(
       supabaseClient.from("informes").select("*"),
-      user.id,
-      miOrganizacion
+      contexto
     )
       .gte("fecha", fechaDesde)
       .lte("fecha", fechaHasta);
@@ -1158,12 +1179,11 @@ async function cargarFiltrosSubtareas() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return;
   const user = sessionData.session.user;
-  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+  const contexto = await obtenerContextoOrganizacion(user.id);
 
   const query = aplicarFiltroOrganizacion(
     supabaseClient.from("informes").select("tarea"),
-    user.id,
-    miOrganizacion
+    contexto
   );
 
   const { data, error } = await query;
