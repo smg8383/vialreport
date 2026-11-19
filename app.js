@@ -20,6 +20,7 @@ if (btnLogout) {
     if (!confirm("¿Querés cerrar sesión para ingresar con otra cuenta?")) return;
     await supabaseClient.auth.signOut();
     localStorage.removeItem("editandoInforme");
+    localStorage.removeItem("editandoInformeCoords");
     window.location.href = "login.html";
   });
 }
@@ -236,12 +237,13 @@ document.addEventListener("change", (e) => {
 // 🔹 AGREGAR NUEVO GRUPO
 let count = 1;
 const btnAddGroup = document.getElementById("addGroup");
-if (addGroup) {
-  addGroup.addEventListener("click", async () => {
+if (btnAddGroup) {
+  btnAddGroup.addEventListener("click", async () => {
     count++;
     const clone = document.querySelector(".grupo").cloneNode(true);
 
-    clone.querySelector("h5").innerText = "Tarea " + count;
+    const heading = clone.querySelector("h5");
+    if (heading) heading.innerText = "Tarea " + count;
     clone.querySelectorAll("[name]").forEach((el) => {
       el.name = el.name.replace(/_\d+$/, "_" + count);
       if(el.type !== "file") el.value = "";
@@ -263,6 +265,7 @@ if (btnClear) {
   btnClear.addEventListener("click", () => {
     if (!confirm("¿Querés limpiar todos los campos del formulario?")) return;
     localStorage.removeItem("editandoInforme");
+    localStorage.removeItem("editandoInformeCoords");
     window.location.reload();
   });
 }
@@ -335,6 +338,9 @@ document.getElementById("form").addEventListener("submit", async (e) => {
       const latInput = g.querySelector(`#lat_${grupoId}`) || g.querySelector(`[id^="lat_"]`);
       const lonInput = g.querySelector(`#lon_${grupoId}`) || g.querySelector(`[id^="lon_"]`);
 
+      const latParsed = latInput && latInput.value !== "" ? parseFloat(latInput.value) : null;
+      const lonParsed = lonInput && lonInput.value !== "" ? parseFloat(lonInput.value) : null;
+
       const dataToInsert = {
         fecha: g.querySelector(`[name^="date_"]`).value,
         empresa: g.querySelector(`[name^="empresa_"]`).value,
@@ -345,8 +351,8 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         sentido: g.querySelector(`[name^="sentido_"]`).value,
         observacion: g.querySelector(`[name^="observacion_"]`).value,
         imagenes,
-        latitud: latInput && latInput.value ? parseFloat(latInput.value) : null,
-        longitud: lonInput && lonInput.value ? parseFloat(lonInput.value) : null,
+        latitud: latParsed !== null && !Number.isNaN(latParsed) ? latParsed : null,
+        longitud: lonParsed !== null && !Number.isNaN(lonParsed) ? lonParsed : null,
         user_id: user.id
       };
 
@@ -361,6 +367,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           return; 
         }
         localStorage.removeItem("editandoInforme");
+        localStorage.removeItem("editandoInformeCoords");
       } else {
         const { error } = await supabaseClient
           .from("informes")
@@ -414,12 +421,46 @@ async function cargarEdicion() {
   document.querySelector(`[name^="sentido_"]`).value = data.sentido || "";
   document.querySelector(`[name^="observacion_"]`).value = data.observacion || "";
 
+  let latGuardada = data.latitud;
+  let lonGuardada = data.longitud;
+
+  if (latGuardada == null || lonGuardada == null) {
+    try {
+      const rawCoords = localStorage.getItem("editandoInformeCoords");
+      if (rawCoords) {
+        const parsedCoords = JSON.parse(rawCoords);
+        if (String(parsedCoords.id) === String(editandoId)) {
+          if (latGuardada == null && parsedCoords.latitud != null) latGuardada = parsedCoords.latitud;
+          if (lonGuardada == null && parsedCoords.longitud != null) lonGuardada = parsedCoords.longitud;
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudieron leer coordenadas de respaldo:", e);
+    }
+  }
+
+  const latInput = document.getElementById("lat_1") || document.querySelector(`[id^="lat_"]`);
+  const lonInput = document.getElementById("lon_1") || document.querySelector(`[id^="lon_"]`);
+
+  if (latInput) latInput.value = latGuardada != null ? latGuardada : "";
+  if (lonInput) lonInput.value = lonGuardada != null ? lonGuardada : "";
+
+  if (
+    latGuardada != null &&
+    lonGuardada != null &&
+    !Number.isNaN(Number(latGuardada)) &&
+    !Number.isNaN(Number(lonGuardada)) &&
+    typeof window.posicionarMapaEnEdicion === "function"
+  ) {
+    window.posicionarMapaEnEdicion(Number(latGuardada), Number(lonGuardada), 1);
+  }
+
   imagenesExistentes = data.imagenes || [];
   renderImagenesActuales();
 }
 
 await cargarTareasJerarquicas();
-cargarEdicion();
+await cargarEdicion();
 
 // 🔹 RENDER + ELIMINAR IMAGENES
 function renderImagenesActuales() {
