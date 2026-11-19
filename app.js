@@ -129,8 +129,8 @@ function llenarSelectsTareas(data) {
   });
 }
 
-async function cargarTareasJerarquicas() {
-  if (tareasCache.length > 0) {
+async function cargarTareasJerarquicas(forceRefresh = false) {
+  if (!forceRefresh && tareasCache.length > 0) {
     llenarSelectsTareas(tareasCache);
     return tareasCache;
   }
@@ -149,6 +149,61 @@ async function cargarTareasJerarquicas() {
   tareasCache = data;
   llenarSelectsTareas(data);
   return tareasCache;
+}
+
+// ➕ AGREGAR NUEVA TAREA / SUBTAREA EN SUPABASE
+const btnGuardarNuevaTarea = document.getElementById("btnGuardarNuevaTarea");
+if (btnGuardarNuevaTarea) {
+  btnGuardarNuevaTarea.addEventListener("click", async () => {
+    const inputTarea = document.getElementById("nuevaTareaNombre");
+    const inputSubtarea = document.getElementById("nuevaSubtareaNombre");
+
+    const tarea = (inputTarea?.value || "").trim();
+    const subtarea = (inputSubtarea?.value || "").trim();
+
+    if (!tarea || !subtarea) {
+      alert("Completá tanto la tarea principal como la subtarea.");
+      return;
+    }
+
+    const textoOriginal = btnGuardarNuevaTarea.innerHTML;
+    btnGuardarNuevaTarea.disabled = true;
+    btnGuardarNuevaTarea.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+
+    try {
+      const { error } = await supabaseClient
+        .from("tareas")
+        .insert([{ tarea, subtarea }]);
+
+      if (error) {
+        console.error("Error al guardar nueva tarea:", error);
+        alert("No se pudo guardar la tarea en Supabase: " + error.message);
+        return;
+      }
+
+      await cargarTareasJerarquicas(true);
+
+      const valorSeleccionado = subtarea.toUpperCase();
+      document.querySelectorAll(".tarea-select").forEach((select) => {
+        select.value = valorSeleccionado;
+      });
+
+      if (inputTarea) inputTarea.value = "";
+      if (inputSubtarea) inputSubtarea.value = "";
+
+      const modalEl = document.getElementById("modalNuevaTarea");
+      const modalInstancia = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstancia) modalInstancia.hide();
+
+      alert("Nueva tarea agregada correctamente ✅");
+    } catch (err) {
+      console.error("Error inesperado al agregar tarea:", err);
+      alert("Ocurrió un error al guardar la tarea.");
+    } finally {
+      btnGuardarNuevaTarea.disabled = false;
+      btnGuardarNuevaTarea.innerHTML = textoOriginal;
+    }
+  });
 }
 
 // 🔹 FORM PREVIEW DE IMAGENES
