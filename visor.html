@@ -730,10 +730,23 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
 
   y += 12;
 
+  const totalFotos = r.imagenes ? r.imagenes.length : 0;
   const marginLeft = 10;
-  const gap = 10;
-  const boxWidth = 90;
-  const boxHeight = 60;
+  const anchoUtil = 190;
+  const gap = 6;
+
+  let boxWidth = (anchoUtil - gap) / 2;
+  let boxHeight = 68;
+  let rowStep = boxHeight + 8;
+
+  if (totalFotos === 1) {
+    boxWidth = anchoUtil;
+    boxHeight = 110;
+    rowStep = boxHeight + 10;
+  } else if (totalFotos === 2) {
+    boxHeight = 78;
+    rowStep = boxHeight + 10;
+  }
 
   let x = marginLeft;
   let col = 0;
@@ -765,13 +778,17 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
 
       doc.addImage(imgData, 'JPEG', x + offsetX, y + offsetY, imgWidth, imgHeight);
 
-      col++;
-
-      if (col % 2 === 0) {
+      if (totalFotos === 1) {
         x = marginLeft;
-        y += 70;
+        y += rowStep;
       } else {
-        x = marginLeft + boxWidth + gap;
+        col++;
+        if (col % 2 === 0) {
+          x = marginLeft;
+          y += rowStep;
+        } else {
+          x = marginLeft + boxWidth + gap;
+        }
       }
 
       if (y + boxHeight > 270 && !esUltima) {
