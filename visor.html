@@ -187,9 +187,24 @@
     </div>
   </div>
 
-  <!-- PDF unificado por rango de fechas -->
+  <!-- PDF unificado por rango de fechas y título personalizable -->
   <div class="card shadow-sm mb-4 bg-white">
     <div class="card-body py-3 px-4">
+      <div class="row g-2 mb-2">
+        <div class="col-12">
+          <label for="tituloInformePDF" class="form-label small fw-semibold text-secondary mb-1">
+            Título del informe PDF
+          </label>
+          <input
+            type="text"
+            id="tituloInformePDF"
+            class="form-control form-control-sm"
+            placeholder="INFORME FOTOGRÁFICO"
+            value="INFORME FOTOGRÁFICO"
+          >
+        </div>
+      </div>
+
       <div class="row g-2 align-items-end">
         <div class="col-6 col-sm-4">
           <label for="rangoFechaDesde" class="form-label small fw-semibold text-secondary mb-1">Fecha desde</label>
@@ -287,6 +302,33 @@ const supabaseClient = supabase.createClient(
   "https://yepethuzzretakioqyqy.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
+
+const CLAVE_TITULO_PDF = "vialReportTituloPDF";
+
+function obtenerTituloInformePDF() {
+  const inputTitulo = document.getElementById("tituloInformePDF");
+  const valor = inputTitulo ? inputTitulo.value.trim() : "";
+  return valor || "INFORME FOTOGRÁFICO";
+}
+
+function inicializarTituloInformePDF() {
+  const inputTitulo = document.getElementById("tituloInformePDF");
+  if (!inputTitulo) return;
+
+  const guardado = localStorage.getItem(CLAVE_TITULO_PDF);
+  if (guardado && guardado.trim() !== "") {
+    inputTitulo.value = guardado;
+  }
+
+  inputTitulo.addEventListener("input", () => {
+    const limpio = inputTitulo.value.trim();
+    if (limpio) {
+      localStorage.setItem(CLAVE_TITULO_PDF, limpio);
+    } else {
+      localStorage.removeItem(CLAVE_TITULO_PDF);
+    }
+  });
+}
 
 // 🗺️ INICIALIZAR MAPA DEL VISOR
 let mapaVisor = L.map('mapaVisor').setView([-27.4692, -58.8341], 8);
@@ -654,7 +696,7 @@ function agregarNumeracionPaginas(doc) {
 }
 
 // 📄 DIBUJAR INFORME (PDF AGRUPADO POR TAREA)
-async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
+async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tituloPersonalizado = null) {
   const pageWidth = 210;
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2; // 190 mm
@@ -691,10 +733,22 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
     }
   }
 
-  doc.setFontSize(15);
+  const tituloFinal = String(tituloPersonalizado || obtenerTituloInformePDF() || "INFORME FOTOGRÁFICO").trim();
+  const maxTituloWidth = 132;
+  let fontSizeTitulo = 15;
+  doc.setFontSize(fontSizeTitulo);
   doc.setFont(undefined, "bold");
+  let tituloLines = doc.splitTextToSize(tituloFinal.toUpperCase(), maxTituloWidth);
+  if (tituloLines.length > 2) {
+    fontSizeTitulo = 12.5;
+    doc.setFontSize(fontSizeTitulo);
+    tituloLines = doc.splitTextToSize(tituloFinal.toUpperCase(), maxTituloWidth);
+  }
+
   doc.setTextColor(30, 41, 59);
-  doc.text("INFORME FOTOGRÁFICO", 122, y + 14.5, { align: "center" });
+  const tituloLineHeight = fontSizeTitulo * 0.42;
+  const tituloStartY = y + 14.5 - ((tituloLines.length - 1) * tituloLineHeight) / 2;
+  doc.text(tituloLines, 128, tituloStartY, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
   y += 28;
@@ -885,13 +939,14 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true) {
 async function generarPDF(id) {
   const { data: r } = await supabaseClient.from("informes").select("*").eq("id", id).single();
   const mostrarObs = document.getElementById(`obs_${id}`).checked;
+  const tituloPDF = obtenerTituloInformePDF();
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const logoUrl = await obtenerLogo();
   const logoBase64 = logoUrl ? await getBase64ImageFromURL(logoUrl) : null;
   
-  await dibujarInforme(doc, r, logoBase64, mostrarObs);
+  await dibujarInforme(doc, r, logoBase64, mostrarObs, tituloPDF);
   agregarNumeracionPaginas(doc);
   doc.save(`informe_${r.fecha}.pdf`);
 }
@@ -902,6 +957,7 @@ async function generarPDFMultiple() {
   if (checkboxes.length === 0) { alert("Seleccioná al menos un registro"); return; }
   
   const mostrarObsGlobal = document.getElementById("chkGlobalObservacion").checked;
+  const tituloPDF = obtenerTituloInformePDF();
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -916,7 +972,7 @@ async function generarPDFMultiple() {
     if (!r) continue;
     if (!first) doc.addPage();
     
-    await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
+    await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal, tituloPDF);
     first = false;
   }
   agregarNumeracionPaginas(doc);
@@ -984,6 +1040,7 @@ async function generarPDFRangoFechas() {
     }
 
     const mostrarObsGlobal = document.getElementById("chkGlobalObservacion").checked;
+    const tituloPDF = obtenerTituloInformePDF();
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
@@ -993,7 +1050,7 @@ async function generarPDFRangoFechas() {
     let first = true;
     for (const r of registros) {
       if (!first) doc.addPage();
-      await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal);
+      await dibujarInforme(doc, r, logoBase64, mostrarObsGlobal, tituloPDF);
       first = false;
     }
 
@@ -1084,6 +1141,7 @@ document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSub
   });
 
 async function inicializar() {
+  inicializarTituloInformePDF();
   await cargarFiltrosSubtareas();
   await cargar();
 }
