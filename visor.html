@@ -330,6 +330,29 @@ function inicializarTituloInformePDF() {
   });
 }
 
+// 🏢 OBTENER ORGANIZACIÓN DEL USUARIO DESDE "empresas"
+async function obtenerOrganizacionUsuario(userId) {
+  const { data, error } = await supabaseClient
+    .from("empresas")
+    .select("nombre, logo")
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    console.warn("No se encontró organización asociada al usuario:", error);
+    return null;
+  }
+
+  return data[0].nombre || null;
+}
+
+function aplicarFiltroOrganizacion(query, userId, miOrganizacion) {
+  if (miOrganizacion) {
+    return query.or(`organizacion_id.eq.${miOrganizacion},user_id.eq.${userId}`);
+  }
+  return query.eq("user_id", userId);
+}
+
 // 🗺️ INICIALIZAR MAPA DEL VISOR
 let mapaVisor = L.map('mapaVisor').setView([-27.4692, -58.8341], 8);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -355,11 +378,12 @@ if (btnLogout) {
   });
 }
 
-// 🚀 CARGAR DATOS
+// 🚀 CARGAR DATOS COMPARTIDOS POR ORGANIZACIÓN
 async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
   const user = sessionData.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
 
   const fecha = document.getElementById("filterFecha").value;
   const empresa = document.getElementById("filterEmpresa").value;
@@ -367,7 +391,11 @@ async function cargar() {
   const subtramo = document.getElementById("filterSubtramo").value;
   const subtarea = document.getElementById("filterSubtarea").value;
 
-  let query = supabaseClient.from("informes").select("*").eq("user_id", user.id);
+  let query = aplicarFiltroOrganizacion(
+    supabaseClient.from("informes").select("*"),
+    user.id,
+    miOrganizacion
+  );
 
   if (fecha) query = query.eq("fecha", fecha);
   if (empresa) query = query.eq("empresa", empresa);
@@ -665,19 +693,33 @@ async function compartirWhatsApp(id) {
   }
 }
 
-// 🔧 OBTENER LOGO
+// 🔧 OBTENER LOGO DE LA ORGANIZACIÓN
 async function obtenerLogo() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return null;
   const user = sessionData.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+
+  if (miOrganizacion) {
+    const { data: porOrg } = await supabaseClient
+      .from("empresas")
+      .select("logo")
+      .eq("nombre", miOrganizacion)
+      .not("logo", "is", null)
+      .limit(1);
+
+    if (porOrg && porOrg.length > 0 && porOrg[0].logo) {
+      return porOrg[0].logo;
+    }
+  }
 
   const { data } = await supabaseClient
     .from("empresas")
-    .select("*")
+    .select("logo")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
 
-  return data?.logo || null;
+  return data && data.length > 0 ? (data[0].logo || null) : null;
 }
 
 // 📄 NUMERAR PÁGINAS DEL PDF
@@ -1000,6 +1042,7 @@ async function generarPDFRangoFechas() {
     return;
   }
   const user = sessionData.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
 
   const btn = document.getElementById("btnGenerarRango");
   const textoOriginal = btn.innerHTML;
@@ -1012,10 +1055,11 @@ async function generarPDFRangoFechas() {
     const subtramo = document.getElementById("filterSubtramo").value;
     const subtarea = document.getElementById("filterSubtarea").value;
 
-    let query = supabaseClient
-      .from("informes")
-      .select("*")
-      .eq("user_id", user.id)
+    let query = aplicarFiltroOrganizacion(
+      supabaseClient.from("informes").select("*"),
+      user.id,
+      miOrganizacion
+    )
       .gte("fecha", fechaDesde)
       .lte("fecha", fechaHasta);
 
@@ -1113,11 +1157,16 @@ async function eliminarInforme(id) {
 async function cargarFiltrosSubtareas() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return;
-  
-  const { data, error } = await supabaseClient
-    .from("informes")
-    .select("tarea")
-    .eq("user_id", sessionData.session.user.id);
+  const user = sessionData.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+
+  const query = aplicarFiltroOrganizacion(
+    supabaseClient.from("informes").select("tarea"),
+    user.id,
+    miOrganizacion
+  );
+
+  const { data, error } = await query;
 
   const filterSubtarea = document.getElementById("filterSubtarea");
   filterSubtarea.innerHTML = '<option value="">Todos</option>';
