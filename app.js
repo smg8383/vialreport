@@ -25,6 +25,22 @@ if (btnLogout) {
   });
 }
 
+// 🏢 OBTENER ORGANIZACIÓN DEL USUARIO DESDE "empresas"
+async function obtenerOrganizacionUsuario(userId) {
+  const { data, error } = await supabaseClient
+    .from("empresas")
+    .select("nombre")
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data?.nombre) {
+    console.warn("No se encontró organización asociada al usuario:", error);
+    return null;
+  }
+
+  return data.nombre;
+}
+
 // 🌩 CLOUDINARY
 const CLOUD_NAME = "ddgc2azm8";
 const UPLOAD_PRESET = "unsigned_upload";
@@ -287,6 +303,13 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     return;
   }
   const user = data.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+
+  if (!miOrganizacion) {
+    alert("No se pudo identificar la empresa/organización del usuario en la tabla empresas.");
+    ocultarCarga();
+    return;
+  }
 
   const grupos = document.querySelectorAll(".grupo");
   let totalImagenes = 0;
@@ -353,7 +376,8 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         imagenes,
         latitud: latParsed !== null && !Number.isNaN(latParsed) ? latParsed : null,
         longitud: lonParsed !== null && !Number.isNaN(lonParsed) ? lonParsed : null,
-        user_id: user.id
+        user_id: user.id,
+        organizacion_id: miOrganizacion
       };
 
       if (editandoId) {
@@ -402,13 +426,20 @@ async function cargarEdicion() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) return;
   const user = sessionData.session.user;
+  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
 
-  const { data, error } = await supabaseClient
+  let query = supabaseClient
     .from("informes")
     .select("*")
-    .eq("id", editandoId)
-    .eq("user_id", user.id)
-    .single();
+    .eq("id", editandoId);
+
+  if (miOrganizacion) {
+    query = query.or(`organizacion_id.eq.${miOrganizacion},user_id.eq.${user.id}`);
+  } else {
+    query = query.eq("user_id", user.id);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) { console.log(error); return; }
 
