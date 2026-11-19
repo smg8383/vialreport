@@ -323,6 +323,20 @@ const marcadoresUsuario = {};
 let todosLosKmMapa = [];
 let ultimoErrorSupabaseKm = null;
 
+window.posicionarMapaEnEdicion = function(lat, lon, grupoId = 1) {
+  const map = mapasInstanciados[grupoId];
+  if (!map || Number.isNaN(lat) || Number.isNaN(lon)) return;
+
+  map.invalidateSize();
+  map.setView([lat, lon], 15);
+  if (marcadoresUsuario[grupoId]) {
+    map.removeLayer(marcadoresUsuario[grupoId].marker);
+    if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
+  }
+  const marker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Ubicación guardada del informe");
+  marcadoresUsuario[grupoId] = { marker };
+};
+
 function normalizarRutaDesdeKMZ(rutaKMZ) {
   if (!rutaKMZ) return "";
   const limpia = String(rutaKMZ).trim().replace(/^0+/, "");
