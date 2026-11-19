@@ -352,12 +352,12 @@ async function obtenerTodosLosPuntosKMZ(clienteDB) {
 
   while (true) {
     const { data, error } = await clienteDB
-      .from('progresivas_viales')
+      .from('progresivas')
       .select('id, ruta, progresiva, distrito, latitud, longitud')
       .range(desde, desde + tamanoPagina - 1);
 
     if (error) {
-      console.error("Error cargando progresivas_viales:", error);
+      console.error("Error cargando progresivas:", error);
       ultimoErrorSupabaseKm = error.message || "Error desconocido en Supabase";
       break;
     }
@@ -592,12 +592,12 @@ async function activarUbicacionGPS(btn) {
       }
 
       if (ultimoErrorSupabaseKm) {
-        alert(`Error de Supabase al consultar progresivas_viales: ${ultimoErrorSupabaseKm}`);
+        alert(`Error de Supabase al consultar progresivas: ${ultimoErrorSupabaseKm}`);
         return;
       }
 
       if (todosLosKmMapa.length === 0) {
-        alert("La tabla progresivas_viales devolvió 0 filas.");
+        alert("La tabla progresivas devolvió 0 filas.");
         return;
       }
 
@@ -609,7 +609,7 @@ async function activarUbicacionGPS(btn) {
         const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
         alert(`¡Ubicación detectada! Km más cercano: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}`);
       } else {
-        alert("La tabla progresivas_viales devolvió 0 filas con latitud y longitud válidas.");
+        alert("La tabla progresivas devolvió 0 filas con latitud y longitud válidas.");
       }
     } catch (err) {
       console.error("Error al buscar Km en los puntos del mapa:", err);
