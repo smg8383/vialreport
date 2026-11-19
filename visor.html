@@ -689,7 +689,6 @@ function agregarNumeracionPaginas(doc) {
 
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.text(`VIAL REPORT`, 10, 290);
     doc.text(`Página ${i} de ${totalPages}`, 200, 290, { align: "right" });
   }
   doc.setTextColor(0, 0, 0);
@@ -700,11 +699,11 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
   const pageWidth = 210;
   const marginX = 10;
   const contentWidth = pageWidth - marginX * 2; // 190 mm
-  const colRightX = 114;
-  const colRightValX = 136;
+  const colRightX = 118;
+  const colRightValX = 138;
   const colLeftValX = 31;
-  const colLeftMaxWidth = colRightX - colLeftValX - 3; // ~80 mm
-  const colRightMaxWidth = marginX + contentWidth - colRightValX - 2; // ~62 mm
+  const colLeftMaxWidth = colRightX - colLeftValX - 4; // ~83 mm con separación extra
+  const colRightMaxWidth = marginX + contentWidth - colRightValX - 2; // ~60 mm
   const lineStep = 4.8;
 
   doc.setDrawColor(150);
@@ -766,7 +765,7 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
   const row4Height = Math.max(lineStep, lineStep);
 
   const camposBaseHeight = 10 + row1Height + row2Height + row3Height + row4Height + 3;
-  const obsBlockHeight = mostrarObservacion ? (6 + obsLines.length * 4.4 + 4) : 0;
+  const obsBlockHeight = mostrarObservacion ? (7 + obsLines.length * 4.5 + 6.5) : 0;
   const datosBoxHeight = camposBaseHeight + obsBlockHeight;
 
   // Contenedor de Datos del Informe
@@ -811,18 +810,19 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
   dibujarCampo("Sentido:", r.sentido, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
   curY += row4Height;
 
-  // Observación dentro del bloque de datos
+  // Observación dentro del bloque de datos con aire extra arriba y abajo
   if (mostrarObservacion) {
-    curY += 1.5;
+    curY += 2;
     doc.setFont(undefined, "bold");
     doc.text("Observación:", marginX + 3, curY);
-    curY += 4.2;
+    curY += 4.5;
 
+    const obsBoxHeight = obsLines.length * 4.5 + 5;
     doc.setDrawColor(205);
-    doc.rect(marginX + 3, curY - 2.8, contentWidth - 6, obsLines.length * 4.4 + 2.5);
+    doc.rect(marginX + 3, curY - 2.5, contentWidth - 6, obsBoxHeight);
 
     doc.setFont(undefined, "normal");
-    doc.text(obsLines, marginX + 5, curY + 0.6);
+    doc.text(obsLines, marginX + 5, curY + 1.2);
   }
 
   y += datosBoxHeight + 5;
