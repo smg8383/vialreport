@@ -320,6 +320,71 @@ footer {
 <script>
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
+let progresivasCache = [];
+
+function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function obtenerProgresivaConRespaldo(clienteDB, lat, lon, radioMetros = 20000) {
+  try {
+    const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
+      p_longitud: lon,
+      p_latitud: lat,
+      p_radio_metros: radioMetros
+    });
+
+    if (!error && data && data.length > 0) {
+      return { punto: data[0], origen: 'rpc' };
+    }
+    if (error) {
+      console.warn("RPC falló, usando respaldo local:", error.message);
+    }
+  } catch (e) {
+    console.warn("Excepción en RPC, usando respaldo local:", e);
+  }
+
+  let lista = progresivasCache;
+  if (!lista || lista.length === 0) {
+    const { data } = await clienteDB
+      .from('progresivas_viales')
+      .select('id, ruta, progresiva, distrito, latitud, longitud');
+    if (data) {
+      progresivasCache = data;
+      lista = data;
+    }
+  }
+
+  if (!lista || lista.length === 0) return null;
+
+  let masCercano = null;
+  let menorDist = Infinity;
+
+  lista.forEach((p) => {
+    if (p.latitud != null && p.longitud != null) {
+      const d = calcularDistanciaMetros(lat, lon, Number(p.latitud), Number(p.longitud));
+      if (d < menorDist) {
+        menorDist = d;
+        masCercano = p;
+      }
+    }
+  });
+
+  if (masCercano && menorDist <= radioMetros) {
+    return { punto: masCercano, origen: 'local' };
+  }
+
+  return null;
+}
 
 async function inicializarMapa(grupoId) {
   const mapElementId = `map_${grupoId}`;
@@ -345,6 +410,7 @@ async function inicializarMapa(grupoId) {
       .select('id, ruta, progresiva, distrito, latitud, longitud');
 
     if (!error && data) {
+      progresivasCache = data;
       data.forEach(punto => {
         if (punto.latitud && punto.longitud) {
           let colorCirculo = (punto.ruta && punto.ruta.includes('12')) ? '#1F4E78' : '#28a745';
@@ -410,25 +476,19 @@ async function procesarExifYPosicionar(file, grupoId) {
         map.setView([lat, lon], 16);
         if (marcadoresUsuario[grupoId]) {
           map.removeLayer(marcadoresUsuario[grupoId].marker);
-          map.removeLayer(marcadoresUsuario[grupoId].circle);
+          if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
         }
         const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 GPS extraído de la foto").openPopup();
         marcadoresUsuario[grupoId] = { marker: userMarker };
       }
 
-      // Consultar progresiva automáticamente con las coordenadas de la foto
       const clienteDB = window.supabaseClient || window.supabase;
       if (clienteDB) {
-        const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
-          p_longitud: lon,
-          p_latitud: lat,
-          p_radio_metros: 20000 
-        });
-
-        if (!error && data && data.length > 0) {
+        const resultado = await obtenerProgresivaConRespaldo(clienteDB, lat, lon, 20000);
+        if (resultado && resultado.punto) {
           const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
-          if (inputKm) inputKm.value = data[0].progresiva;
-          console.log("Km autocompletado por EXIF:", data[0].progresiva);
+          if (inputKm) inputKm.value = resultado.punto.progresiva;
+          console.log("Km autocompletado por EXIF:", resultado.punto.progresiva);
         }
       }
     }
@@ -445,7 +505,6 @@ document.addEventListener("change", async (e) => {
     const grupoId = grupo.getAttribute("data-grupo-id");
     
     if (input.files.length > 0) {
-      // Analizamos la primera foto para extraer el GPS de la cámara
       await procesarExifYPosicionar(input.files[0], grupoId);
     }
   }
@@ -489,7 +548,7 @@ async function activarUbicacionGPS(btn) {
       map.setView([lat, lon], 15);
       if (marcadoresUsuario[grupoId]) {
         map.removeLayer(marcadoresUsuario[grupoId].marker);
-        map.removeLayer(marcadoresUsuario[grupoId].circle);
+        if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
       }
 
       const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
@@ -499,24 +558,17 @@ async function activarUbicacionGPS(btn) {
     }
 
     try {
-      const { data, error } = await clienteDB.rpc('fn_obtener_progresiva_cercana', {
-        p_longitud: lon,
-        p_latitud: lat,
-        p_radio_metros: 20000 
-      });
+      const resultado = await obtenerProgresivaConRespaldo(clienteDB, lat, lon, 20000);
 
-      if (error) {
-        console.error("Error en RPC Supabase:", error);
-        alert("Error al calcular la progresiva en la base de datos.");
-      } else if (data && data.length > 0) {
-        if (inputKm) inputKm.value = data[0].progresiva;
-        alert(`¡Ubicación detectada! Km más cercano: ${data[0].progresiva} (${data[0].ruta})`);
+      if (resultado && resultado.punto) {
+        if (inputKm) inputKm.value = resultado.punto.progresiva;
+        alert(`¡Ubicación detectada! Km más cercano: ${resultado.punto.progresiva} (${resultado.punto.ruta || ''})`);
       } else {
         alert("No se encontró ninguna progresiva cercana a tu ubicación (estás fuera del radio de búsqueda).");
       }
     } catch (err) {
       console.error("Excepción:", err);
-      alert("Error de conexión al consultar Supabase.");
+      alert("Error al calcular la progresiva en la base de datos.");
     } finally {
       btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
       btn.disabled = false;
