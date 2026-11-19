@@ -106,6 +106,26 @@
       box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
     }
 
+    /* Barra flotante para PDF múltiple */
+    .barra-flotante-pdf {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92%, 520px);
+      z-index: 1050;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      border: 1px solid rgba(13, 110, 253, 0.18);
+      display: none;
+    }
+
+    .barra-flotante-pdf.visible {
+      display: block;
+    }
+
     /* Footer Minimalista */
     footer {
       background: rgba(255,255,255,0.8);
@@ -165,36 +185,39 @@
     </div>
   </div>
 
-  <!-- Barra de acciones múltiples y PDF unificado por rango de fechas -->
+  <!-- PDF unificado por rango de fechas -->
   <div class="card shadow-sm mb-4 bg-white">
     <div class="card-body py-3 px-4">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 border-bottom">
-        <button type="button" class="btn btn-danger btn-sm px-4 rounded-pill fw-semibold shadow-sm" onclick="generarPDFMultiple()">
-          <i class="bi bi-file-earmark-pdf-fill"></i> Generar PDF seleccionados
-        </button>
-
-        <div class="form-check m-0">
-          <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
-          <label class="form-check-label small fw-semibold text-secondary" for="chkGlobalObservacion">Incluir observación en PDF múltiple</label>
-        </div>
-      </div>
-
-      <div class="row g-2 align-items-end pt-3">
-        <div class="col-12 col-sm-4">
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-sm-4">
           <label for="rangoFechaDesde" class="form-label small fw-semibold text-secondary mb-1">Fecha desde</label>
           <input type="date" id="rangoFechaDesde" class="form-control form-control-sm">
         </div>
 
-        <div class="col-12 col-sm-4">
+        <div class="col-6 col-sm-4">
           <label for="rangoFechaHasta" class="form-label small fw-semibold text-secondary mb-1">Fecha hasta</label>
           <input type="date" id="rangoFechaHasta" class="form-control form-control-sm">
         </div>
 
-        <div class="col-12 col-sm-4 d-grid">
+        <div class="col-12 col-sm-4 d-grid mt-2 mt-sm-0">
           <button type="button" id="btnGenerarRango" class="btn btn-primary btn-sm rounded-pill fw-semibold shadow-sm" onclick="generarPDFRangoFechas()">
             <i class="bi bi-file-earmark-medical-fill"></i> PDF unificado por rango
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra flotante de PDF seleccionados -->
+  <div id="barraFlotantePDF" class="barra-flotante-pdf px-3 py-2">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+      <button type="button" class="btn btn-danger btn-sm px-3 rounded-pill fw-semibold shadow-sm" onclick="generarPDFMultiple()">
+        <i class="bi bi-file-earmark-pdf-fill"></i> Generar PDF (<span id="contadorSeleccionados">0</span>)
+      </button>
+
+      <div class="form-check m-0">
+        <input type="checkbox" class="form-check-input" id="chkGlobalObservacion" checked>
+        <label class="form-check-label small fw-semibold text-secondary" for="chkGlobalObservacion">Incluir observación</label>
       </div>
     </div>
   </div>
@@ -363,6 +386,27 @@ function actualizarMapaVisor(data) {
   }, 300);
 }
 
+function actualizarBarraFlotante() {
+  const seleccionados = document.querySelectorAll(".seleccionar:checked").length;
+  const barra = document.getElementById("barraFlotantePDF");
+  const contador = document.getElementById("contadorSeleccionados");
+
+  if (!barra || !contador) return;
+
+  contador.textContent = seleccionados;
+  if (seleccionados > 0) {
+    barra.classList.add("visible");
+  } else {
+    barra.classList.remove("visible");
+  }
+}
+
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.classList.contains("seleccionar")) {
+    actualizarBarraFlotante();
+  }
+});
+
 // 🔧 RENDER INFORMES (Con botón eliminar perfectamente centrado)
 function renderInformes(data) {
   const contenedor = document.getElementById("contenedor");
@@ -370,6 +414,7 @@ function renderInformes(data) {
 
   if (!data || data.length === 0) {
     contenedor.innerHTML = `<div class="alert alert-light border text-center text-muted py-4 shadow-sm rounded-4">No se encontraron registros con los filtros seleccionados.</div>`;
+    actualizarBarraFlotante();
     return;
   }
 
@@ -444,6 +489,8 @@ function renderInformes(data) {
         </div>
       </div>`;
   });
+
+  actualizarBarraFlotante();
 }
 
 // 🔄 CONVERTIR IMAGEN
@@ -775,7 +822,7 @@ async function generarPDFMultiple() {
   doc.save("informe_multiple.pdf");
 }
 
-// 📄 NUEVO: PDF UNIFICADO POR RANGO DE FECHAS
+// 📄 PDF UNIFICADO POR RANGO DE FECHAS
 async function generarPDFRangoFechas() {
   const fechaDesde = document.getElementById("rangoFechaDesde").value;
   const fechaHasta = document.getElementById("rangoFechaHasta").value;
