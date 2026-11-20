@@ -190,6 +190,13 @@
         </div>
 
         <div class="col-6 col-md-2">
+          <label for="filtroEmpresa" class="form-label small fw-semibold mb-1">Empresa</label>
+          <select id="filtroEmpresa" class="form-select form-select-sm">
+            <option value="">Todas</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
           <label for="filtroFrente" class="form-label small fw-semibold mb-1">Frente</label>
           <select id="filtroFrente" class="form-select form-select-sm">
             <option value="">Todos</option>
@@ -212,7 +219,7 @@
           </select>
         </div>
 
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-md-2 mt-2">
           <label for="filtroEstado" class="form-label small fw-semibold mb-1">Estado</label>
           <select id="filtroEstado" class="form-select form-select-sm">
             <option value="">Todos</option>
@@ -222,14 +229,14 @@
           </select>
         </div>
 
-        <div class="col-12 col-md-4 mt-2">
+        <div class="col-6 col-md-3 mt-2">
           <label for="filtroTarea" class="form-label small fw-semibold mb-1">Tarea</label>
           <select id="filtroTarea" class="form-select form-select-sm">
             <option value="">Todas</option>
           </select>
         </div>
 
-        <div class="col-12 col-md-5 mt-2">
+        <div class="col-12 col-md-4 mt-2">
           <label for="filtroTexto" class="form-label small fw-semibold mb-1">Buscar</label>
           <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Km, observación, empresa, sentido, frente...">
         </div>
@@ -255,7 +262,8 @@
         <thead class="table-light">
           <tr>
             <th>Fecha</th>
-            <th>Frente / Ruta / Subtramo</th>
+            <th>Empresa / Frente</th>
+            <th>Ruta / Subtramo</th>
             <th>Km</th>
             <th>Tarea</th>
             <th>Avance</th>
@@ -455,7 +463,10 @@ function renderTarjetas(lista) {
             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
               <div>
                 <div class="fw-bold text-dark">${escaparHTML(p.fecha || "Sin fecha")} ${badgeFrente(p.frente)}</div>
-                <div class="small text-muted mt-1">
+                <div class="small fw-semibold text-dark mt-1">
+                  <i class="bi bi-building text-secondary"></i> ${escaparHTML(p.empresa || "Sin empresa")}
+                </div>
+                <div class="small text-muted">
                   ${escaparHTML(p.ruta || "—")} · ${escaparHTML(p.subtramo || "—")}
                   ${p.km ? ` · <strong>Km ${escaparHTML(p.km)}</strong>` : ""}
                 </div>
@@ -522,7 +533,7 @@ function renderTabla(lista) {
   if (!lista.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="9" class="text-center py-4 text-muted">
+        <td colspan="10" class="text-center py-4 text-muted">
           No hay partes diarios que coincidan con los filtros seleccionados.
         </td>
       </tr>
@@ -537,7 +548,11 @@ function renderTabla(lista) {
       <tr>
         <td class="text-nowrap fw-semibold">${escaparHTML(p.fecha || "—")}</td>
         <td>
-          <div>${badgeFrente(p.frente)} <strong>${escaparHTML(p.ruta || "—")}</strong></div>
+          <div class="fw-semibold">${escaparHTML(p.empresa || "—")}</div>
+          <div>${badgeFrente(p.frente)}</div>
+        </td>
+        <td>
+          <div><strong>${escaparHTML(p.ruta || "—")}</strong></div>
           <small class="text-muted">${escaparHTML(p.subtramo || "—")}</small>
         </td>
         <td class="text-nowrap">${escaparHTML(p.km || "—")}</td>
@@ -568,6 +583,7 @@ function renderTabla(lista) {
 function aplicarFiltros() {
   const desde = document.getElementById("filtroDesde").value;
   const hasta = document.getElementById("filtroHasta").value;
+  const empresa = document.getElementById("filtroEmpresa").value;
   const frente = document.getElementById("filtroFrente").value;
   const ruta = document.getElementById("filtroRuta").value;
   const subtramo = document.getElementById("filtroSubtramo").value;
@@ -578,6 +594,7 @@ function aplicarFiltros() {
   partesFiltrados = todosLosPartes.filter((p) => {
     if (desde && (!p.fecha || p.fecha < desde)) return false;
     if (hasta && (!p.fecha || p.fecha > hasta)) return false;
+    if (empresa && (p.empresa || "").trim() !== empresa) return false;
     if (frente && (p.frente || "Obra").trim() !== frente) return false;
     if (ruta && (p.ruta || "").trim() !== ruta) return false;
     if (subtramo && (p.subtramo || "").trim() !== subtramo) return false;
@@ -823,6 +840,7 @@ async function cargarPartesDiarios() {
 
   todosLosPartes = Array.isArray(data) ? data : [];
 
+  poblarSelectFiltro("filtroEmpresa", todosLosPartes.map(p => p.empresa));
   poblarSelectFiltro("filtroRuta", todosLosPartes.map(p => p.ruta));
   poblarSelectFiltro("filtroSubtramo", todosLosPartes.map(p => p.subtramo));
   poblarSelectFiltro("filtroTarea", todosLosPartes.map(p => p.tarea));
@@ -833,6 +851,7 @@ async function cargarPartesDiarios() {
 [
   "filtroDesde",
   "filtroHasta",
+  "filtroEmpresa",
   "filtroFrente",
   "filtroRuta",
   "filtroSubtramo",
@@ -847,6 +866,7 @@ async function cargarPartesDiarios() {
 document.getElementById("btnLimpiarFiltros").addEventListener("click", () => {
   document.getElementById("filtroDesde").value = "";
   document.getElementById("filtroHasta").value = "";
+  document.getElementById("filtroEmpresa").value = "";
   document.getElementById("filtroFrente").value = "";
   document.getElementById("filtroRuta").value = "";
   document.getElementById("filtroSubtramo").value = "";
