@@ -90,6 +90,26 @@
       font-size: 13px;
       vertical-align: middle;
     }
+
+    .matriz-resumen th {
+      background-color: #f8f9fa;
+      color: #212529;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .matriz-resumen td {
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .matriz-celda-valor {
+      font-weight: 700;
+      color: #0d6efd;
+      background-color: #f8fbff;
+    }
   </style>
 </head>
 <body>
@@ -269,6 +289,27 @@
     </div>
   </div>
 
+  <!-- Cuadro Resumen: Tareas ejecutadas por empresa y cantidades realizadas -->
+  <div class="card mb-4">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <h6 class="fw-bold text-dark m-0">
+            <i class="bi bi-grid-3x3-gap-fill text-primary me-1"></i> Resumen de Tareas por Empresa (Cantidades Realizadas)
+          </h6>
+          <small class="text-muted">Calculado sobre los partes filtrados · Valores acumulados con precisión real y redondeados a 2 decimales</small>
+        </div>
+        <button type="button" id="btnToggleResumen" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+          <i class="bi bi-chevron-up"></i> Ocultar / Mostrar
+        </button>
+      </div>
+
+      <div id="contenedorResumenTareas" class="table-responsive mt-2">
+        <div class="text-muted small py-2">Sin datos para resumir.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Estado de carga / vacío -->
   <div id="estadoLista" class="alert alert-info py-2 px-3 small">
     Cargando partes diarios...
@@ -363,7 +404,6 @@ function numRealOrNull(val) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Redondea SOLO para mostrar en pantalla (2 decimales)
 function fmt2(val) {
   const n = numRealOrNull(val);
   if (n === null) return "—";
@@ -400,6 +440,137 @@ function normalizarClaveUnidad(u) {
   return limpio;
 }
 
+function extraerCantidadYUnidadParte(p) {
+  const cantAvance = numRealOrNull(p.avance_cantidad);
+  const unidadNorm = normalizarClaveUnidad(p.avance_unidad);
+
+  if (cantAvance !== null) {
+    return { valor: cantAvance, unidad: unidadNorm || "u" };
+  }
+
+  const vol = numRealOrNull(p.volumen_m3);
+  if (vol !== null) {
+    return { valor: vol, unidad: "m³" };
+  }
+
+  const sup = numRealOrNull(p.superficie_m2);
+  if (sup !== null) {
+    return { valor: sup, unidad: "m²" };
+  }
+
+  const cantU = numRealOrNull(p.cantidad_u);
+  if (cantU !== null) {
+    return { valor: cantU, unidad: "u" };
+  }
+
+  return null;
+}
+
+function formatearMapaUnidades(mapaUnidades) {
+  const entradas = Object.entries(mapaUnidades).filter(([, tot]) => Math.abs(tot) > 0);
+  if (!entradas.length) return "";
+  return entradas
+    .map(([u, tot]) => `${fmtTotal2(tot)} ${u}`)
+    .join(" / ");
+}
+
+function renderResumenTareasPorEmpresa(lista) {
+  const cont = document.getElementById("contenedorResumenTareas");
+  if (!lista.length) {
+    cont.innerHTML = `<div class="text-muted small py-2">No hay registros filtrados para mostrar en el cuadro resumen.</div>`;
+    return;
+  }
+
+  const empresasSet = new Set();
+  const tareasSet = new Set();
+
+  // estructura: matriz[tarea][empresa][unidad] = sumaReal
+  const matriz = {};
+  const totalesPorTareaUnidades = {};
+  const totalesPorEmpresaUnidades = {};
+  const totalGeneralUnidades = {};
+
+  lista.forEach((p) => {
+    const tarea = (p.tarea || "SIN TAREA").trim();
+    const empresa = (p.empresa || organizacionUsuario || "SIN EMPRESA").trim();
+
+    tareasSet.add(tarea);
+    empresasSet.add(empresa);
+
+    if (!matriz[tarea]) matriz[tarea] = {};
+    if (!matriz[tarea][empresa]) matriz[tarea][empresa] = {};
+    if (!totalesPorTareaUnidades[tarea]) totalesPorTareaUnidades[tarea] = {};
+    if (!totalesPorEmpresaUnidades[empresa]) totalesPorEmpresaUnidades[empresa] = {};
+
+    const item = extraerCantidadYUnidadParte(p);
+    if (item) {
+      const u = item.unidad;
+      matriz[tarea][empresa][u] = (matriz[tarea][empresa][u] || 0) + item.valor;
+      totalesPorTareaUnidades[tarea][u] = (totalesPorTareaUnidades[tarea][u] || 0) + item.valor;
+      totalesPorEmpresaUnidades[empresa][u] = (totalesPorEmpresaUnidades[empresa][u] || 0) + item.valor;
+      totalGeneralUnidades[u] = (totalGeneralUnidades[u] || 0) + item.valor;
+    }
+  });
+
+  const empresas = Array.from(empresasSet).sort((a, b) => a.localeCompare(b));
+  const tareas = Array.from(tareasSet).sort((a, b) => a.localeCompare(b));
+
+  const theadHTML = `
+    <thead class="table-light">
+      <tr>
+        <th style="min-width: 240px;">TAREAS</th>
+        ${empresas.map(emp => `<th class="text-end">${escapeHTML(emp)}</th>`).join("")}
+        <th class="text-end">Total tarea</th>
+      </tr>
+    </thead>
+  `;
+
+  const tbodyHTML = `
+    <tbody>
+      ${tareas.map((tarea) => {
+        const celdasEmpresas = empresas.map((emp) => {
+          const textoCelda = formatearMapaUnidades(matriz[tarea]?.[emp] || {});
+          if (!textoCelda) {
+            return `<td class="text-end text-muted">—</td>`;
+          }
+          return `<td class="text-end matriz-celda-valor">${escapeHTML(textoCelda)}</td>`;
+        }).join("");
+
+        const totalTareaTexto = formatearMapaUnidades(totalesPorTareaUnidades[tarea] || {}) || "—";
+
+        return `
+          <tr>
+            <td class="fw-semibold text-dark">${escapeHTML(tarea)}</td>
+            ${celdasEmpresas}
+            <td class="text-end fw-bold text-secondary">${escapeHTML(totalTareaTexto)}</td>
+          </tr>
+        `;
+      }).join("")}
+    </tbody>
+  `;
+
+  const tfootHTML = `
+    <tfoot class="table-light">
+      <tr>
+        <td class="fw-bold text-dark">TOTAL POR EMPRESA</td>
+        ${empresas.map((emp) => {
+          const totEmp = formatearMapaUnidades(totalesPorEmpresaUnidades[emp] || {}) || "—";
+          return `<td class="text-end fw-bold text-success">${escapeHTML(totEmp)}</td>`;
+        }).join("")}
+        <td class="text-end fw-bold text-primary">${escapeHTML(formatearMapaUnidades(totalGeneralUnidades) || "—")}</td>
+      </tr>
+    </tfoot>
+  `;
+
+  cont.innerHTML = `
+    <table class="table table-bordered table-hover matriz-resumen mb-0">
+      ${theadHTML}
+      ${tbodyHTML}
+      ${tfootHTML}
+    </table>
+  `;
+}
+
 function actualizarKPIs(lista) {
   document.getElementById("kpiTotal").textContent = lista.length;
 
@@ -409,7 +580,6 @@ function actualizarKPIs(lista) {
   document.getElementById("kpiFinalizados").textContent = finalizados;
   document.getElementById("kpiActivos").textContent = activos;
 
-  // Suma valores reales (sin redondear fila por fila)
   let sumaSup = 0;
   let sumaVol = 0;
   let sumaUnid = 0;
@@ -431,7 +601,6 @@ function actualizarKPIs(lista) {
     }
   });
 
-  // Si hay volumen acumulado en m³, priorizamos sumaVol real para evitar arrastre de redondeos previos en avance_cantidad
   if (sumaVol > 0 && (acumPorUnidad["m³"] !== undefined)) {
     acumPorUnidad["m³"] = sumaVol;
   }
@@ -742,6 +911,7 @@ function aplicarFiltros() {
   }
 
   actualizarKPIs(partesFiltrados);
+  renderResumenTareasPorEmpresa(partesFiltrados);
   renderTarjetas(partesFiltrados);
   renderTabla(partesFiltrados);
 }
@@ -829,6 +999,15 @@ function exportarCSV() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+document.getElementById("btnToggleResumen").addEventListener("click", () => {
+  const cont = document.getElementById("contenedorResumenTareas");
+  const btn = document.getElementById("btnToggleResumen");
+  const oculto = cont.classList.toggle("d-none");
+  btn.innerHTML = oculto
+    ? `<i class="bi bi-chevron-down"></i> Mostrar`
+    : `<i class="bi bi-chevron-up"></i> Ocultar`;
+});
 
 document.getElementById("btnVistaTarjetas").addEventListener("click", () => {
   document.getElementById("vistaTarjetas").classList.remove("d-none");
