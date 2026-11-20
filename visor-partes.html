@@ -105,6 +105,15 @@
       vertical-align: middle;
     }
 
+    .matriz-seccion-row td {
+      background-color: #eef3f8;
+      font-weight: 700;
+      color: #1e3a5f;
+      letter-spacing: 0.03em;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
     .matriz-celda-valor {
       font-weight: 700;
       color: #0d6efd;
@@ -297,7 +306,7 @@
           <h6 class="fw-bold text-dark m-0">
             <i class="bi bi-grid-3x3-gap-fill text-primary me-1"></i> Resumen de Tareas por Empresa (Cantidades Realizadas)
           </h6>
-          <small class="text-muted">Calculado sobre los partes filtrados · JCR SA discriminada por subtramo (Norte / Sur) · Redondeado a 2 decimales al mostrar</small>
+          <small class="text-muted">Separado por Obra y Peaje · JCR SA discriminada por subtramo (Norte / Sur) · Suma real con redondeo final a 2 decimales</small>
         </div>
         <button type="button" id="btnToggleResumen" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
           <i class="bi bi-chevron-up"></i> Ocultar / Mostrar
@@ -390,20 +399,30 @@ function escapeHTML(str) {
     .replace(/"/g, "&quot;");
 }
 
+// Parsea valores numéricos de forma segura sin confundir miles con decimales
 function numRealOrNull(val) {
   if (val === "" || val === null || val === undefined) return null;
   if (typeof val === "number") return Number.isFinite(val) ? val : null;
+
   let s = String(val).trim().replace(/\s+/g, "");
   if (!s) return null;
-  if (s.includes(",") && !s.includes(".")) {
-    s = s.replace(",", ".");
-  } else if (s.includes(",") && s.includes(".")) {
+
+  // Si tiene coma y punto: ej. "1.094,50" -> miles ".", decimal ","
+  if (s.includes(",") && s.includes(".")) {
     s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.includes(",")) {
+    // Si solo tiene coma: ej. "128,095" o "1.094,00" -> decimal ","
+    s = s.replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    // Si tiene punto(s) agrupando exactamente 3 dígitos de miles: ej. "1.094" -> miles "."
+    s = s.replace(/\./g, "");
   }
+
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
+// Redondeo SOLO para visualización en pantalla (hasta 2 decimales)
 function fmt2(val) {
   const n = numRealOrNull(val);
   if (n === null) return "—";
@@ -412,7 +431,7 @@ function fmt2(val) {
 
 function fmtTotal2(val) {
   const n = numRealOrNull(val);
-  if (n === null || n === 0) return "0";
+  if (n === null || Math.abs(n) === 0) return "0";
   return Number(n.toFixed(2)).toString();
 }
 
@@ -423,9 +442,15 @@ function badgeEstado(estado) {
   return `<span class="badge bg-secondary rounded-pill">${escapeHTML(e || "Pendiente")}</span>`;
 }
 
+function normalizarFrente(frente) {
+  const limpio = String(frente || "Obra").trim().toLowerCase();
+  if (limpio.includes("peaje")) return "Peaje";
+  return "Obra";
+}
+
 function badgeFrente(frente) {
-  const f = (frente || "Obra").trim();
-  if (f.toLowerCase() === "peaje") {
+  const f = normalizarFrente(frente);
+  if (f === "Peaje") {
     return `<span class="badge bg-info bg-opacity-15 text-dark border border-info rounded-pill">${escapeHTML(f)}</span>`;
   }
   return `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill">${escapeHTML(f)}</span>`;
@@ -500,31 +525,35 @@ function renderResumenTareasPorEmpresa(lista) {
   }
 
   const empresasSet = new Set();
-  const tareasSet = new Set();
-  const matriz = {};
-  const totalesPorTareaUnidades = {};
+  const gruposFrente = {
+    Obra: { tareasSet: new Set(), matriz: {}, totalesTarea: {} },
+    Peaje: { tareasSet: new Set(), matriz: {}, totalesTarea: {} }
+  };
 
   lista.forEach((p) => {
+    const frente = normalizarFrente(p.frente);
     const tarea = (p.tarea || "SIN TAREA").trim();
     const empresaEtiqueta = obtenerEtiquetaEmpresaResumen(p);
 
-    tareasSet.add(tarea);
     empresasSet.add(empresaEtiqueta);
+    gruposFrente[frente].tareasSet.add(tarea);
 
-    if (!matriz[tarea]) matriz[tarea] = {};
-    if (!matriz[tarea][empresaEtiqueta]) matriz[tarea][empresaEtiqueta] = {};
-    if (!totalesPorTareaUnidades[tarea]) totalesPorTareaUnidades[tarea] = {};
+    if (!gruposFrente[frente].matriz[tarea]) gruposFrente[frente].matriz[tarea] = {};
+    if (!gruposFrente[frente].matriz[tarea][empresaEtiqueta]) gruposFrente[frente].matriz[tarea][empresaEtiqueta] = {};
+    if (!gruposFrente[frente].totalesTarea[tarea]) gruposFrente[frente].totalesTarea[tarea] = {};
 
     const item = extraerCantidadYUnidadParte(p);
     if (item) {
       const u = item.unidad;
-      matriz[tarea][empresaEtiqueta][u] = (matriz[tarea][empresaEtiqueta][u] || 0) + item.valor;
-      totalesPorTareaUnidades[tarea][u] = (totalesPorTareaUnidades[tarea][u] || 0) + item.valor;
+      gruposFrente[frente].matriz[tarea][empresaEtiqueta][u] =
+        (gruposFrente[frente].matriz[tarea][empresaEtiqueta][u] || 0) + item.valor;
+      gruposFrente[frente].totalesTarea[tarea][u] =
+        (gruposFrente[frente].totalesTarea[tarea][u] || 0) + item.valor;
     }
   });
 
   const empresas = Array.from(empresasSet).sort((a, b) => a.localeCompare(b));
-  const tareas = Array.from(tareasSet).sort((a, b) => a.localeCompare(b));
+  const totalColumnas = empresas.length + 2;
 
   const theadHTML = `
     <thead class="table-light">
@@ -536,34 +565,47 @@ function renderResumenTareasPorEmpresa(lista) {
     </thead>
   `;
 
-  const tbodyHTML = `
-    <tbody>
-      ${tareas.map((tarea) => {
-        const celdasEmpresas = empresas.map((emp) => {
-          const textoCelda = formatearMapaUnidades(matriz[tarea]?.[emp] || {});
-          if (!textoCelda) {
-            return `<td class="text-end text-muted">—</td>`;
-          }
-          return `<td class="text-end matriz-celda-valor">${escapeHTML(textoCelda)}</td>`;
-        }).join("");
+  function construirBloqueFrente(tituloSeccion, grupo) {
+    const tareasOrdenadas = Array.from(grupo.tareasSet).sort((a, b) => a.localeCompare(b));
+    if (!tareasOrdenadas.length) return "";
 
-        const totalTareaTexto = formatearMapaUnidades(totalesPorTareaUnidades[tarea] || {}) || "—";
+    const encabezadoSeccion = `
+      <tr class="matriz-seccion-row">
+        <td colspan="${totalColumnas}">${escapeHTML(tituloSeccion)}</td>
+      </tr>
+    `;
 
-        return `
-          <tr>
-            <td class="fw-semibold text-dark">${escapeHTML(tarea)}</td>
-            ${celdasEmpresas}
-            <td class="text-end fw-bold text-secondary">${escapeHTML(totalTareaTexto)}</td>
-          </tr>
-        `;
-      }).join("")}
-    </tbody>
-  `;
+    const filasTareas = tareasOrdenadas.map((tarea) => {
+      const celdasEmpresas = empresas.map((emp) => {
+        const textoCelda = formatearMapaUnidades(grupo.matriz[tarea]?.[emp] || {});
+        if (!textoCelda) {
+          return `<td class="text-end text-muted">—</td>`;
+        }
+        return `<td class="text-end matriz-celda-valor">${escapeHTML(textoCelda)}</td>`;
+      }).join("");
+
+      const totalTareaTexto = formatearMapaUnidades(grupo.totalesTarea[tarea] || {}) || "—";
+
+      return `
+        <tr>
+          <td class="fw-semibold text-dark">${escapeHTML(tarea)}</td>
+          ${celdasEmpresas}
+          <td class="text-end fw-bold text-secondary">${escapeHTML(totalTareaTexto)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return encabezadoSeccion + filasTareas;
+  }
+
+  const cuerpoHTML =
+    construirBloqueFrente("TAREAS DE OBRA", gruposFrente.Obra) +
+    construirBloqueFrente("TAREAS DE PEAJE", gruposFrente.Peaje);
 
   cont.innerHTML = `
     <table class="table table-bordered table-hover matriz-resumen mb-0">
       ${theadHTML}
-      ${tbodyHTML}
+      <tbody>${cuerpoHTML}</tbody>
     </table>
   `;
 }
@@ -795,7 +837,7 @@ window.abrirDetalleParte = function(id) {
     <div class="row g-2 small mb-3">
       <div class="col-sm-6"><strong>Fecha:</strong> ${escapeHTML(parte.fecha || "—")}</div>
       <div class="col-sm-6"><strong>Estado:</strong> ${badgeEstado(parte.estado)}</div>
-      <div class="col-sm-6"><strong>Frente:</strong> ${escapeHTML(parte.frente || "Obra")}</div>
+      <div class="col-sm-6"><strong>Frente:</strong> ${escapeHTML(normalizarFrente(parte.frente))}</div>
       <div class="col-sm-6"><strong>Empresa:</strong> ${escapeHTML(parte.empresa || "—")}</div>
       <div class="col-sm-6"><strong>Ruta:</strong> ${escapeHTML(parte.ruta || "—")}</div>
       <div class="col-sm-6"><strong>Subtramo:</strong> ${escapeHTML(parte.subtramo || "—")}</div>
@@ -868,7 +910,7 @@ function aplicarFiltros() {
     if (desde && (!p.fecha || p.fecha < desde)) return false;
     if (hasta && (!p.fecha || p.fecha > hasta)) return false;
     if (empresa && (p.empresa || "").trim() !== empresa) return false;
-    if (frente && (p.frente || "Obra").trim() !== frente) return false;
+    if (frente && normalizarFrente(p.frente) !== frente) return false;
     if (ruta && (p.ruta || "").trim() !== ruta) return false;
     if (subtramo && (p.subtramo || "").trim() !== subtramo) return false;
     if (estado && (p.estado || "").trim() !== estado) return false;
