@@ -8,6 +8,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
   <style>
     :root {
@@ -91,6 +92,11 @@
     </a>
 
     <div class="d-flex align-items-center gap-1 flex-shrink-0">
+      <button type="button" id="btnImportar" class="btn btn-outline-success btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
+        <i class="bi bi-file-earmark-arrow-up"></i> <span class="d-none d-sm-inline">Importar</span>
+      </button>
+      <input type="file" id="inputImportarMaestro" accept=".xlsx,.xls,.csv" class="d-none">
+
       <a href="visor-partes.html" class="btn btn-outline-primary btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
         <i class="bi bi-journal-check"></i> <span class="d-none d-sm-inline">Ver partes</span>
       </a>
@@ -118,6 +124,8 @@
       </span>
     </div>
   </div>
+
+  <div id="alertaImportacion" class="alert d-none py-2 px-3 small mb-3"></div>
 
   <div class="card">
     <div class="card-body p-4">
@@ -441,9 +449,24 @@ function mostrarAlerta(tipo, mensaje) {
   el.classList.remove("d-none");
 }
 
+function mostrarAlertaImportacion(tipo, mensaje) {
+  const el = document.getElementById("alertaImportacion");
+  el.className = `alert alert-${tipo} py-2 px-3 small mb-3`;
+  el.textContent = mensaje;
+  el.classList.remove("d-none");
+}
+
 function numOrNull(val) {
   if (val === "" || val === null || val === undefined) return null;
-  const n = Number(val);
+  if (typeof val === "number") return Number.isFinite(val) ? val : null;
+  let s = String(val).trim().replace(/\s+/g, "");
+  if (!s) return null;
+  if (s.includes(",") && !s.includes(".")) {
+    s = s.replace(",", ".");
+  } else if (s.includes(",") && s.includes(".")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -451,6 +474,131 @@ function strOrNull(val) {
   const s = (val ?? "").toString().trim();
   return s.length ? s : null;
 }
+
+function normalizarFechaImport(val) {
+  if (!val && val !== 0) return obtenerFechaHoyLocal();
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    return val.toISOString().slice(0, 10);
+  }
+  if (typeof val === "number" && window.XLSX && XLSX.SSF) {
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d && d.y && d.m && d.d) {
+      return `${String(d.y).padStart(4, "0")}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+    }
+  }
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return obtenerFechaHoyLocal();
+}
+
+function mapearFilaMaestroASupabase(row) {
+  const tarea = strOrNull(row.tarea);
+  if (!tarea) return null;
+
+  return {
+    user_id: usuarioActual.id,
+    organizacion_id: organizacionUsuario,
+    fecha: normalizarFechaImport(row.fecha),
+    empresa: strOrNull(row.empresa) || organizacionUsuario,
+    frente: strOrNull(row.frente) || "Obra",
+    ruta: strOrNull(row.ruta),
+    subtramo: strOrNull(row.subtramo),
+    km: strOrNull(row.km),
+    sentido: strOrNull(row.sentido),
+    tarea,
+    cantidad_u: numOrNull(row.cantidad_u),
+    largo_m: numOrNull(row.largo_m),
+    ancho_m: numOrNull(row.ancho_m),
+    espesor_m: numOrNull(row.espesor_m),
+    superficie_m2: numOrNull(row.superficie_m2),
+    volumen_m3: numOrNull(row.volumen_m3),
+    avance_cantidad: numOrNull(row.avance_cantidad),
+    avance_unidad: strOrNull(row.avance_unidad),
+    observacion1: strOrNull(row.observacion1),
+    hoja_origen: strOrNull(row.hoja_origen),
+    estado: "Finalizada",
+    imagenes: []
+  };
+}
+
+async function procesarArchivoMaestro(file) {
+  if (!file) return;
+  if (!usuarioActual) {
+    mostrarAlertaImportacion("warning", "Esperá a que se cargue la sesión antes de importar.");
+    return;
+  }
+
+  const btnImp = document.getElementById("btnImportar");
+  const textoOrig = btnImp.innerHTML;
+  btnImp.disabled = true;
+  btnImp.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+  try {
+    mostrarAlertaImportacion("info", `Leyendo "${file.name}"...`);
+    const buffer = await file.arrayBuffer();
+    const libro = XLSX.read(buffer, { type: "array" });
+    const primeraHoja = libro.SheetNames[0];
+    const filasRaw = XLSX.utils.sheet_to_json(libro.Sheets[primeraHoja], { defval: null });
+
+    const registros = filasRaw
+      .map(mapearFilaMaestroASupabase)
+      .filter(Boolean);
+
+    if (registros.length === 0) {
+      mostrarAlertaImportacion("warning", "No se encontraron filas válidas con columna 'tarea' en el archivo.");
+      return;
+    }
+
+    const tamanoLote = 50;
+    let insertados = 0;
+
+    for (let i = 0; i < registros.length; i += tamanoLote) {
+      const lote = registros.slice(i, i + tamanoLote);
+      mostrarAlertaImportacion(
+        "info",
+        `Importando registros ${Math.min(i + lote.length, registros.length)} de ${registros.length} en partes_diarios...`
+      );
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .insert(lote);
+
+      if (error) {
+        console.error("Error al importar lote:", error);
+        mostrarAlertaImportacion(
+          "danger",
+          `Error en lote (${insertados} insertados antes del fallo): ${error.message}`
+        );
+        return;
+      }
+      insertados += lote.length;
+    }
+
+    mostrarAlertaImportacion(
+      "success",
+      `Importación completada: se cargaron ${insertados} registros desde "${file.name}" a partes_diarios.`
+    );
+  } catch (err) {
+    console.error("Error procesando maestro:", err);
+    mostrarAlertaImportacion("danger", "No se pudo leer o importar el archivo: " + err.message);
+  } finally {
+    btnImp.disabled = false;
+    btnImp.innerHTML = textoOrig;
+    document.getElementById("inputImportarMaestro").value = "";
+  }
+}
+
+document.getElementById("btnImportar").addEventListener("click", () => {
+  document.getElementById("inputImportarMaestro").click();
+});
+
+document.getElementById("inputImportarMaestro").addEventListener("change", (e) => {
+  const archivo = e.target.files && e.target.files[0];
+  if (archivo) procesarArchivoMaestro(archivo);
+});
 
 function recalcularDimensiones() {
   const auto = document.getElementById("autoCalcular");
