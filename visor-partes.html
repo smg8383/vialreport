@@ -11,7 +11,6 @@
 
   <style>
     :root {
-      --primary-color: #0d6efd;
       --bg-body: #f4f6f9;
       --card-radius: 12px;
     }
@@ -42,36 +41,54 @@
     }
 
     .kpi-card {
-      border-left: 4px solid var(--primary-color);
+      border-left: 4px solid #0d6efd;
+    }
+
+    .parte-card {
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .parte-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+
+    .thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .thumb-img {
+      width: 100%;
+      height: 76px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid #e9ecef;
     }
 
     .dim-chip {
-      display: inline-block;
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
+      font-size: 11px;
+      background-color: #f8f9fa;
+      border: 1px solid #e9ecef;
       border-radius: 6px;
-      padding: 2px 7px;
-      font-size: 0.75rem;
-      color: #334155;
-      margin-right: 4px;
-      margin-bottom: 4px;
+      padding: 3px 7px;
+      color: #495057;
+      display: inline-block;
     }
 
-    .parte-foto-thumb {
-      width: 68px;
-      height: 68px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid #dee2e6;
-      cursor: pointer;
+    .table th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #6c757d;
+      white-space: nowrap;
     }
 
-    .modal-foto-img {
-      width: 100%;
-      max-height: 280px;
-      object-fit: cover;
-      border-radius: 10px;
-      border: 1px solid #dee2e6;
+    .table td {
+      font-size: 13px;
+      vertical-align: middle;
     }
   </style>
 </head>
@@ -83,7 +100,7 @@
       <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
       <div class="ms-2 lh-sm text-truncate">
         <span class="fw-bold text-primary fs-6">VIAL REPORT</span><br>
-        <small class="text-muted fw-semibold d-block text-truncate" style="font-size: 11px;">Visor de Partes Diarios</small>
+        <small class="text-muted fw-semibold d-block text-truncate" style="font-size: 11px;">Visor Partes Diarios</small>
       </div>
     </a>
 
@@ -101,8 +118,7 @@
   </div>
 </nav>
 
-<div class="container" style="max-width: 1200px;">
-  <!-- Encabezado y acciones -->
+<div class="container-fluid px-3 px-md-4" style="max-width: 1320px;">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
       <h2 class="fw-bold fs-4 text-dark m-0">
@@ -127,13 +143,13 @@
     </div>
   </div>
 
-  <!-- Resumen KPIs -->
+  <!-- KPIs -->
   <div class="row g-3 mb-3">
     <div class="col-6 col-md-3">
       <div class="card kpi-card h-100">
         <div class="card-body py-3">
           <div class="text-muted small fw-semibold">Partes filtrados</div>
-          <div id="kpiTotal" class="fs-4 fw-bold text-dark">0</div>
+          <div id="kpiTotal" class="fs-4 fw-bold text-primary">0</div>
         </div>
       </div>
     </div>
@@ -164,21 +180,24 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="col-12">
-      <div class="card kpi-card" style="border-left-color: #6366f1;">
-        <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2 small">
-          <span class="fw-semibold text-secondary"><i class="bi bi-rulers"></i> Cómputos acumulados (filtrados):</span>
-          <div id="kpiDimensiones" class="fw-semibold text-dark">Sup: 0 m² · Vol: 0 m³ · Unid: 0 u</div>
-        </div>
-      </div>
+  <!-- Resumen de cómputos geométricos acumulados -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small">
+      <span class="fw-semibold text-secondary">
+        <i class="bi bi-rulers text-primary me-1"></i> Cómputos acumulados (filtrados):
+      </span>
+      <span id="kpiDimensiones" class="fw-bold text-dark">
+        Superficie: 0 m² · Volumen: 0 m³ · Unidades: 0 u
+      </span>
     </div>
   </div>
 
   <!-- Filtros -->
   <div class="card mb-4">
     <div class="card-body p-3">
-      <div class="row g-2 align-items-end">
+      <div class="row g-2">
         <div class="col-6 col-md-2">
           <label for="filtroDesde" class="form-label small fw-semibold mb-1">Desde</label>
           <input type="date" id="filtroDesde" class="form-control form-control-sm">
@@ -219,7 +238,7 @@
           </select>
         </div>
 
-        <div class="col-6 col-md-2 mt-2">
+        <div class="col-6 col-md-2">
           <label for="filtroEstado" class="form-label small fw-semibold mb-1">Estado</label>
           <select id="filtroEstado" class="form-select form-select-sm">
             <option value="">Todos</option>
@@ -229,19 +248,19 @@
           </select>
         </div>
 
-        <div class="col-6 col-md-3 mt-2">
+        <div class="col-6 col-md-3">
           <label for="filtroTarea" class="form-label small fw-semibold mb-1">Tarea</label>
           <select id="filtroTarea" class="form-select form-select-sm">
             <option value="">Todas</option>
           </select>
         </div>
 
-        <div class="col-12 col-md-4 mt-2">
+        <div class="col-12 col-md-5">
           <label for="filtroTexto" class="form-label small fw-semibold mb-1">Buscar</label>
           <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Km, observación, empresa, sentido, frente...">
         </div>
 
-        <div class="col-12 col-md-3 mt-2 d-flex gap-2">
+        <div class="col-12 col-md-2 d-flex align-items-end">
           <button type="button" id="btnLimpiarFiltros" class="btn btn-outline-secondary btn-sm rounded-pill w-100 fw-semibold">
             <i class="bi bi-eraser"></i> Limpiar filtros
           </button>
@@ -250,24 +269,34 @@
     </div>
   </div>
 
-  <div id="alertaVisor" class="alert d-none py-2 px-3 small"></div>
+  <!-- Estado de carga / vacío -->
+  <div id="estadoLista" class="alert alert-info py-2 px-3 small">
+    Cargando partes diarios...
+  </div>
 
   <!-- Vista Tarjetas -->
   <div id="vistaTarjetas" class="row g-3"></div>
 
   <!-- Vista Tabla -->
-  <div id="vistaTablaWrap" class="card d-none">
+  <div id="vistaTabla" class="card d-none">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 small">
+      <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
             <th>Fecha</th>
-            <th>Empresa / Frente</th>
+            <th>Frente</th>
+            <th>Empresa</th>
             <th>Ruta / Subtramo</th>
             <th>Km</th>
+            <th>Sentido</th>
             <th>Tarea</th>
+            <th>Largo</th>
+            <th>Ancho</th>
+            <th>Espesor</th>
+            <th>Superficie</th>
+            <th>Volumen</th>
+            <th>Cant. (u)</th>
             <th>Avance</th>
-            <th>Dimensiones</th>
             <th>Estado</th>
             <th>Fotos</th>
             <th class="text-end">Acciones</th>
@@ -279,19 +308,19 @@
   </div>
 </div>
 
-<!-- Modal Detalle Parte Diario -->
-<div class="modal fade" id="modalDetalleParte" tabindex="-1" aria-labelledby="modalDetalleParteLabel" aria-hidden="true">
+<!-- Modal Detalle -->
+<div class="modal fade" id="modalDetalleParte" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content border-0 shadow rounded-4">
       <div class="modal-header">
-        <h5 class="modal-title fw-bold fs-6" id="modalDetalleParteLabel">
-          <i class="bi bi-file-earmark-text text-primary me-1"></i> Detalle del Parte Diario
+        <h5 class="modal-title fw-bold fs-6">
+          <i class="bi bi-info-circle-fill text-primary me-1"></i> Detalle de Parte Diario
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
-      <div id="contenidoModalDetalle" class="modal-body"></div>
+      <div id="cuerpoModalDetalle" class="modal-body"></div>
       <div class="modal-footer border-0 pt-0">
-        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
@@ -304,87 +333,71 @@ const supabaseClient = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 
+const STORAGE_KEY_EDITANDO = "editandoParteDiario";
+
 let usuarioActual = null;
 let organizacionUsuario = null;
 let todosLosPartes = [];
 let partesFiltrados = [];
-let vistaActual = "tarjetas";
+let modalDetalleInstancia = null;
 
-function mostrarAlerta(tipo, mensaje) {
-  const el = document.getElementById("alertaVisor");
-  el.className = `alert alert-${tipo} py-2 px-3 small`;
-  el.textContent = mensaje;
-  el.classList.remove("d-none");
-}
-
-function ocultarAlerta() {
-  const el = document.getElementById("alertaVisor");
-  el.classList.add("d-none");
-}
-
-function escaparHTML(texto) {
-  if (texto == null) return "";
-  return String(texto)
+function escapeHTML(str) {
+  return String(str ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
 
-function badgeFrente(frente) {
-  const fr = (frente || "Obra").trim();
-  if (fr.toLowerCase() === "peaje") {
-    return `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill">${escaparHTML(fr)}</span>`;
+function numRealOrNull(val) {
+  if (val === "" || val === null || val === undefined) return null;
+  if (typeof val === "number") return Number.isFinite(val) ? val : null;
+  let s = String(val).trim().replace(/\s+/g, "");
+  if (!s) return null;
+  if (s.includes(",") && !s.includes(".")) {
+    s = s.replace(",", ".");
+  } else if (s.includes(",") && s.includes(".")) {
+    s = s.replace(/\./g, "").replace(",", ".");
   }
-  return `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle rounded-pill">${escaparHTML(fr)}</span>`;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Redondea SOLO para mostrar en pantalla (2 decimales)
+function fmt2(val) {
+  const n = numRealOrNull(val);
+  if (n === null) return "—";
+  return Number(n.toFixed(2)).toString();
+}
+
+function fmtTotal2(val) {
+  const n = numRealOrNull(val);
+  if (n === null || n === 0) return "0";
+  return Number(n.toFixed(2)).toString();
 }
 
 function badgeEstado(estado) {
-  const est = (estado || "").trim();
-  if (est === "Finalizada") {
-    return `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">${escaparHTML(est)}</span>`;
-  }
-  if (est === "Parcial / Pendiente") {
-    return `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill">${escaparHTML(est)}</span>`;
-  }
-  return `<span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">${escaparHTML(est || "En ejecución")}</span>`;
+  const e = (estado || "").trim();
+  if (e === "Finalizada") return `<span class="badge bg-success rounded-pill">${escapeHTML(e)}</span>`;
+  if (e === "En ejecución") return `<span class="badge bg-warning text-dark rounded-pill">${escapeHTML(e)}</span>`;
+  return `<span class="badge bg-secondary rounded-pill">${escapeHTML(e || "Pendiente")}</span>`;
 }
 
-function formatearAvance(parte) {
-  const cant = parte.avance_cantidad;
-  const un = parte.avance_unidad || "";
-  if (cant == null || cant === "") return un ? un : "—";
-  return `${cant} ${un}`.trim();
-}
-
-function obtenerChipsDimensiones(parte) {
-  const chips = [];
-  if (parte.largo_m != null && parte.largo_m !== "") chips.push(`L: ${parte.largo_m} m`);
-  if (parte.ancho_m != null && parte.ancho_m !== "") chips.push(`A: ${parte.ancho_m} m`);
-  if (parte.espesor_m != null && parte.espesor_m !== "") chips.push(`E: ${parte.espesor_m} m`);
-  if (parte.superficie_m2 != null && parte.superficie_m2 !== "") chips.push(`${parte.superficie_m2} m²`);
-  if (parte.volumen_m3 != null && parte.volumen_m3 !== "") chips.push(`${parte.volumen_m3} m³`);
-  if (parte.cantidad_u != null && parte.cantidad_u !== "") chips.push(`${parte.cantidad_u} u`);
-  return chips;
-}
-
-function poblarSelectFiltro(idSelect, valores) {
-  const select = document.getElementById(idSelect);
-  const actual = select.value;
-  const primeraOpcion = select.options[0]?.outerHTML || `<option value="">Todos</option>`;
-  const unicos = Array.from(new Set(valores.map(v => (v || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
-
-  select.innerHTML = primeraOpcion;
-  unicos.forEach((val) => {
-    const opt = document.createElement("option");
-    opt.value = val;
-    opt.textContent = val;
-    select.appendChild(opt);
-  });
-
-  if (actual && unicos.includes(actual)) {
-    select.value = actual;
+function badgeFrente(frente) {
+  const f = (frente || "Obra").trim();
+  if (f.toLowerCase() === "peaje") {
+    return `<span class="badge bg-info bg-opacity-15 text-dark border border-info rounded-pill">${escapeHTML(f)}</span>`;
   }
+  return `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill">${escapeHTML(f)}</span>`;
+}
+
+function normalizarClaveUnidad(u) {
+  const limpio = String(u || "").trim();
+  if (!limpio) return "";
+  const lower = limpio.toLowerCase();
+  if (lower === "m3" || lower === "m³") return "m³";
+  if (lower === "m2" || lower === "m²") return "m²";
+  return limpio;
 }
 
 function actualizarKPIs(lista) {
@@ -396,128 +409,134 @@ function actualizarKPIs(lista) {
   document.getElementById("kpiFinalizados").textContent = finalizados;
   document.getElementById("kpiActivos").textContent = activos;
 
-  const acumPorUnidad = {};
+  // Suma valores reales (sin redondear fila por fila)
   let sumaSup = 0;
   let sumaVol = 0;
   let sumaUnid = 0;
+  const acumPorUnidad = {};
 
   lista.forEach((p) => {
-    const num = Number(p.avance_cantidad);
-    if (Number.isFinite(num) && p.avance_cantidad !== null && p.avance_cantidad !== "") {
-      const unidad = (p.avance_unidad || "sin unidad").trim();
-      acumPorUnidad[unidad] = (acumPorUnidad[unidad] || 0) + num;
+    const sup = numRealOrNull(p.superficie_m2);
+    const vol = numRealOrNull(p.volumen_m3);
+    const unid = numRealOrNull(p.cantidad_u);
+    const cant = numRealOrNull(p.avance_cantidad);
+
+    if (sup !== null) sumaSup += sup;
+    if (vol !== null) sumaVol += vol;
+    if (unid !== null) sumaUnid += unid;
+
+    const unidadNorm = normalizarClaveUnidad(p.avance_unidad);
+    if (cant !== null && unidadNorm) {
+      acumPorUnidad[unidadNorm] = (acumPorUnidad[unidadNorm] || 0) + cant;
     }
-    const sup = Number(p.superficie_m2);
-    if (Number.isFinite(sup) && p.superficie_m2 !== null && p.superficie_m2 !== "") sumaSup += sup;
-
-    const vol = Number(p.volumen_m3);
-    if (Number.isFinite(vol) && p.volumen_m3 !== null && p.volumen_m3 !== "") sumaVol += vol;
-
-    const unid = Number(p.cantidad_u);
-    if (Number.isFinite(unid) && p.cantidad_u !== null && p.cantidad_u !== "") sumaUnid += unid;
   });
 
-  const claves = Object.keys(acumPorUnidad);
-  if (claves.length === 0) {
-    document.getElementById("kpiAvances").textContent = "Sin cantidades";
-  } else {
-    document.getElementById("kpiAvances").innerHTML = claves
-      .map(u => `${Number(acumPorUnidad[u].toFixed(2))} ${escaparHTML(u)}`)
-      .join(" · ");
+  // Si hay volumen acumulado en m³, priorizamos sumaVol real para evitar arrastre de redondeos previos en avance_cantidad
+  if (sumaVol > 0 && (acumPorUnidad["m³"] !== undefined)) {
+    acumPorUnidad["m³"] = sumaVol;
   }
 
   document.getElementById("kpiDimensiones").textContent =
-    `Superficie: ${Number(sumaSup.toFixed(2))} m² · Volumen: ${Number(sumaVol.toFixed(3))} m³ · Unidades: ${Number(sumaUnid.toFixed(2))} u`;
+    `Superficie: ${fmtTotal2(sumaSup)} m² · Volumen: ${fmtTotal2(sumaVol)} m³ · Unidades: ${fmtTotal2(sumaUnid)} u`;
+
+  const entradas = Object.entries(acumPorUnidad);
+  if (entradas.length === 0) {
+    document.getElementById("kpiAvances").textContent = "—";
+  } else {
+    document.getElementById("kpiAvances").innerHTML = entradas
+      .map(([u, total]) => `<span class="me-2">${fmtTotal2(total)} ${escapeHTML(u)}</span>`)
+      .join("");
+  }
+}
+
+function resumenDimensionesChips(p) {
+  const chips = [];
+  if (numRealOrNull(p.largo_m) !== null) chips.push(`L: ${fmt2(p.largo_m)} m`);
+  if (numRealOrNull(p.ancho_m) !== null) chips.push(`A: ${fmt2(p.ancho_m)} m`);
+  if (numRealOrNull(p.espesor_m) !== null) chips.push(`E: ${fmt2(p.espesor_m)} m`);
+  if (numRealOrNull(p.superficie_m2) !== null) chips.push(`Sup: ${fmt2(p.superficie_m2)} m²`);
+  if (numRealOrNull(p.volumen_m3) !== null) chips.push(`Vol: ${fmt2(p.volumen_m3)} m³`);
+  if (numRealOrNull(p.cantidad_u) !== null) chips.push(`Cant: ${fmt2(p.cantidad_u)} u`);
+  return chips.map(c => `<span class="dim-chip">${escapeHTML(c)}</span>`).join(" ");
 }
 
 function renderTarjetas(lista) {
   const cont = document.getElementById("vistaTarjetas");
   if (!lista.length) {
-    cont.innerHTML = `
-      <div class="col-12">
-        <div class="card">
-          <div class="card-body text-center py-5 text-muted">
-            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-            No hay partes diarios que coincidan con los filtros seleccionados.
-          </div>
-        </div>
-      </div>
-    `;
+    cont.innerHTML = "";
     return;
   }
 
   cont.innerHTML = lista.map((p) => {
     const fotos = Array.isArray(p.imagenes) ? p.imagenes.filter(Boolean) : [];
-    const chipsDim = obtenerChipsDimensiones(p);
-    const tieneGPS = p.latitud != null && p.longitud != null && !Number.isNaN(Number(p.latitud)) && !Number.isNaN(Number(p.longitud));
-    const linkMaps = tieneGPS
-      ? `https://www.google.com/maps?q=${encodeURIComponent(p.latitud)},${encodeURIComponent(p.longitud)}`
-      : null;
+    const avanceTexto = numRealOrNull(p.avance_cantidad) !== null
+      ? `${fmt2(p.avance_cantidad)} ${escapeHTML(p.avance_unidad || "")}`.trim()
+      : "Sin avance cargado";
 
-    const obsTexto = [p.observacion1, p.observacion].filter(Boolean).join(" — ");
+    const chipsHTML = resumenDimensionesChips(p);
+    const obsTexto = p.observacion || p.observacion1 || "";
+
+    const thumbsHTML = fotos.length
+      ? `<div class="thumb-grid mt-2">
+          ${fotos.slice(0, 3).map((url, idx) => `
+            <img src="${escapeHTML(url)}" class="thumb-img" alt="Foto ${idx + 1}" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')">
+          `).join("")}
+        </div>`
+      : "";
+
+    const mapaBtn = (p.latitud != null && p.longitud != null)
+      ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(p.latitud)},${encodeURIComponent(p.longitud)}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm rounded-pill px-2 py-1" title="Ver en Google Maps">
+          <i class="bi bi-geo-alt"></i>
+        </a>`
+      : "";
 
     return `
       <div class="col-12 col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-              <div>
-                <div class="fw-bold text-dark">${escaparHTML(p.fecha || "Sin fecha")} ${badgeFrente(p.frente)}</div>
-                <div class="small fw-semibold text-dark mt-1">
-                  <i class="bi bi-building text-secondary"></i> ${escaparHTML(p.empresa || "Sin empresa")}
+        <div class="card parte-card h-100">
+          <div class="card-body d-flex flex-column justify-content-between p-3">
+            <div>
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <div class="d-flex flex-wrap align-items-center gap-1">
+                  <span class="fw-bold small text-dark">${escapeHTML(p.fecha || "—")}</span>
+                  ${badgeFrente(p.frente)}
                 </div>
-                <div class="small text-muted">
-                  ${escaparHTML(p.ruta || "—")} · ${escaparHTML(p.subtramo || "—")}
-                  ${p.km ? ` · <strong>Km ${escaparHTML(p.km)}</strong>` : ""}
-                </div>
+                ${badgeEstado(p.estado)}
               </div>
-              ${badgeEstado(p.estado)}
+
+              ${p.empresa ? `<div class="small fw-semibold text-secondary mb-1"><i class="bi bi-building me-1"></i>${escapeHTML(p.empresa)}</div>` : ""}
+
+              <div class="small text-muted mb-1">
+                <i class="bi bi-signpost-2"></i> ${escapeHTML(p.ruta || "—")}
+                ${p.subtramo ? `· ${escapeHTML(p.subtramo)}` : ""}
+                ${p.km ? `· <strong>Km ${escapeHTML(p.km)}</strong>` : ""}
+              </div>
+
+              <div class="fw-bold text-primary small mb-2">${escapeHTML(p.tarea || "Sin tarea")}</div>
+
+              <div class="bg-light rounded-3 px-2 py-1 small mb-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted">Avance:</span>
+                <span class="fw-bold text-dark">${avanceTexto}</span>
+              </div>
+
+              ${chipsHTML ? `<div class="d-flex flex-wrap gap-1 mb-2">${chipsHTML}</div>` : ""}
+
+              ${obsTexto ? `<p class="small text-secondary mb-2 text-break">${escapeHTML(obsTexto)}</p>` : ""}
+
+              ${thumbsHTML}
             </div>
 
-            <div class="fw-semibold text-primary mb-1">${escaparHTML(p.tarea || "Sin tarea")}</div>
-
-            <div class="small text-secondary mb-2">
-              <strong>Avance:</strong> ${escaparHTML(formatearAvance(p))}
-              ${p.sentido ? ` · <strong>Sentido:</strong> ${escaparHTML(p.sentido)}` : ""}
-            </div>
-
-            ${chipsDim.length > 0 ? `
-              <div class="mb-2">
-                ${chipsDim.map(c => `<span class="dim-chip">${escaparHTML(c)}</span>`).join("")}
-              </div>
-            ` : ""}
-
-            ${obsTexto ? `<p class="small text-muted mb-2 flex-grow-1">${escaparHTML(obsTexto)}</p>` : `<div class="flex-grow-1"></div>`}
-
-            ${fotos.length > 0 ? `
-              <div class="d-flex flex-wrap gap-2 mb-3">
-                ${fotos.slice(0, 4).map((url, idx) => `
-                  <img
-                    src="${escaparHTML(url)}"
-                    alt="Foto ${idx + 1}"
-                    class="parte-foto-thumb"
-                    onclick="abrirDetalleParte('${escaparHTML(p.id)}')"
-                  >
-                `).join("")}
-              </div>
-            ` : ""}
-
-            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto gap-1">
-              <div class="d-flex flex-wrap gap-1">
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2" onclick="abrirDetalleParte('${escaparHTML(p.id)}')">
+            <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
+              <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')">
                   <i class="bi bi-eye"></i> Detalle
                 </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2" onclick="editarParte('${escaparHTML(p.id)}')">
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1" onclick="editarParte('${escapeHTML(String(p.id))}')">
                   <i class="bi bi-pencil"></i> Editar
                 </button>
-                ${linkMaps ? `
-                  <a href="${linkMaps}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm rounded-pill px-2" title="Ver en Google Maps">
-                    <i class="bi bi-geo-alt"></i>
-                  </a>
-                ` : ""}
+                ${mapaBtn}
               </div>
 
-              <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2" onclick="eliminarParte('${escaparHTML(p.id)}')" title="Eliminar parte">
+              <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-1" onclick="eliminarParte('${escapeHTML(String(p.id))}')" title="Eliminar">
                 <i class="bi bi-trash"></i>
               </button>
             </div>
@@ -531,47 +550,42 @@ function renderTarjetas(lista) {
 function renderTabla(lista) {
   const tbody = document.getElementById("cuerpoTablaPartes");
   if (!lista.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="10" class="text-center py-4 text-muted">
-          No hay partes diarios que coincidan con los filtros seleccionados.
-        </td>
-      </tr>
-    `;
+    tbody.innerHTML = "";
     return;
   }
 
   tbody.innerHTML = lista.map((p) => {
     const fotos = Array.isArray(p.imagenes) ? p.imagenes.filter(Boolean) : [];
-    const chipsDim = obtenerChipsDimensiones(p);
+    const avanceTexto = numRealOrNull(p.avance_cantidad) !== null
+      ? `${fmt2(p.avance_cantidad)} ${escapeHTML(p.avance_unidad || "")}`.trim()
+      : "—";
+
     return `
       <tr>
-        <td class="text-nowrap fw-semibold">${escaparHTML(p.fecha || "—")}</td>
-        <td>
-          <div class="fw-semibold">${escaparHTML(p.empresa || "—")}</div>
-          <div>${badgeFrente(p.frente)}</div>
-        </td>
-        <td>
-          <div><strong>${escaparHTML(p.ruta || "—")}</strong></div>
-          <small class="text-muted">${escaparHTML(p.subtramo || "—")}</small>
-        </td>
-        <td class="text-nowrap">${escaparHTML(p.km || "—")}</td>
-        <td>
-          <div>${escaparHTML(p.tarea || "—")}</div>
-          ${p.observacion1 ? `<small class="text-muted">${escaparHTML(p.observacion1)}</small>` : ""}
-        </td>
-        <td class="text-nowrap fw-semibold">${escaparHTML(formatearAvance(p))}</td>
-        <td>${chipsDim.length ? chipsDim.map(c => `<span class="dim-chip">${escaparHTML(c)}</span>`).join("") : "—"}</td>
-        <td class="text-nowrap">${badgeEstado(p.estado)}</td>
-        <td class="text-nowrap">${fotos.length > 0 ? `<span class="badge bg-secondary-subtle text-dark">${fotos.length} foto(s)</span>` : "—"}</td>
+        <td class="text-nowrap">${escapeHTML(p.fecha || "—")}</td>
+        <td>${badgeFrente(p.frente)}</td>
+        <td>${escapeHTML(p.empresa || "—")}</td>
+        <td>${escapeHTML(p.ruta || "—")}${p.subtramo ? ` / ${escapeHTML(p.subtramo)}` : ""}</td>
+        <td class="text-nowrap">${escapeHTML(p.km || "—")}</td>
+        <td>${escapeHTML(p.sentido || "—")}</td>
+        <td class="fw-semibold">${escapeHTML(p.tarea || "—")}</td>
+        <td class="text-nowrap">${fmt2(p.largo_m)}</td>
+        <td class="text-nowrap">${fmt2(p.ancho_m)}</td>
+        <td class="text-nowrap">${fmt2(p.espesor_m)}</td>
+        <td class="text-nowrap">${fmt2(p.superficie_m2)}</td>
+        <td class="text-nowrap">${fmt2(p.volumen_m3)}</td>
+        <td class="text-nowrap">${fmt2(p.cantidad_u)}</td>
+        <td class="fw-bold text-nowrap">${avanceTexto}</td>
+        <td>${badgeEstado(p.estado)}</td>
+        <td>${fotos.length ? `<span class="badge bg-light text-dark border">${fotos.length}</span>` : "0"}</td>
         <td class="text-end text-nowrap">
-          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2" onclick="abrirDetalleParte('${escaparHTML(p.id)}')" title="Ver detalle">
+          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')">
             <i class="bi bi-eye"></i>
           </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2" onclick="editarParte('${escaparHTML(p.id)}')" title="Editar parte">
+          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1" onclick="editarParte('${escapeHTML(String(p.id))}')">
             <i class="bi bi-pencil"></i>
           </button>
-          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2" onclick="eliminarParte('${escaparHTML(p.id)}')" title="Eliminar parte">
+          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-1" onclick="eliminarParte('${escapeHTML(String(p.id))}')">
             <i class="bi bi-trash"></i>
           </button>
         </td>
@@ -579,6 +593,104 @@ function renderTabla(lista) {
     `;
   }).join("");
 }
+
+window.abrirDetalleParte = function(id) {
+  const parte = todosLosPartes.find(p => String(p.id) === String(id));
+  if (!parte) return;
+
+  const fotos = Array.isArray(parte.imagenes) ? parte.imagenes.filter(Boolean) : [];
+  const avanceTexto = numRealOrNull(parte.avance_cantidad) !== null
+    ? `${fmt2(parte.avance_cantidad)} ${escapeHTML(parte.avance_unidad || "")}`.trim()
+    : "—";
+
+  const dims = [
+    ["Largo", numRealOrNull(parte.largo_m) !== null ? `${fmt2(parte.largo_m)} m` : "—"],
+    ["Ancho", numRealOrNull(parte.ancho_m) !== null ? `${fmt2(parte.ancho_m)} m` : "—"],
+    ["Espesor", numRealOrNull(parte.espesor_m) !== null ? `${fmt2(parte.espesor_m)} m` : "—"],
+    ["Superficie", numRealOrNull(parte.superficie_m2) !== null ? `${fmt2(parte.superficie_m2)} m²` : "—"],
+    ["Volumen", numRealOrNull(parte.volumen_m3) !== null ? `${fmt2(parte.volumen_m3)} m³` : "—"],
+    ["Cantidad (u)", numRealOrNull(parte.cantidad_u) !== null ? `${fmt2(parte.cantidad_u)} u` : "—"]
+  ];
+
+  const fotosHTML = fotos.length
+    ? `<div class="row g-2 mt-2">
+        ${fotos.map((url, i) => `
+          <div class="col-6 col-md-4">
+            <a href="${escapeHTML(url)}" target="_blank" rel="noopener">
+              <img src="${escapeHTML(url)}" class="img-fluid rounded border" style="height: 140px; width: 100%; object-fit: cover;" alt="Foto ${i + 1}">
+            </a>
+          </div>
+        `).join("")}
+      </div>`
+    : `<p class="text-muted small mb-0">Sin fotografías adjuntas.</p>`;
+
+  const gpsHTML = (parte.latitud != null && parte.longitud != null)
+    ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(parte.latitud)},${encodeURIComponent(parte.longitud)}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm rounded-pill px-3">
+        <i class="bi bi-geo-alt-fill"></i> Abrir en Google Maps (${Number(parte.latitud).toFixed(5)}, ${Number(parte.longitud).toFixed(5)})
+      </a>`
+    : `<span class="text-muted small">Sin coordenadas GPS</span>`;
+
+  document.getElementById("cuerpoModalDetalle").innerHTML = `
+    <div class="row g-2 small mb-3">
+      <div class="col-sm-6"><strong>Fecha:</strong> ${escapeHTML(parte.fecha || "—")}</div>
+      <div class="col-sm-6"><strong>Estado:</strong> ${badgeEstado(parte.estado)}</div>
+      <div class="col-sm-6"><strong>Frente:</strong> ${escapeHTML(parte.frente || "Obra")}</div>
+      <div class="col-sm-6"><strong>Empresa:</strong> ${escapeHTML(parte.empresa || "—")}</div>
+      <div class="col-sm-6"><strong>Ruta:</strong> ${escapeHTML(parte.ruta || "—")}</div>
+      <div class="col-sm-6"><strong>Subtramo:</strong> ${escapeHTML(parte.subtramo || "—")}</div>
+      <div class="col-sm-6"><strong>Km:</strong> ${escapeHTML(parte.km || "—")}</div>
+      <div class="col-sm-6"><strong>Sentido:</strong> ${escapeHTML(parte.sentido || "—")}</div>
+      <div class="col-12"><strong>Tarea:</strong> ${escapeHTML(parte.tarea || "—")}</div>
+      <div class="col-12"><strong>Avance:</strong> ${avanceTexto}</div>
+      ${parte.observacion1 ? `<div class="col-12"><strong>Observación 1:</strong> ${escapeHTML(parte.observacion1)}</div>` : ""}
+      <div class="col-12"><strong>Observación:</strong> ${escapeHTML(parte.observacion || "—")}</div>
+      ${parte.hoja_origen ? `<div class="col-12"><strong>Hoja origen:</strong> ${escapeHTML(parte.hoja_origen)}</div>` : ""}
+    </div>
+
+    <div class="bg-light rounded-3 p-2 mb-3">
+      <div class="small fw-bold text-secondary mb-2">Dimensiones y cómputos (2 decimales)</div>
+      <div class="row g-2 small">
+        ${dims.map(([label, val]) => `
+          <div class="col-6 col-md-4"><strong>${escapeHTML(label)}:</strong> ${escapeHTML(val)}</div>
+        `).join("")}
+      </div>
+    </div>
+
+    <div class="mb-3">${gpsHTML}</div>
+
+    <div>
+      <div class="small fw-bold text-secondary mb-1">Fotografías (${fotos.length})</div>
+      ${fotosHTML}
+    </div>
+  `;
+
+  if (!modalDetalleInstancia) {
+    modalDetalleInstancia = new bootstrap.Modal(document.getElementById("modalDetalleParte"));
+  }
+  modalDetalleInstancia.show();
+};
+
+window.editarParte = function(id) {
+  localStorage.setItem(STORAGE_KEY_EDITANDO, String(id));
+  window.location.href = "parte-diario.html";
+};
+
+window.eliminarParte = async function(id) {
+  if (!confirm("¿Seguro que deseás eliminar este parte diario?")) return;
+
+  const { error } = await supabaseClient
+    .from("partes_diarios")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    alert("No se pudo eliminar el parte diario: " + error.message);
+    return;
+  }
+
+  todosLosPartes = todosLosPartes.filter(p => String(p.id) !== String(id));
+  aplicarFiltros();
+};
 
 function aplicarFiltros() {
   const desde = document.getElementById("filtroDesde").value;
@@ -621,208 +733,47 @@ function aplicarFiltros() {
     return true;
   });
 
+  const estadoEl = document.getElementById("estadoLista");
+  if (!partesFiltrados.length) {
+    estadoEl.className = "alert alert-warning py-2 px-3 small";
+    estadoEl.textContent = "No hay partes diarios que coincidan con los filtros seleccionados.";
+  } else {
+    estadoEl.classList.add("d-none");
+  }
+
   actualizarKPIs(partesFiltrados);
   renderTarjetas(partesFiltrados);
   renderTabla(partesFiltrados);
 }
 
-window.editarParte = function(id) {
-  localStorage.setItem("editandoParteDiario", String(id));
-  window.location.href = "parte-diario.html";
-};
+function poblarSelectFiltro(selectId, valores) {
+  const sel = document.getElementById(selectId);
+  const actual = sel.value;
+  const unicos = Array.from(new Set(valores.map(v => (v || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
-window.abrirDetalleParte = function(id) {
-  const parte = todosLosPartes.find(item => String(item.id) === String(id));
-  if (!parte) return;
+  sel.innerHTML = `<option value="">${selectId === "filtroEstado" ? "Todos" : "Todas"}</option>`;
+  unicos.forEach((val) => {
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.textContent = val;
+    sel.appendChild(opt);
+  });
 
-  const fotos = Array.isArray(parte.imagenes) ? parte.imagenes.filter(Boolean) : [];
-  const chipsDim = obtenerChipsDimensiones(parte);
-  const tieneGPS = parte.latitud != null && parte.longitud != null && !Number.isNaN(Number(parte.latitud)) && !Number.isNaN(Number(parte.longitud));
-  const linkMaps = tieneGPS
-    ? `https://www.google.com/maps?q=${encodeURIComponent(parte.latitud)},${encodeURIComponent(parte.longitud)}`
-    : null;
-
-  document.getElementById("contenidoModalDetalle").innerHTML = `
-    <div class="row g-3 mb-3 small">
-      <div class="col-6 col-md-3"><strong>Fecha:</strong><br>${escaparHTML(parte.fecha || "—")}</div>
-      <div class="col-6 col-md-3"><strong>Frente:</strong><br>${badgeFrente(parte.frente)}</div>
-      <div class="col-6 col-md-3"><strong>Empresa:</strong><br>${escaparHTML(parte.empresa || "—")}</div>
-      <div class="col-6 col-md-3"><strong>Estado:</strong><br>${badgeEstado(parte.estado)}</div>
-      <div class="col-6 col-md-4"><strong>Ruta:</strong><br>${escaparHTML(parte.ruta || "—")}</div>
-      <div class="col-6 col-md-4"><strong>Subtramo:</strong><br>${escaparHTML(parte.subtramo || "—")}</div>
-      <div class="col-12 col-md-4"><strong>Km / Sentido:</strong><br>${escaparHTML(parte.km || "—")} ${parte.sentido ? `(${escaparHTML(parte.sentido)})` : ""}</div>
-      <div class="col-12 col-md-8"><strong>Tarea:</strong><br><span class="text-primary fw-semibold">${escaparHTML(parte.tarea || "—")}</span></div>
-      <div class="col-12 col-md-4"><strong>Avance:</strong><br><span class="fw-semibold">${escaparHTML(formatearAvance(parte))}</span></div>
-      <div class="col-12">
-        <strong>Dimensiones y cómputos:</strong><br>
-        ${chipsDim.length ? chipsDim.map(c => `<span class="dim-chip mt-1">${escaparHTML(c)}</span>`).join("") : "Sin dimensiones cargadas"}
-      </div>
-      ${parte.hoja_origen ? `<div class="col-12 text-muted"><strong>Hoja origen:</strong> ${escaparHTML(parte.hoja_origen)}</div>` : ""}
-    </div>
-
-    ${parte.observacion1 ? `
-      <div class="mb-2">
-        <div class="small fw-bold text-secondary mb-1">Detalle técnico (observacion1)</div>
-        <div class="p-2 bg-light rounded small">${escaparHTML(parte.observacion1)}</div>
-      </div>
-    ` : ""}
-
-    <div class="mb-3">
-      <div class="small fw-bold text-secondary mb-1">Observación general</div>
-      <div class="p-2 bg-light rounded small">${escaparHTML(parte.observacion || "Sin observaciones.")}</div>
-    </div>
-
-    <div class="mb-3 small">
-      <strong>Ubicación GPS:</strong>
-      ${tieneGPS
-        ? `${Number(parte.latitud).toFixed(5)}, ${Number(parte.longitud).toFixed(5)} — <a href="${linkMaps}" target="_blank" rel="noopener">Abrir en Google Maps</a>`
-        : "Sin coordenadas registradas"}
-    </div>
-
-    ${fotos.length > 0 ? `
-      <div class="small fw-bold text-secondary mb-2">Fotografías (${fotos.length})</div>
-      <div class="row g-2">
-        ${fotos.map((url, idx) => `
-          <div class="col-6 col-md-4">
-            <a href="${escaparHTML(url)}" target="_blank" rel="noopener">
-              <img src="${escaparHTML(url)}" alt="Foto ${idx + 1}" class="modal-foto-img">
-            </a>
-          </div>
-        `).join("")}
-      </div>
-    ` : `<div class="small text-muted">Sin fotografías adjuntas.</div>`}
-  `;
-
-  const modal = new bootstrap.Modal(document.getElementById("modalDetalleParte"));
-  modal.show();
-};
-
-window.eliminarParte = async function(id) {
-  if (!confirm("¿Seguro que querés eliminar este parte diario?")) return;
-
-  try {
-    const { error } = await supabaseClient
-      .from("partes_diarios")
-      .delete()
-      .eq("id", id);
-
-    if (error) throw new Error(error.message);
-
-    todosLosPartes = todosLosPartes.filter(p => String(p.id) !== String(id));
-    aplicarFiltros();
-    mostrarAlerta("success", "Parte diario eliminado.");
-  } catch (err) {
-    console.error(err);
-    mostrarAlerta("danger", err.message || "No se pudo eliminar el parte diario.");
-  }
-};
-
-function exportarCSV() {
-  if (!partesFiltrados.length) {
-    alert("No hay registros filtrados para exportar.");
-    return;
-  }
-
-  const encabezados = [
-    "fecha",
-    "empresa",
-    "frente",
-    "ruta",
-    "subtramo",
-    "km",
-    "sentido",
-    "estado",
-    "tarea",
-    "avance_cantidad",
-    "avance_unidad",
-    "largo_m",
-    "ancho_m",
-    "espesor_m",
-    "superficie_m2",
-    "volumen_m3",
-    "cantidad_u",
-    "observacion1",
-    "observacion",
-    "hoja_origen",
-    "latitud",
-    "longitud"
-  ];
-
-  const escaparCSV = (val) => {
-    const str = val == null ? "" : String(val);
-    return `"${str.replace(/"/g, '""')}"`;
-  };
-
-  const filas = [
-    encabezados.map(escaparCSV).join(";"),
-    ...partesFiltrados.map(p => encabezados.map(col => escaparCSV(p[col])).join(";"))
-  ];
-
-  const blob = new Blob(["\uFEFF" + filas.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `partes_diarios_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function cambiarVista(modo) {
-  vistaActual = modo;
-  const btnTarjetas = document.getElementById("btnVistaTarjetas");
-  const btnTabla = document.getElementById("btnVistaTabla");
-  const vistaTarjetas = document.getElementById("vistaTarjetas");
-  const vistaTablaWrap = document.getElementById("vistaTablaWrap");
-
-  if (modo === "tabla") {
-    btnTabla.classList.add("btn-primary", "active");
-    btnTabla.classList.remove("btn-outline-primary");
-    btnTarjetas.classList.remove("btn-primary", "active");
-    btnTarjetas.classList.add("btn-outline-primary");
-    vistaTarjetas.classList.add("d-none");
-    vistaTablaWrap.classList.remove("d-none");
-  } else {
-    btnTarjetas.classList.add("btn-primary", "active");
-    btnTarjetas.classList.remove("btn-outline-primary");
-    btnTabla.classList.remove("btn-primary", "active");
-    btnTabla.classList.add("btn-outline-primary");
-    vistaTablaWrap.classList.add("d-none");
-    vistaTarjetas.classList.remove("d-none");
+  if (actual && unicos.includes(actual)) {
+    sel.value = actual;
   }
 }
 
 async function cargarPartesDiarios() {
-  ocultarAlerta();
-
-  const { data: sessionData } = await supabaseClient.auth.getSession();
-  if (!sessionData.session) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  usuarioActual = sessionData.session.user;
-
-  const { data: empRows } = await supabaseClient
-    .from("empresas")
-    .select("nombre")
-    .eq("user_id", usuarioActual.id)
-    .limit(1);
-
-  organizacionUsuario = empRows && empRows.length > 0 && empRows[0].nombre
-    ? String(empRows[0].nombre).trim()
-    : null;
-
-  document.getElementById("subtituloOrg").textContent = organizacionUsuario
-    ? `Organización: ${organizacionUsuario}`
-    : "Registros visibles según permisos de sesión";
+  const estadoEl = document.getElementById("estadoLista");
+  estadoEl.className = "alert alert-info py-2 px-3 small";
+  estadoEl.textContent = "Cargando partes diarios...";
 
   let query = supabaseClient
     .from("partes_diarios")
     .select("*")
     .order("fecha", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("id", { ascending: false });
 
   if (organizacionUsuario) {
     query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
@@ -834,12 +785,12 @@ async function cargarPartesDiarios() {
 
   if (error) {
     console.error("Error cargando partes diarios:", error);
-    mostrarAlerta("danger", "No se pudieron cargar los partes diarios: " + error.message);
+    estadoEl.className = "alert alert-danger py-2 px-3 small";
+    estadoEl.textContent = "Error al cargar partes diarios: " + error.message;
     return;
   }
 
-  todosLosPartes = Array.isArray(data) ? data : [];
-
+  todosLosPartes = data || [];
   poblarSelectFiltro("filtroEmpresa", todosLosPartes.map(p => p.empresa));
   poblarSelectFiltro("filtroRuta", todosLosPartes.map(p => p.ruta));
   poblarSelectFiltro("filtroSubtramo", todosLosPartes.map(p => p.subtramo));
@@ -847,6 +798,55 @@ async function cargarPartesDiarios() {
 
   aplicarFiltros();
 }
+
+function exportarCSV() {
+  if (!partesFiltrados.length) {
+    alert("No hay registros filtrados para exportar.");
+    return;
+  }
+
+  const headers = [
+    "id", "fecha", "frente", "empresa", "ruta", "subtramo", "km", "sentido",
+    "tarea", "largo_m", "ancho_m", "espesor_m", "superficie_m2", "volumen_m3",
+    "cantidad_u", "avance_cantidad", "avance_unidad", "estado",
+    "observacion1", "observacion", "hoja_origen", "latitud", "longitud"
+  ];
+
+  const filas = partesFiltrados.map(p =>
+    headers.map(h => {
+      const v = p[h] ?? "";
+      const s = String(v).replace(/"/g, '""');
+      return `"${s}"`;
+    }).join(";")
+  );
+
+  const csvContent = "\uFEFF" + [headers.join(";"), ...filas].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `partes_diarios_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById("btnVistaTarjetas").addEventListener("click", () => {
+  document.getElementById("vistaTarjetas").classList.remove("d-none");
+  document.getElementById("vistaTabla").classList.add("d-none");
+  document.getElementById("btnVistaTarjetas").classList.add("btn-primary", "active");
+  document.getElementById("btnVistaTarjetas").classList.remove("btn-outline-primary");
+  document.getElementById("btnVistaTabla").classList.remove("btn-primary", "active");
+  document.getElementById("btnVistaTabla").classList.add("btn-outline-primary");
+});
+
+document.getElementById("btnVistaTabla").addEventListener("click", () => {
+  document.getElementById("vistaTabla").classList.remove("d-none");
+  document.getElementById("vistaTarjetas").classList.add("d-none");
+  document.getElementById("btnVistaTabla").classList.add("btn-primary", "active");
+  document.getElementById("btnVistaTabla").classList.remove("btn-outline-primary");
+  document.getElementById("btnVistaTarjetas").classList.remove("btn-primary", "active");
+  document.getElementById("btnVistaTarjetas").classList.add("btn-outline-primary");
+});
 
 [
   "filtroDesde",
@@ -876,16 +876,41 @@ document.getElementById("btnLimpiarFiltros").addEventListener("click", () => {
   aplicarFiltros();
 });
 
-document.getElementById("btnVistaTarjetas").addEventListener("click", () => cambiarVista("tarjetas"));
-document.getElementById("btnVistaTabla").addEventListener("click", () => cambiarVista("tabla"));
 document.getElementById("btnExportarCSV").addEventListener("click", exportarCSV);
 
 document.getElementById("btnLogout").addEventListener("click", async () => {
+  localStorage.removeItem(STORAGE_KEY_EDITANDO);
   await supabaseClient.auth.signOut();
   window.location.href = "login.html";
 });
 
-cargarPartesDiarios();
+async function initVisor() {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  usuarioActual = sessionData.session.user;
+
+  const { data: empRows } = await supabaseClient
+    .from("empresas")
+    .select("nombre")
+    .eq("user_id", usuarioActual.id)
+    .limit(1);
+
+  organizacionUsuario = empRows && empRows.length > 0 && empRows[0].nombre
+    ? String(empRows[0].nombre).trim()
+    : null;
+
+  document.getElementById("subtituloOrg").textContent = organizacionUsuario
+    ? `Organización: ${organizacionUsuario}`
+    : "Vista personal";
+
+  await cargarPartesDiarios();
+}
+
+initVisor();
 </script>
 </body>
 </html>
