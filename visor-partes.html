@@ -297,7 +297,7 @@
           <h6 class="fw-bold text-dark m-0">
             <i class="bi bi-grid-3x3-gap-fill text-primary me-1"></i> Resumen de Tareas por Empresa (Cantidades Realizadas)
           </h6>
-          <small class="text-muted">Calculado sobre los partes filtrados · Valores acumulados con precisión real y redondeados a 2 decimales</small>
+          <small class="text-muted">Los totales se actulizan sobre los partes filtros aplicados.</small>
         </div>
         <button type="button" id="btnToggleResumen" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
           <i class="bi bi-chevron-up"></i> Ocultar / Mostrar
@@ -474,6 +474,20 @@ function formatearMapaUnidades(mapaUnidades) {
     .join(" / ");
 }
 
+function obtenerEtiquetaEmpresaResumen(p) {
+  const empresaBase = (p.empresa || organizacionUsuario || "SIN EMPRESA").trim();
+  const subtramo = (p.subtramo || "").trim();
+  const subUpper = subtramo.toUpperCase();
+
+  if (empresaBase.toUpperCase() === "JCR SA") {
+    if (subUpper.includes("NORTE")) return "JCR SA (NORTE)";
+    if (subUpper.includes("SUR")) return "JCR SA (SUR)";
+    if (subtramo) return `JCR SA (${subtramo.toUpperCase()})`;
+  }
+
+  return empresaBase;
+}
+
 function renderResumenTareasPorEmpresa(lista) {
   const cont = document.getElementById("contenedorResumenTareas");
   if (!lista.length) {
@@ -484,31 +498,26 @@ function renderResumenTareasPorEmpresa(lista) {
   const empresasSet = new Set();
   const tareasSet = new Set();
 
-  // estructura: matriz[tarea][empresa][unidad] = sumaReal
+  // estructura: matriz[tarea][empresaEtiqueta][unidad] = sumaReal
   const matriz = {};
   const totalesPorTareaUnidades = {};
-  const totalesPorEmpresaUnidades = {};
-  const totalGeneralUnidades = {};
 
   lista.forEach((p) => {
     const tarea = (p.tarea || "SIN TAREA").trim();
-    const empresa = (p.empresa || organizacionUsuario || "SIN EMPRESA").trim();
+    const empresaEtiqueta = obtenerEtiquetaEmpresaResumen(p);
 
     tareasSet.add(tarea);
-    empresasSet.add(empresa);
+    empresasSet.add(empresaEtiqueta);
 
     if (!matriz[tarea]) matriz[tarea] = {};
-    if (!matriz[tarea][empresa]) matriz[tarea][empresa] = {};
+    if (!matriz[tarea][empresaEtiqueta]) matriz[tarea][empresaEtiqueta] = {};
     if (!totalesPorTareaUnidades[tarea]) totalesPorTareaUnidades[tarea] = {};
-    if (!totalesPorEmpresaUnidades[empresa]) totalesPorEmpresaUnidades[empresa] = {};
 
     const item = extraerCantidadYUnidadParte(p);
     if (item) {
       const u = item.unidad;
-      matriz[tarea][empresa][u] = (matriz[tarea][empresa][u] || 0) + item.valor;
+      matriz[tarea][empresaEtiqueta][u] = (matriz[tarea][empresaEtiqueta][u] || 0) + item.valor;
       totalesPorTareaUnidades[tarea][u] = (totalesPorTareaUnidades[tarea][u] || 0) + item.valor;
-      totalesPorEmpresaUnidades[empresa][u] = (totalesPorEmpresaUnidades[empresa][u] || 0) + item.valor;
-      totalGeneralUnidades[u] = (totalGeneralUnidades[u] || 0) + item.valor;
     }
   });
 
@@ -549,24 +558,10 @@ function renderResumenTareasPorEmpresa(lista) {
     </tbody>
   `;
 
-  const tfootHTML = `
-    <tfoot class="table-light">
-      <tr>
-        <td class="fw-bold text-dark">TOTAL POR EMPRESA</td>
-        ${empresas.map((emp) => {
-          const totEmp = formatearMapaUnidades(totalesPorEmpresaUnidades[emp] || {}) || "—";
-          return `<td class="text-end fw-bold text-success">${escapeHTML(totEmp)}</td>`;
-        }).join("")}
-        <td class="text-end fw-bold text-primary">${escapeHTML(formatearMapaUnidades(totalGeneralUnidades) || "—")}</td>
-      </tr>
-    </tfoot>
-  `;
-
   cont.innerHTML = `
     <table class="table table-bordered table-hover matriz-resumen mb-0">
       ${theadHTML}
       ${tbodyHTML}
-      ${tfootHTML}
     </table>
   `;
 }
