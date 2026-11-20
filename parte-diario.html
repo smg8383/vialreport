@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parte Diario - Vial Report</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --primary-color: #0d6efd;
+      --bg-body: #f4f6f9;
+      --card-radius: 12px;
+    }
+
+    body {
+      background-color: var(--bg-body);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #333;
+      padding-top: 86px;
+      padding-bottom: 50px;
+    }
+
+    .navbar {
+      background: #ffffff !important;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    }
+    .navbar-brand img {
+      height: 46px;
+      object-fit: contain;
+    }
+
+    .card {
+      border: none;
+      border-radius: var(--card-radius);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+
+    .preview-card {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #dee2e6;
+      background: #fff;
+    }
+
+    .preview-img {
+      height: 100px;
+      width: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .btn-quitar-foto {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand d-flex align-items-center" href="parte-diario.html">
+      <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
+      <div class="ms-2 lh-sm">
+        <span class="fw-bold text-primary fs-5">VIAL REPORT</span><br>
+        <small class="text-muted fw-semibold">Parte Diario</small>
+      </div>
+    </a>
+
+    <div class="d-flex align-items-center gap-2">
+      <a href="index.html" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold">
+        <i class="bi bi-clipboard-check"></i> Relevamiento / Inspección
+      </a>
+      <button type="button" id="btnLogout" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold">
+        <i class="bi bi-box-arrow-right"></i> Salir
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="container" style="max-width: 820px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="fw-bold fs-4 text-dark m-0">
+      <i class="bi bi-journal-text text-primary"></i> Nuevo Parte Diario
+    </h2>
+    <span id="badgeOrg" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2">
+      Cargando organización...
+    </span>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-4">
+      <form id="formParteDiario">
+        <!-- Encabezado homogéneo -->
+        <h6 class="fw-bold text-secondary text-uppercase small mb-3 pb-1 border-bottom">
+          Datos generales y ubicación
+        </h6>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label for="fecha" class="form-label small fw-semibold">Fecha *</label>
+            <input type="date" id="fecha" class="form-control form-control-sm" required>
+          </div>
+
+          <div class="col-md-8">
+            <label for="empresa" class="form-label small fw-semibold">Empresa *</label>
+            <select id="empresa" class="form-select form-select-sm" required>
+              <option value="">Seleccionar...</option>
+              <option value="CORREDOR LITORAL SA">CORREDOR LITORAL SA</option>
+              <option value="JCR SA">JCR SA</option>
+              <option value="GUERECHET SA">GUERECHET SA</option>
+              <option value="VIAL PLUS SA">VIAL PLUS SA</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label for="ruta" class="form-label small fw-semibold">Ruta *</label>
+            <select id="ruta" class="form-select form-select-sm" required>
+              <option value="">Seleccionar...</option>
+              <option value="RN N° 16">RN N° 16</option>
+              <option value="RN N° 12">RN N° 12</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label for="subtramo" class="form-label small fw-semibold">Subtramo</label>
+            <select id="subtramo" class="form-select form-select-sm">
+              <option value="">Seleccionar...</option>
+              <option value="CHACO">CHACO</option>
+              <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
+              <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
+              <option value="MISIONES">MISIONES</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label for="km" class="form-label small fw-semibold">Km / Progresiva</label>
+            <input type="text" id="km" class="form-control form-control-sm" placeholder="Ej: 1020.5">
+          </div>
+
+          <div class="col-md-6">
+            <label for="sentido" class="form-label small fw-semibold">Sentido</label>
+            <input type="text" id="sentido" class="form-control form-control-sm" placeholder="Ej: Ascendente / Descendente">
+          </div>
+
+          <div class="col-md-6">
+            <label for="estado" class="form-label small fw-semibold">Estado</label>
+            <select id="estado" class="form-select form-select-sm">
+              <option value="En ejecución">En ejecución</option>
+              <option value="Finalizada">Finalizada</option>
+              <option value="Parcial / Pendiente">Parcial / Pendiente</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tarea y avance homogéneo -->
+        <h6 class="fw-bold text-secondary text-uppercase small mb-3 mt-4 pb-1 border-bottom">
+          Tarea y avance del día
+        </h6>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label for="tarea" class="form-label small fw-semibold">Tarea realizada *</label>
+            <input type="text" id="tarea" class="form-control form-control-sm" placeholder="Ej: Corte de pasto, bacheo, señalización..." required>
+          </div>
+
+          <div class="col-md-3">
+            <label for="avance_cantidad" class="form-label small fw-semibold">Cantidad / Avance</label>
+            <input type="number" step="0.01" id="avance_cantidad" class="form-control form-control-sm" placeholder="0.00">
+          </div>
+
+          <div class="col-md-3">
+            <label for="avance_unidad" class="form-label small fw-semibold">Unidad</label>
+            <input type="text" id="avance_unidad" class="form-control form-control-sm" placeholder="km, m², un, %">
+          </div>
+        </div>
+
+        <!-- Observación, GPS y Fotos (Cámara + Adjuntar) -->
+        <h6 class="fw-bold text-secondary text-uppercase small mb-3 mt-4 pb-1 border-bottom">
+          Observaciones, GPS y fotografías
+        </h6>
+
+        <div class="mb-3">
+          <label for="observacion" class="form-label small fw-semibold">Observación</label>
+          <textarea id="observacion" rows="3" class="form-control form-control-sm" placeholder="Detalle del trabajo realizado en la jornada..."></textarea>
+        </div>
+
+        <div class="row g-3 align-items-center mb-3">
+          <div class="col-12">
+            <button type="button" id="btnGPS" class="btn btn-outline-info btn-sm rounded-pill px-3 fw-semibold">
+              <i class="bi bi-geo-alt-fill"></i> Obtener ubicación GPS
+            </button>
+            <span id="estadoGPS" class="small text-muted ms-2">Sin coordenadas</span>
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex flex-wrap gap-2">
+              <label for="inputCamara" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold m-0">
+                <i class="bi bi-camera-fill"></i> Tomar foto con cámara
+              </label>
+              <input type="file" id="inputCamara" accept="image/*" capture="environment" class="d-none">
+
+              <label for="inputAdjuntar" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold m-0">
+                <i class="bi bi-paperclip"></i> Adjuntar fotos
+              </label>
+              <input type="file" id="inputAdjuntar" accept="image/*" multiple class="d-none">
+            </div>
+            <div id="contadorFotos" class="small text-muted mt-2">0 fotos seleccionadas</div>
+          </div>
+        </div>
+
+        <div id="previewFotos" class="row g-2 mb-4"></div>
+
+        <div id="alertaForm" class="alert d-none py-2 px-3 small"></div>
+
+        <div class="d-grid">
+          <button type="submit" id="btnGuardar" class="btn btn-primary rounded-pill fw-semibold py-2 shadow-sm">
+            <i class="bi bi-check-circle-fill"></i> Guardar Parte Diario
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const supabaseClient = supabase.createClient(
+  "https://yepethuzzretakioqyqy.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
+);
+
+// Cambiá este nombre si en tu Supabase Storage usás otro bucket para imágenes
+const STORAGE_BUCKET = "imagenes";
+
+let usuarioActual = null;
+let organizacionUsuario = null;
+let coordsActuales = { latitud: null, longitud: null };
+let fotosSeleccionadas = [];
+
+function mostrarAlerta(tipo, mensaje) {
+  const el = document.getElementById("alertaForm");
+  el.className = `alert alert-${tipo} py-2 px-3 small`;
+  el.textContent = mensaje;
+  el.classList.remove("d-none");
+}
+
+function renderPreviews() {
+  const contenedor = document.getElementById("previewFotos");
+  const contador = document.getElementById("contadorFotos");
+  contenedor.innerHTML = "";
+
+  contador.textContent = `${fotosSeleccionadas.length} ${fotosSeleccionadas.length === 1 ? "foto seleccionada" : "fotos seleccionadas"}`;
+
+  fotosSeleccionadas.forEach((file, idx) => {
+    const url = URL.createObjectURL(file);
+    contenedor.innerHTML += `
+      <div class="col-4 col-md-3">
+        <div class="preview-card">
+          <img src="${url}" class="preview-img" alt="Vista previa ${idx + 1}">
+          <button
+            type="button"
+            class="btn btn-danger btn-quitar-foto"
+            onclick="quitarFoto(${idx})"
+            title="Quitar foto"
+          >
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+function agregarFotos(archivosNuevos) {
+  const validos = Array.from(archivosNuevos || []).filter(f => f && f.type && f.type.startsWith("image/"));
+  if (validos.length === 0) return;
+  fotosSeleccionadas = [...fotosSeleccionadas, ...validos];
+  renderPreviews();
+}
+
+function quitarFoto(index) {
+  fotosSeleccionadas.splice(index, 1);
+  renderPreviews();
+}
+
+function limpiarFotos() {
+  fotosSeleccionadas = [];
+  document.getElementById("inputCamara").value = "";
+  document.getElementById("inputAdjuntar").value = "";
+  renderPreviews();
+}
+
+async function comprimirImagen(file, maxAncho = 1600, calidad = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const urlTemporal = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(urlTemporal);
+
+      let ancho = img.naturalWidth || img.width;
+      let alto = img.naturalHeight || img.height;
+
+      if (ancho > maxAncho) {
+        alto = Math.round((alto * maxAncho) / ancho);
+        ancho = maxAncho;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = ancho;
+      canvas.height = alto;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, ancho, alto);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            resolve(file);
+          }
+        },
+        "image/jpeg",
+        calidad
+      );
+    };
+
+    img.onerror = (err) => {
+      URL.revokeObjectURL(urlTemporal);
+      reject(err);
+    };
+
+    img.src = urlTemporal;
+  });
+}
+
+async function initParteDiario() {
+  document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  usuarioActual = sessionData.session.user;
+
+  const { data: empRows } = await supabaseClient
+    .from("empresas")
+    .select("nombre")
+    .eq("user_id", usuarioActual.id)
+    .limit(1);
+
+  organizacionUsuario = empRows && empRows.length > 0 && empRows[0].nombre
+    ? String(empRows[0].nombre).trim()
+    : null;
+
+  const badge = document.getElementById("badgeOrg");
+  if (organizacionUsuario) {
+    badge.textContent = organizacionUsuario;
+    const selectEmpresa = document.getElementById("empresa");
+    const opcionExiste = Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario);
+    if (opcionExiste) selectEmpresa.value = organizacionUsuario;
+  } else {
+    badge.textContent = "Sin organización asignada";
+  }
+}
+
+document.getElementById("btnGPS").addEventListener("click", () => {
+  const estado = document.getElementById("estadoGPS");
+  if (!navigator.geolocation) {
+    estado.textContent = "GPS no soportado";
+    return;
+  }
+  estado.textContent = "Obteniendo GPS...";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      coordsActuales.latitud = pos.coords.latitude;
+      coordsActuales.longitud = pos.coords.longitude;
+      estado.textContent = `${coordsActuales.latitud.toFixed(5)}, ${coordsActuales.longitud.toFixed(5)}`;
+    },
+    (err) => {
+      estado.textContent = "No se pudo obtener GPS";
+      console.warn("Error GPS:", err);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+document.getElementById("inputCamara").addEventListener("change", (e) => {
+  agregarFotos(e.target.files);
+  e.target.value = "";
+});
+
+document.getElementById("inputAdjuntar").addEventListener("change", (e) => {
+  agregarFotos(e.target.files);
+  e.target.value = "";
+});
+
+async function subirFotos(archivos) {
+  const urls = [];
+  for (let i = 0; i < archivos.length; i++) {
+    const archivo = archivos[i];
+    const blobComprimido = await comprimirImagen(archivo, 1600, 0.82);
+    const rutaArchivo = `partes/${usuarioActual.id}/${Date.now()}_${i}.jpg`;
+
+    const { error } = await supabaseClient.storage
+      .from(STORAGE_BUCKET)
+      .upload(rutaArchivo, blobComprimido, {
+        contentType: "image/jpeg",
+        upsert: false
+      });
+
+    if (error) {
+      throw new Error(`Error al subir foto "${archivo.name}": ${error.message}`);
+    }
+
+    const { data: pub } = supabaseClient.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(rutaArchivo);
+
+    if (pub && pub.publicUrl) urls.push(pub.publicUrl);
+  }
+  return urls;
+}
+
+document.getElementById("formParteDiario").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("btnGuardar");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+
+  try {
+    const urlsFotos = fotosSeleccionadas.length > 0 ? await subirFotos(fotosSeleccionadas) : [];
+
+    const avanceVal = document.getElementById("avance_cantidad").value;
+
+    const payload = {
+      user_id: usuarioActual.id,
+      organizacion_id: organizacionUsuario,
+      fecha: document.getElementById("fecha").value,
+      empresa: document.getElementById("empresa").value || null,
+      ruta: document.getElementById("ruta").value || null,
+      subtramo: document.getElementById("subtramo").value || null,
+      km: document.getElementById("km").value.trim() || null,
+      sentido: document.getElementById("sentido").value.trim() || null,
+      estado: document.getElementById("estado").value,
+      tarea: document.getElementById("tarea").value.trim(),
+      avance_cantidad: avanceVal !== "" ? Number(avanceVal) : null,
+      avance_unidad: document.getElementById("avance_unidad").value.trim() || null,
+      observacion: document.getElementById("observacion").value.trim() || null,
+      latitud: coordsActuales.latitud,
+      longitud: coordsActuales.longitud,
+      imagenes: urlsFotos
+    };
+
+    const { error } = await supabaseClient
+      .from("partes_diarios")
+      .insert(payload);
+
+    if (error) throw new Error(error.message);
+
+    mostrarAlerta("success", "Parte diario guardado correctamente.");
+    document.getElementById("tarea").value = "";
+    document.getElementById("avance_cantidad").value = "";
+    document.getElementById("observacion").value = "";
+    limpiarFotos();
+    coordsActuales = { latitud: null, longitud: null };
+    document.getElementById("estadoGPS").textContent = "Sin coordenadas";
+  } catch (err) {
+    console.error(err);
+    mostrarAlerta("danger", err.message || "No se pudo guardar el parte diario.");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> Guardar Parte Diario`;
+  }
+});
+
+document.getElementById("btnLogout").addEventListener("click", async () => {
+  await supabaseClient.auth.signOut();
+  window.location.href = "login.html";
+});
+
+initParteDiario();
+</script>
+</body>
+</html>
