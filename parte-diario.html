@@ -181,12 +181,12 @@
         <div class="row g-3 mb-3">
           <div class="col-md-6">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <label for="tarea" class="form-label small fw-semibold m-0">Tarea realizada *</label>
+              <label for="tarea" class="form-label small fw-semibold m-0">Tarea / Subtarea *</label>
               <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" data-bs-toggle="modal" data-bs-target="#modalNuevaTarea">
                 <i class="bi bi-plus-circle"></i> Nueva
               </button>
             </div>
-            <select id="tarea" class="form-select form-select-sm" required>
+            <select id="tarea" class="form-select form-select-sm tarea-select" required>
               <option value="">Cargando tareas...</option>
             </select>
           </div>
@@ -197,8 +197,15 @@
           </div>
 
           <div class="col-md-3">
-            <label for="avance_unidad" class="form-label small fw-semibold">Unidad</label>
-            <input type="text" id="avance_unidad" class="form-control form-control-sm" placeholder="km, m², un, %">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label for="avance_unidad" class="form-label small fw-semibold m-0">Unidad</label>
+              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" data-bs-toggle="modal" data-bs-target="#modalNuevaUnidad">
+                <i class="bi bi-plus-circle"></i> Nueva
+              </button>
+            </div>
+            <select id="avance_unidad" class="form-select form-select-sm">
+              <option value="">Seleccionar...</option>
+            </select>
           </div>
         </div>
 
@@ -250,30 +257,54 @@
   </div>
 </div>
 
-<!-- Modal para agregar nueva tarea en catálogo -->
+<!-- Modal para agregar nueva tarea y subtarea en Supabase (mismo IDs que index.html) -->
 <div class="modal fade" id="modalNuevaTarea" tabindex="-1" aria-labelledby="modalNuevaTareaLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow rounded-4">
       <div class="modal-header">
         <h5 class="modal-title fw-bold fs-6" id="modalNuevaTareaLabel">
-          <i class="bi bi-plus-circle-fill text-primary me-1"></i> Agregar Nueva Tarea
+          <i class="bi bi-plus-circle-fill text-primary me-1"></i> Agregar Nueva Tarea / Subtarea
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3">
           <label for="nuevaTareaNombre" class="form-label small fw-semibold text-secondary">Tarea principal</label>
-          <input type="text" id="nuevaTareaNombre" class="form-control form-control-sm" placeholder="Ej: Bacheo / Corte de pasto / Limpieza de alcantarillas">
+          <input type="text" id="nuevaTareaNombre" class="form-control form-control-sm" placeholder="Ej: Relevamiento de acumulación de agua">
         </div>
         <div class="mb-0">
-          <label for="nuevaSubtareaNombre" class="form-label small fw-semibold text-secondary">Subtarea / Detalle (opcional)</label>
-          <input type="text" id="nuevaSubtareaNombre" class="form-control form-control-sm" placeholder="Ej: Calzada - Carril Principal">
+          <label for="nuevaSubtareaNombre" class="form-label small fw-semibold text-secondary">Subtarea / Rubro</label>
+          <input type="text" id="nuevaSubtareaNombre" class="form-control form-control-sm" placeholder="Ej: Calzada - Carril Principal / Eje de Drenaje">
         </div>
       </div>
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" id="btnGuardarNuevaTarea" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold">
           <i class="bi bi-check-lg"></i> Guardar en catálogo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para agregar nueva unidad de medida -->
+<div class="modal fade" id="modalNuevaUnidad" tabindex="-1" aria-labelledby="modalNuevaUnidadLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow rounded-4">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold fs-6" id="modalNuevaUnidadLabel">
+          <i class="bi bi-plus-circle-fill text-primary me-1"></i> Agregar Nueva Unidad
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <label for="nuevaUnidadNombre" class="form-label small fw-semibold text-secondary">Unidad de avance</label>
+        <input type="text" id="nuevaUnidadNombre" class="form-control form-control-sm" placeholder="Ej: ha, ml, un, viajes">
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnGuardarNuevaUnidad" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold">
+          <i class="bi bi-check-lg"></i> Agregar unidad
         </button>
       </div>
     </div>
@@ -287,16 +318,17 @@ const supabaseClient = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 
-// Cambiá este nombre si en tu Supabase Storage usás otro bucket para imágenes
-const STORAGE_BUCKET = "imagenes";
+const CLOUD_NAME = "ddgc2azm8";
+const UPLOAD_PRESET = "unsigned_upload";
+const STORAGE_KEY_UNIDADES = "vial_report_unidades_parte_diario";
 
-// Nombre de tabla del catálogo de tareas en Supabase (ajustá si en tu BD se llama distinto)
-const TABLA_TAREAS = "tareas";
+const UNIDADES_BASE = ["km", "m", "m²", "m³", "tn", "un", "hs", "%"];
 
 let usuarioActual = null;
 let organizacionUsuario = null;
 let coordsActuales = { latitud: null, longitud: null };
 let fotosSeleccionadas = [];
+let tareasCache = [];
 
 function obtenerFechaHoyLocal() {
   const hoy = new Date();
@@ -313,103 +345,164 @@ function mostrarAlerta(tipo, mensaje) {
   el.classList.remove("d-none");
 }
 
-function formatearEtiquetaTarea(fila) {
-  if (typeof fila === "string") return fila.trim();
-  const tarea = (fila.tarea || fila.nombre || fila.titulo || "").trim();
-  const subtarea = (fila.subtarea || fila.rubro || "").trim();
-  if (tarea && subtarea) return `${tarea} — ${subtarea}`;
-  return tarea || subtarea || "";
+function obtenerUnidadesGuardadas() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_UNIDADES);
+    const extras = raw ? JSON.parse(raw) : [];
+    const lista = Array.isArray(extras) ? extras : [];
+    return Array.from(new Set([...UNIDADES_BASE, ...lista.map(u => String(u).trim()).filter(Boolean)]));
+  } catch (e) {
+    return [...UNIDADES_BASE];
+  }
 }
 
-async function cargarCatalogoTareas(seleccionarValor = null) {
-  const selectTarea = document.getElementById("tarea");
-  const valorAnterior = seleccionarValor || selectTarea.value;
+function cargarUnidades(seleccionarValor = null) {
+  const selectUnidad = document.getElementById("avance_unidad");
+  const valorActual = seleccionarValor || selectUnidad.value;
+  const unidades = obtenerUnidadesGuardadas();
 
-  const tareasBaseRespaldo = [
-    "Corte de pasto y desmalezado",
-    "Bacheo asfáltico",
-    "Calce de banquinas",
-    "Limpieza de alcantarillas y desagües",
-    "Señalización horizontal / vertical",
-    "Mantenimiento de guarda-rails"
-  ];
-
-  let opciones = [];
-
-  try {
-    const { data, error } = await supabaseClient
-      .from(TABLA_TAREAS)
-      .select("*")
-      .limit(500);
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      opciones = data
-        .map(formatearEtiquetaTarea)
-        .filter(Boolean);
-    }
-  } catch (err) {
-    console.warn("No se pudo leer catálogo desde Supabase, usando respaldo:", err);
-  }
-
-  const unicas = Array.from(new Set([...opciones, ...tareasBaseRespaldo]));
-
-  selectTarea.innerHTML = `<option value="">Seleccionar tarea...</option>`;
-  unicas.forEach((texto) => {
+  selectUnidad.innerHTML = `<option value="">Seleccionar...</option>`;
+  unidades.forEach((u) => {
     const opt = document.createElement("option");
-    opt.value = texto;
-    opt.textContent = texto;
-    selectTarea.appendChild(opt);
+    opt.value = u;
+    opt.textContent = u;
+    selectUnidad.appendChild(opt);
   });
 
-  if (valorAnterior && Array.from(selectTarea.options).some(o => o.value === valorAnterior)) {
-    selectTarea.value = valorAnterior;
+  if (valorActual && unidades.includes(valorActual)) {
+    selectUnidad.value = valorActual;
   }
 }
 
-document.getElementById("btnGuardarNuevaTarea").addEventListener("click", async () => {
-  const tareaInput = document.getElementById("nuevaTareaNombre");
-  const subtareaInput = document.getElementById("nuevaSubtareaNombre");
-  const btn = document.getElementById("btnGuardarNuevaTarea");
+document.getElementById("btnGuardarNuevaUnidad").addEventListener("click", () => {
+  const inputUnidad = document.getElementById("nuevaUnidadNombre");
+  const nuevaUnidad = (inputUnidad?.value || "").trim();
 
-  const tareaNombre = tareaInput.value.trim();
-  const subtareaNombre = subtareaInput.value.trim();
-
-  if (!tareaNombre && !subtareaNombre) {
-    alert("Ingresá al menos el nombre de la tarea.");
+  if (!nuevaUnidad) {
+    alert("Ingresá el nombre o símbolo de la unidad.");
     return;
   }
 
-  const etiquetaFinal = tareaNombre && subtareaNombre
-    ? `${tareaNombre} — ${subtareaNombre}`
-    : (tareaNombre || subtareaNombre);
+  const actuales = obtenerUnidadesGuardadas();
+  const yaExiste = actuales.find(u => u.toLowerCase() === nuevaUnidad.toLowerCase());
+  const valorFinal = yaExiste || nuevaUnidad;
 
-  btn.disabled = true;
-
-  try {
-    // Intenta guardar en la tabla de tareas si existe en Supabase
-    const payloadCatalogo = {
-      tarea: tareaNombre || subtareaNombre,
-      subtarea: subtareaNombre || null
-    };
-    const { error } = await supabaseClient.from(TABLA_TAREAS).insert(payloadCatalogo);
-    if (error) {
-      console.warn("No se guardó en catálogo remoto, se agrega al selector local:", error.message);
+  if (!yaExiste) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_UNIDADES);
+      const extras = raw ? JSON.parse(raw) : [];
+      const lista = Array.isArray(extras) ? extras : [];
+      lista.push(nuevaUnidad);
+      localStorage.setItem(STORAGE_KEY_UNIDADES, JSON.stringify(Array.from(new Set(lista))));
+    } catch (e) {
+      console.warn("No se pudo guardar la unidad en localStorage:", e);
     }
-  } catch (e) {
-    console.warn("Error al insertar en catálogo:", e);
-  } finally {
-    btn.disabled = false;
   }
 
-  await cargarCatalogoTareas(etiquetaFinal);
-  document.getElementById("tarea").value = etiquetaFinal;
+  cargarUnidades(valorFinal);
+  document.getElementById("avance_unidad").value = valorFinal;
+  inputUnidad.value = "";
 
-  tareaInput.value = "";
-  subtareaInput.value = "";
+  const modalEl = document.getElementById("modalNuevaUnidad");
+  const modalInstancia = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstancia) modalInstancia.hide();
+});
 
-  const modalEl = document.getElementById("modalNuevaTarea");
-  const modalInst = bootstrap.Modal.getInstance(modalEl);
-  if (modalInst) modalInst.hide();
+function llenarSelectsTareas(data) {
+  document.querySelectorAll(".tarea-select").forEach((select) => {
+    select.innerHTML = `<option value="">Seleccionar...</option>`;
+
+    let currentTarea = "";
+    let currentOptGroup = null;
+
+    data.forEach((item) => {
+      if (!item?.tarea || !item?.subtarea) return;
+
+      if (item.tarea !== currentTarea) {
+        currentTarea = item.tarea;
+        currentOptGroup = document.createElement("optgroup");
+        currentOptGroup.label = currentTarea;
+        select.appendChild(currentOptGroup);
+      }
+
+      const option = document.createElement("option");
+      option.value = item.subtarea.toUpperCase();
+      option.textContent = item.subtarea.toUpperCase();
+      currentOptGroup.appendChild(option);
+    });
+  });
+}
+
+async function cargarTareasJerarquicas(forceRefresh = false) {
+  if (!forceRefresh && tareasCache.length > 0) {
+    llenarSelectsTareas(tareasCache);
+    return tareasCache;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("tareas")
+    .select("*")
+    .order("tarea", { ascending: true })
+    .order("subtarea", { ascending: true });
+
+  if (error) {
+    console.error("Error cargando tareas:", error);
+    return [];
+  }
+
+  tareasCache = data || [];
+  llenarSelectsTareas(tareasCache);
+  return tareasCache;
+}
+
+document.getElementById("btnGuardarNuevaTarea").addEventListener("click", async () => {
+  const inputTarea = document.getElementById("nuevaTareaNombre");
+  const inputSubtarea = document.getElementById("nuevaSubtareaNombre");
+  const btn = document.getElementById("btnGuardarNuevaTarea");
+
+  const tarea = (inputTarea?.value || "").trim();
+  const subtarea = (inputSubtarea?.value || "").trim();
+
+  if (!tarea || !subtarea) {
+    alert("Completá tanto la tarea principal como la subtarea.");
+    return;
+  }
+
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+
+  try {
+    const { error } = await supabaseClient
+      .from("tareas")
+      .insert([{ tarea, subtarea }]);
+
+    if (error) {
+      console.error("Error al guardar nueva tarea:", error);
+      alert("No se pudo guardar la tarea en Supabase: " + error.message);
+      return;
+    }
+
+    await cargarTareasJerarquicas(true);
+
+    const valorSeleccionado = subtarea.toUpperCase();
+    document.querySelectorAll(".tarea-select").forEach((select) => {
+      select.value = valorSeleccionado;
+    });
+
+    if (inputTarea) inputTarea.value = "";
+    if (inputSubtarea) inputSubtarea.value = "";
+
+    const modalEl = document.getElementById("modalNuevaTarea");
+    const modalInstancia = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstancia) modalInstancia.hide();
+  } catch (err) {
+    console.error("Error inesperado al agregar tarea:", err);
+    alert("Ocurrió un error al guardar la tarea.");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
 });
 
 function renderPreviews() {
@@ -483,7 +576,7 @@ async function comprimirImagen(file, maxAncho = 1600, calidad = 0.82) {
 
       canvas.toBlob(
         (blob) => {
-          resolve(blob || file);
+          resolve(blob ? new File([blob], file.name || "foto.jpg", { type: "image/jpeg" }) : file);
         },
         "image/jpeg",
         calidad
@@ -499,8 +592,42 @@ async function comprimirImagen(file, maxAncho = 1600, calidad = 0.82) {
   });
 }
 
+function subirACloudinary(file) {
+  return new Promise((resolve, reject) => {
+    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", UPLOAD_PRESET);
+
+    xhr.open("POST", url);
+    xhr.onload = () => {
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (res.secure_url) resolve(res.secure_url);
+        else reject(new Error("No se obtuvo URL segura de Cloudinary."));
+      } catch (err) {
+        reject(new Error("Error al procesar respuesta de Cloudinary."));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Error de red al subir imagen a Cloudinary."));
+    xhr.send(formData);
+  });
+}
+
+async function subirFotos(archivos) {
+  const urls = [];
+  for (let i = 0; i < archivos.length; i++) {
+    const comprimida = await comprimirImagen(archivos[i], 1600, 0.82);
+    const urlSegura = await subirACloudinary(comprimida);
+    urls.push(urlSegura);
+  }
+  return urls;
+}
+
 async function initParteDiario() {
   document.getElementById("fecha").value = obtenerFechaHoyLocal();
+  cargarUnidades();
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) {
@@ -530,7 +657,7 @@ async function initParteDiario() {
     badge.textContent = "Sin organización asignada";
   }
 
-  await cargarCatalogoTareas();
+  await cargarTareasJerarquicas();
 }
 
 document.getElementById("btnGPS").addEventListener("click", () => {
@@ -564,33 +691,6 @@ document.getElementById("inputAdjuntar").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
-async function subirFotos(archivos) {
-  const urls = [];
-  for (let i = 0; i < archivos.length; i++) {
-    const archivo = archivos[i];
-    const blobComprimido = await comprimirImagen(archivo, 1600, 0.82);
-    const rutaArchivo = `partes/${usuarioActual.id}/${Date.now()}_${i}.jpg`;
-
-    const { error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .upload(rutaArchivo, blobComprimido, {
-        contentType: "image/jpeg",
-        upsert: false
-      });
-
-    if (error) {
-      throw new Error(`Error al subir foto "${archivo.name}": ${error.message}`);
-    }
-
-    const { data: pub } = supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(rutaArchivo);
-
-    if (pub && pub.publicUrl) urls.push(pub.publicUrl);
-  }
-  return urls;
-}
-
 document.getElementById("formParteDiario").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("btnGuardar");
@@ -599,7 +699,6 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
 
   try {
     const urlsFotos = fotosSeleccionadas.length > 0 ? await subirFotos(fotosSeleccionadas) : [];
-
     const avanceVal = document.getElementById("avance_cantidad").value;
 
     const payload = {
@@ -614,7 +713,7 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
       estado: document.getElementById("estado").value,
       tarea: document.getElementById("tarea").value,
       avance_cantidad: avanceVal !== "" ? Number(avanceVal) : null,
-      avance_unidad: document.getElementById("avance_unidad").value.trim() || null,
+      avance_unidad: document.getElementById("avance_unidad").value || null,
       observacion: document.getElementById("observacion").value.trim() || null,
       latitud: coordsActuales.latitud,
       longitud: coordsActuales.longitud,
@@ -630,6 +729,7 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
     mostrarAlerta("success", "Parte diario guardado correctamente.");
     document.getElementById("tarea").value = "";
     document.getElementById("avance_cantidad").value = "";
+    document.getElementById("avance_unidad").value = "";
     document.getElementById("observacion").value = "";
     limpiarFotos();
     coordsActuales = { latitud: null, longitud: null };
