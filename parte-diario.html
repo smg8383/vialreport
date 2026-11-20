@@ -257,7 +257,7 @@
 
         <div class="dim-box mb-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="small fw-semibold text-secondary">Largo, ancho, espesor, superficie, volumen y unidades (2 decimales)</span>
+            <span class="small fw-semibold text-secondary">Largo, ancho, espesor, superficie, volumen y unidades (2 decimales en formulario)</span>
             <div class="form-check form-switch mb-0">
               <input class="form-check-input" type="checkbox" id="autoCalcular" checked>
               <label class="form-check-label small" for="autoCalcular">Autocalcular m² y m³</label>
@@ -456,7 +456,9 @@ function mostrarAlertaImportacion(tipo, mensaje) {
   el.classList.remove("d-none");
 }
 
-function numOrNull(val, decimals = 2) {
+// Si decimals === null, conserva el número real sin redondear (ideal para importación).
+// Si decimals es un número (ej. 2), redondea a esa cantidad de decimales (ideal para el formulario).
+function numOrNull(val, decimals = null) {
   if (val === "" || val === null || val === undefined) return null;
   let n;
   if (typeof val === "number") {
@@ -472,6 +474,7 @@ function numOrNull(val, decimals = 2) {
     n = Number(s);
   }
   if (!Number.isFinite(n)) return null;
+  if (decimals === null || decimals === undefined) return n;
   const factor = Math.pow(10, decimals);
   return Math.round(n * factor) / factor;
 }
@@ -536,11 +539,10 @@ function mapearFilaMaestroASupabase(rawRow, fotosPreviasPorId = new Map(), estad
   const tarea = strOrNull(row.tarea ?? row.subtarea);
   const km = strOrNull(row.km);
   const obs1 = strOrNull(row.observacion1 ?? row.observacion);
-  const sup = numOrNull(row.superficie_m2, 2);
-  const vol = numOrNull(row.volumen_m3, 2);
-  const av = numOrNull(row.avance_cantidad, 2);
+  const sup = numOrNull(row.superficie_m2, null);
+  const vol = numOrNull(row.volumen_m3, null);
+  const av = numOrNull(row.avance_cantidad, null);
 
-  // Omitir solo si la fila está completamente vacía
   if (idM === null && !tarea && !km && !obs1 && sup === null && vol === null && av === null) {
     return null;
   }
@@ -556,10 +558,10 @@ function mapearFilaMaestroASupabase(rawRow, fotosPreviasPorId = new Map(), estad
     km,
     sentido: strOrNull(row.sentido),
     tarea: tarea || "SIN TAREA ESPECIFICADA",
-    cantidad_u: numOrNull(row.cantidad_u, 2),
-    largo_m: numOrNull(row.largo_m, 2),
-    ancho_m: numOrNull(row.ancho_m, 2),
-    espesor_m: numOrNull(row.espesor_m, 2),
+    cantidad_u: numOrNull(row.cantidad_u, null),
+    largo_m: numOrNull(row.largo_m, null),
+    ancho_m: numOrNull(row.ancho_m, null),
+    espesor_m: numOrNull(row.espesor_m, null),
     superficie_m2: sup,
     volumen_m3: vol,
     avance_cantidad: av,
@@ -633,7 +635,6 @@ async function procesarArchivoMaestro(file) {
       return;
     }
 
-    // Extraer id_m previos para conservar fotos/estado existentes al actualizar por id
     const idsCandidatos = Array.from(new Set(
       filasRaw
         .map((r) => idOrNull(normalizarClavesFila(r).id_m ?? normalizarClavesFila(r).id))
@@ -642,7 +643,6 @@ async function procesarArchivoMaestro(file) {
 
     const { fotosMap, estadoMap } = await obtenerMetadatosPorId(idsCandidatos);
 
-    // Deduplicar por id_m dentro del mismo archivo (si hay id_m repetido, gana el último)
     const mapaPorId = new Map();
     const sinId = [];
     let omitidasVacias = 0;
@@ -671,13 +671,12 @@ async function procesarArchivoMaestro(file) {
     const tamanoLote = 50;
     let procesados = 0;
 
-    // 1. Upsert de filas con id_m -> id (actualiza existentes sin duplicar e inserta si no existe el id)
     for (let i = 0; i < conIdUnicos.length; i += tamanoLote) {
       const lote = conIdUnicos.slice(i, i + tamanoLote);
       procesados += lote.length;
       mostrarAlertaImportacion(
         "info",
-        `Sincronizando por id_m: ${procesados} de ${totalAProcesar} registros...`
+        `Sincronizando por id_m (valores reales): ${procesados} de ${totalAProcesar} registros...`
       );
       const { error } = await supabaseClient
         .from("partes_diarios")
@@ -688,13 +687,12 @@ async function procesarArchivoMaestro(file) {
       }
     }
 
-    // 2. Insert de filas sin id_m (deja que Supabase genere el id)
     for (let i = 0; i < sinId.length; i += tamanoLote) {
       const lote = sinId.slice(i, i + tamanoLote);
       procesados += lote.length;
       mostrarAlertaImportacion(
         "info",
-        `Insertando filas sin id_m: ${procesados} de ${totalAProcesar} registros...`
+        `Insertando filas sin id_m (valores reales): ${procesados} de ${totalAProcesar} registros...`
       );
       const { error } = await supabaseClient
         .from("partes_diarios")
@@ -707,7 +705,7 @@ async function procesarArchivoMaestro(file) {
 
     mostrarAlertaImportacion(
       "success",
-      `Importación completada desde "${file.name}": ${conIdUnicos.length} sincronizados por id_m (actualizados/insertados sin duplicados), ${sinId.length} insertados sin id_m` +
+      `Importación completada desde "${file.name}" con valores reales: ${conIdUnicos.length} sincronizados por id_m y ${sinId.length} insertados sin id_m` +
       (omitidasVacias ? ` (${omitidasVacias} filas vacías omitidas).` : ".")
     );
   } catch (err) {
