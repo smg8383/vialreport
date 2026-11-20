@@ -415,10 +415,13 @@ function renderTarjetas(lista) {
               </div>
             ` : ""}
 
-            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto">
-              <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="abrirDetalleParte('${escaparHTML(p.id)}')">
+            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto gap-1">
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2" onclick="abrirDetalleParte('${escaparHTML(p.id)}')">
                   <i class="bi bi-eye"></i> Detalle
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2" onclick="editarParte('${escaparHTML(p.id)}')">
+                  <i class="bi bi-pencil"></i> Editar
                 </button>
                 ${linkMaps ? `
                   <a href="${linkMaps}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm rounded-pill px-2" title="Ver en Google Maps">
@@ -466,10 +469,13 @@ function renderTabla(lista) {
         <td class="text-nowrap">${badgeEstado(p.estado)}</td>
         <td class="text-nowrap">${fotos.length > 0 ? `<span class="badge bg-secondary-subtle text-dark">${fotos.length} foto(s)</span>` : "—"}</td>
         <td class="text-end text-nowrap">
-          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2" onclick="abrirDetalleParte('${escaparHTML(p.id)}')">
+          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2" onclick="abrirDetalleParte('${escaparHTML(p.id)}')" title="Ver detalle">
             <i class="bi bi-eye"></i>
           </button>
-          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2" onclick="eliminarParte('${escaparHTML(p.id)}')">
+          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2" onclick="editarParte('${escaparHTML(p.id)}')" title="Editar parte">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2" onclick="eliminarParte('${escaparHTML(p.id)}')" title="Eliminar parte">
             <i class="bi bi-trash"></i>
           </button>
         </td>
@@ -516,6 +522,11 @@ function aplicarFiltros() {
   renderTarjetas(partesFiltrados);
   renderTabla(partesFiltrados);
 }
+
+window.editarParte = function(id) {
+  localStorage.setItem("editandoParteDiario", String(id));
+  window.location.href = "parte-diario.html";
+};
 
 window.abrirDetalleParte = function(id) {
   const parte = todosLosPartes.find(item => String(item.id) === String(id));
