@@ -41,6 +41,13 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
 
+    .dim-box {
+      background-color: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
     .preview-card {
       position: relative;
       border-radius: 8px;
@@ -126,7 +133,15 @@
             <input type="date" id="fecha" class="form-control form-control-sm" required>
           </div>
 
-          <div class="col-md-8">
+          <div class="col-md-4">
+            <label for="frente" class="form-label small fw-semibold">Frente *</label>
+            <select id="frente" class="form-select form-select-sm" required>
+              <option value="Obra" selected>Obra</option>
+              <option value="Peaje">Peaje</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
             <label for="empresa" class="form-label small fw-semibold">Empresa *</label>
             <select id="empresa" class="form-select form-select-sm" required>
               <option value="">Seleccionar...</option>
@@ -134,6 +149,7 @@
               <option value="JCR SA">JCR SA</option>
               <option value="GUERECHET SA">GUERECHET SA</option>
               <option value="VIAL PLUS SA">VIAL PLUS SA</option>
+              <option value="PIETRA SRL">PIETRA SRL</option>
             </select>
           </div>
 
@@ -143,31 +159,40 @@
               <option value="">Seleccionar...</option>
               <option value="RN N° 16" selected>RN N° 16</option>
               <option value="RN N° 12">RN N° 12</option>
+              <option value="RN 16">RN 16</option>
+              <option value="RN 12">RN 12</option>
+              <option value="RN 12 / RN 16">RN 12 / RN 16</option>
             </select>
           </div>
 
           <div class="col-md-4">
-            <label for="subtramo" class="form-label small fw-semibold">Subtramo</label>
-            <select id="subtramo" class="form-select form-select-sm">
-              <option value="">Seleccionar...</option>
-              <option value="CHACO" selected>CHACO</option>
-              <option value="CORRIENTES (NORTE)">CORRIENTES (NORTE)</option>
-              <option value="CORRIENTES (SUR)">CORRIENTES (SUR)</option>
-              <option value="MISIONES">MISIONES</option>
-            </select>
+            <label for="subtramo" class="form-label small fw-semibold">Subtramo / Plaza</label>
+            <input type="text" id="subtramo" list="listaSubtramos" class="form-control form-control-sm" value="CHACO" placeholder="CHACO, RIACHUELO, MAKALLE...">
+            <datalist id="listaSubtramos">
+              <option value="CHACO">
+              <option value="CORRIENTES (NORTE)">
+              <option value="CORRIENTES (SUR)">
+              <option value="MISIONES">
+              <option value="RIACHUELO">
+              <option value="MAKALLE">
+            </datalist>
           </div>
 
           <div class="col-md-4">
             <label for="km" class="form-label small fw-semibold">Km / Progresiva</label>
-            <input type="text" id="km" class="form-control form-control-sm" placeholder="Ej: 1020.5">
+            <input type="text" id="km" class="form-control form-control-sm" placeholder="Ej: 871,090 - 872,252 o 17700">
           </div>
 
           <div class="col-md-6">
-            <label for="sentido" class="form-label small fw-semibold">Sentido</label>
+            <label for="sentido" class="form-label small fw-semibold">Sentido / Lado</label>
             <select id="sentido" class="form-select form-select-sm">
+              <option value="">— Sin especificar —</option>
               <option value="ASCENDENTE" selected>ASCENDENTE</option>
               <option value="DESCENDENTE">DESCENDENTE</option>
               <option value="ASCENDENTE/DESCENDENTE">ASCENDENTE/DESCENDENTE</option>
+              <option value="Derecho">Derecho</option>
+              <option value="Izquierdo">Izquierdo</option>
+              <option value="Ambos">Ambos</option>
             </select>
           </div>
 
@@ -201,7 +226,7 @@
 
           <div class="col-md-3">
             <label for="avance_cantidad" class="form-label small fw-semibold">Cantidad / Avance</label>
-            <input type="number" step="0.01" id="avance_cantidad" class="form-control form-control-sm" placeholder="0.00">
+            <input type="number" step="0.0001" id="avance_cantidad" class="form-control form-control-sm" placeholder="0.00">
           </div>
 
           <div class="col-md-3">
@@ -217,13 +242,65 @@
           </div>
         </div>
 
+        <!-- Dimensiones geométricas y cómputos -->
+        <h6 class="fw-bold text-secondary text-uppercase small mb-3 mt-4 pb-1 border-bottom">
+          Dimensiones geométricas y cómputos
+        </h6>
+
+        <div class="dim-box mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small fw-semibold text-secondary">Largo, ancho, espesor, superficie, volumen y unidades</span>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="autoCalcular" checked>
+              <label class="form-check-label small" for="autoCalcular">Autocalcular m² y m³</label>
+            </div>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-6 col-md-2">
+              <label for="largo_m" class="form-label small fw-semibold mb-1">Largo (m)</label>
+              <input type="number" step="0.0001" id="largo_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="ancho_m" class="form-label small fw-semibold mb-1">Ancho (m)</label>
+              <input type="number" step="0.0001" id="ancho_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="espesor_m" class="form-label small fw-semibold mb-1">Espesor (m)</label>
+              <input type="number" step="0.0001" id="espesor_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="superficie_m2" class="form-label small fw-semibold mb-1">Superficie (m²)</label>
+              <input type="number" step="0.0001" id="superficie_m2" class="form-control form-control-sm dim-calc" placeholder="0.00">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="volumen_m3" class="form-label small fw-semibold mb-1">Volumen (m³)</label>
+              <input type="number" step="0.0001" id="volumen_m3" class="form-control form-control-sm" placeholder="0.00">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="cantidad_u" class="form-label small fw-semibold mb-1">Cantidad (u)</label>
+              <input type="number" step="0.01" id="cantidad_u" class="form-control form-control-sm" placeholder="0">
+            </div>
+          </div>
+        </div>
+
         <!-- Observación, GPS y Fotos (Cámara + Adjuntar) -->
         <h6 class="fw-bold text-secondary text-uppercase small mb-3 mt-4 pb-1 border-bottom">
           Observaciones, GPS y fotografías
         </h6>
 
         <div class="mb-3">
-          <label for="observacion" class="form-label small fw-semibold">Observación</label>
+          <label for="observacion1" class="form-label small fw-semibold">Observación / Detalle técnico (observacion1)</label>
+          <input type="text" id="observacion1" class="form-control form-control-sm" placeholder="Ej: N° Bache: 2 / Subtarea / Detalle">
+        </div>
+
+        <div class="mb-3">
+          <label for="observacion" class="form-label small fw-semibold">Observación general</label>
           <textarea id="observacion" rows="3" class="form-control form-control-sm" placeholder="Detalle del trabajo realizado en la jornada..."></textarea>
         </div>
 
@@ -338,7 +415,7 @@ const UPLOAD_PRESET = "unsigned_upload";
 const STORAGE_KEY_UNIDADES = "vial_report_unidades_parte_diario";
 const STORAGE_KEY_EDITANDO = "editandoParteDiario";
 
-const UNIDADES_BASE = ["km", "m", "m²", "m³", "tn", "un", "hs", "%"];
+const UNIDADES_BASE = ["km", "m", "m2", "m3", "m²", "m³", "ml", "Un", "u", "tn", "hs", "%"];
 
 let usuarioActual = null;
 let organizacionUsuario = null;
@@ -347,6 +424,7 @@ let fotosSeleccionadas = [];
 let fotosExistentes = [];
 let tareasCache = [];
 let editandoParteId = localStorage.getItem(STORAGE_KEY_EDITANDO) || null;
+let hojaOrigenExistente = null;
 
 function obtenerFechaHoyLocal() {
   const hoy = new Date();
@@ -362,6 +440,56 @@ function mostrarAlerta(tipo, mensaje) {
   el.textContent = mensaje;
   el.classList.remove("d-none");
 }
+
+function numOrNull(val) {
+  if (val === "" || val === null || val === undefined) return null;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : null;
+}
+
+function strOrNull(val) {
+  const s = (val ?? "").toString().trim();
+  return s.length ? s : null;
+}
+
+function recalcularDimensiones() {
+  const auto = document.getElementById("autoCalcular");
+  if (!auto || !auto.checked) return;
+
+  const largoEl = document.getElementById("largo_m");
+  const anchoEl = document.getElementById("ancho_m");
+  const espesorEl = document.getElementById("espesor_m");
+  const supEl = document.getElementById("superficie_m2");
+  const volEl = document.getElementById("volumen_m3");
+
+  const largo = numOrNull(largoEl.value);
+  const ancho = numOrNull(anchoEl.value);
+  const espesor = numOrNull(espesorEl.value);
+  let sup = numOrNull(supEl.value);
+
+  if (largo !== null && ancho !== null && document.activeElement !== supEl) {
+    sup = Number((largo * ancho).toFixed(4));
+    supEl.value = sup;
+  }
+
+  if (sup !== null && espesor !== null && document.activeElement !== volEl) {
+    const vol = Number((sup * espesor).toFixed(4));
+    volEl.value = vol;
+  }
+}
+
+document.querySelectorAll(".dim-calc").forEach((inp) => {
+  inp.addEventListener("input", recalcularDimensiones);
+});
+
+document.getElementById("frente").addEventListener("change", (e) => {
+  const sub = document.getElementById("subtramo");
+  if (e.target.value === "Peaje" && sub.value === "CHACO") {
+    sub.value = "RIACHUELO";
+  } else if (e.target.value === "Obra" && (sub.value === "RIACHUELO" || sub.value === "MAKALLE")) {
+    sub.value = "CHACO";
+  }
+});
 
 function actualizarUIModoEdicion() {
   const titulo = document.getElementById("tituloPaginaParte");
@@ -701,6 +829,19 @@ async function subirFotos(archivos) {
   return urls;
 }
 
+function asegurarOpcionSelect(selectId, valor) {
+  if (!valor) return;
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  if (!Array.from(sel.options).some(o => o.value === valor)) {
+    const opt = document.createElement("option");
+    opt.value = valor;
+    opt.textContent = valor;
+    sel.appendChild(opt);
+  }
+  sel.value = valor;
+}
+
 async function cargarParteParaEdicion() {
   if (!editandoParteId) return;
 
@@ -727,45 +868,16 @@ async function cargarParteParaEdicion() {
   }
 
   actualizarUIModoEdicion();
+  hojaOrigenExistente = data.hoja_origen || null;
 
   if (data.fecha) document.getElementById("fecha").value = data.fecha;
-
-  if (data.empresa) {
-    const selEmpresa = document.getElementById("empresa");
-    if (!Array.from(selEmpresa.options).some(o => o.value === data.empresa)) {
-      const opt = document.createElement("option");
-      opt.value = data.empresa;
-      opt.textContent = data.empresa;
-      selEmpresa.appendChild(opt);
-    }
-    selEmpresa.value = data.empresa;
-  }
-
-  if (data.ruta) {
-    const selRuta = document.getElementById("ruta");
-    if (!Array.from(selRuta.options).some(o => o.value === data.ruta)) {
-      const opt = document.createElement("option");
-      opt.value = data.ruta;
-      opt.textContent = data.ruta;
-      selRuta.appendChild(opt);
-    }
-    selRuta.value = data.ruta;
-  }
-
-  if (data.subtramo) {
-    const selSubtramo = document.getElementById("subtramo");
-    if (!Array.from(selSubtramo.options).some(o => o.value === data.subtramo)) {
-      const opt = document.createElement("option");
-      opt.value = data.subtramo;
-      opt.textContent = data.subtramo;
-      selSubtramo.appendChild(opt);
-    }
-    selSubtramo.value = data.subtramo;
-  }
-
+  if (data.frente) document.getElementById("frente").value = data.frente;
+  if (data.empresa) asegurarOpcionSelect("empresa", data.empresa);
+  if (data.ruta) asegurarOpcionSelect("ruta", data.ruta);
+  if (data.subtramo) document.getElementById("subtramo").value = data.subtramo;
   document.getElementById("km").value = data.km || "";
-  if (data.sentido) document.getElementById("sentido").value = data.sentido;
-  if (data.estado) document.getElementById("estado").value = data.estado;
+  if (data.sentido) asegurarOpcionSelect("sentido", data.sentido);
+  if (data.estado) asegurarOpcionSelect("estado", data.estado);
 
   if (data.tarea) {
     const selTarea = document.getElementById("tarea");
@@ -781,6 +893,15 @@ async function cargarParteParaEdicion() {
 
   document.getElementById("avance_cantidad").value = data.avance_cantidad != null ? data.avance_cantidad : "";
   cargarUnidades(data.avance_unidad || "");
+
+  document.getElementById("largo_m").value = data.largo_m != null ? data.largo_m : "";
+  document.getElementById("ancho_m").value = data.ancho_m != null ? data.ancho_m : "";
+  document.getElementById("espesor_m").value = data.espesor_m != null ? data.espesor_m : "";
+  document.getElementById("superficie_m2").value = data.superficie_m2 != null ? data.superficie_m2 : "";
+  document.getElementById("volumen_m3").value = data.volumen_m3 != null ? data.volumen_m3 : "";
+  document.getElementById("cantidad_u").value = data.cantidad_u != null ? data.cantidad_u : "";
+
+  document.getElementById("observacion1").value = data.observacion1 || "";
   document.getElementById("observacion").value = data.observacion || "";
 
   if (data.latitud != null && data.longitud != null && !Number.isNaN(Number(data.latitud)) && !Number.isNaN(Number(data.longitud))) {
@@ -866,74 +987,105 @@ document.getElementById("inputAdjuntar").addEventListener("change", (e) => {
 document.getElementById("formParteDiario").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("btnGuardar");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+  const textoOriginal = btn.innerHTML;
 
   try {
-    const urlsNuevas = fotosSeleccionadas.length > 0 ? await subirFotos(fotosSeleccionadas) : [];
-    const urlsFinales = editandoParteId
-      ? [...fotosExistentes, ...urlsNuevas]
-      : urlsNuevas;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${editandoParteId ? "Actualizando..." : "Guardando..."}`;
 
-    const avanceVal = document.getElementById("avance_cantidad").value;
+    let nuevasUrls = [];
+    if (fotosSeleccionadas.length > 0) {
+      nuevasUrls = await subirFotos(fotosSeleccionadas);
+    }
+
+    const imagenesFinales = [...fotosExistentes, ...nuevasUrls];
 
     const payload = {
       fecha: document.getElementById("fecha").value,
-      empresa: document.getElementById("empresa").value || null,
-      ruta: document.getElementById("ruta").value || null,
-      subtramo: document.getElementById("subtramo").value || null,
-      km: document.getElementById("km").value.trim() || null,
-      sentido: document.getElementById("sentido").value || null,
+      frente: document.getElementById("frente").value,
+      empresa: strOrNull(document.getElementById("empresa").value),
+      ruta: strOrNull(document.getElementById("ruta").value),
+      subtramo: strOrNull(document.getElementById("subtramo").value),
+      km: strOrNull(document.getElementById("km").value),
+      sentido: strOrNull(document.getElementById("sentido").value),
+      tarea: document.getElementById("tarea").value.trim(),
+      avance_cantidad: numOrNull(document.getElementById("avance_cantidad").value),
+      avance_unidad: strOrNull(document.getElementById("avance_unidad").value),
+      largo_m: numOrNull(document.getElementById("largo_m").value),
+      ancho_m: numOrNull(document.getElementById("ancho_m").value),
+      espesor_m: numOrNull(document.getElementById("espesor_m").value),
+      superficie_m2: numOrNull(document.getElementById("superficie_m2").value),
+      volumen_m3: numOrNull(document.getElementById("volumen_m3").value),
+      cantidad_u: numOrNull(document.getElementById("cantidad_u").value),
+      observacion1: strOrNull(document.getElementById("observacion1").value),
+      observacion: strOrNull(document.getElementById("observacion").value),
       estado: document.getElementById("estado").value,
-      tarea: document.getElementById("tarea").value,
-      avance_cantidad: avanceVal !== "" ? Number(avanceVal) : null,
-      avance_unidad: document.getElementById("avance_unidad").value || null,
-      observacion: document.getElementById("observacion").value.trim() || null,
       latitud: coordsActuales.latitud,
       longitud: coordsActuales.longitud,
-      imagenes: urlsFinales
+      imagenes: imagenesFinales,
+      updated_at: new Date().toISOString()
     };
 
+    if (hojaOrigenExistente) {
+      payload.hoja_origen = hojaOrigenExistente;
+    }
+
+    let res;
     if (editandoParteId) {
-      const { error } = await supabaseClient
+      res = await supabaseClient
         .from("partes_diarios")
         .update(payload)
-        .eq("id", editandoParteId);
+        .eq("id", editandoParteId)
+        .select();
+    } else {
+      payload.user_id = usuarioActual.id;
+      payload.organizacion_id = organizacionUsuario;
+      res = await supabaseClient
+        .from("partes_diarios")
+        .insert([payload])
+        .select();
+    }
 
-      if (error) throw new Error(error.message);
-
-      localStorage.removeItem(STORAGE_KEY_EDITANDO);
-      mostrarAlerta("success", "Parte diario actualizado correctamente.");
-      setTimeout(() => {
-        window.location.href = "visor-partes.html";
-      }, 600);
+    if (res.error) {
+      console.error("Error guardando parte diario:", res.error);
+      mostrarAlerta("danger", "Error al guardar en Supabase: " + res.error.message);
       return;
     }
 
-    const { error } = await supabaseClient
-      .from("partes_diarios")
-      .insert({
-        ...payload,
-        user_id: usuarioActual.id,
-        organizacion_id: organizacionUsuario
-      });
-
-    if (error) throw new Error(error.message);
-
-    mostrarAlerta("success", "Parte diario guardado correctamente.");
-    document.getElementById("tarea").value = "";
-    document.getElementById("avance_cantidad").value = "";
-    document.getElementById("avance_unidad").value = "";
-    document.getElementById("observacion").value = "";
-    limpiarFotos();
-    coordsActuales = { latitud: null, longitud: null };
-    document.getElementById("estadoGPS").textContent = "Sin coordenadas";
+    if (editandoParteId) {
+      localStorage.removeItem(STORAGE_KEY_EDITANDO);
+      editandoParteId = null;
+      hojaOrigenExistente = null;
+      actualizarUIModoEdicion();
+      mostrarAlerta("success", "Parte diario actualizado correctamente.");
+    } else {
+      document.getElementById("formParteDiario").reset();
+      document.getElementById("fecha").value = obtenerFechaHoyLocal();
+      document.getElementById("frente").value = "Obra";
+      document.getElementById("ruta").value = "RN N° 16";
+      document.getElementById("subtramo").value = "CHACO";
+      document.getElementById("sentido").value = "ASCENDENTE";
+      document.getElementById("estado").value = "En ejecución";
+      if (organizacionUsuario) {
+        const selectEmpresa = document.getElementById("empresa");
+        if (Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario)) {
+          selectEmpresa.value = organizacionUsuario;
+        }
+      }
+      coordsActuales = { latitud: null, longitud: null };
+      document.getElementById("estadoGPS").textContent = "Sin coordenadas";
+      fotosExistentes = [];
+      renderFotosExistentes();
+      limpiarFotos();
+      cargarUnidades();
+      mostrarAlerta("success", "Parte diario guardado correctamente.");
+    }
   } catch (err) {
-    console.error(err);
-    mostrarAlerta("danger", err.message || "No se pudo guardar el parte diario.");
+    console.error("Error inesperado al enviar parte diario:", err);
+    mostrarAlerta("danger", "Ocurrió un error al procesar el parte diario.");
   } finally {
     btn.disabled = false;
-    actualizarUIModoEdicion();
+    btn.innerHTML = textoOriginal;
   }
 });
 
