@@ -476,6 +476,14 @@ function numOrNull(val, decimals = 2) {
   return Math.round(n * factor) / factor;
 }
 
+function idOrNull(val) {
+  if (val === "" || val === null || val === undefined) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) return Number(s);
+  return s;
+}
+
 function format2Dec(val) {
   const n = numOrNull(val, 2);
   if (n === null) return "";
@@ -485,6 +493,21 @@ function format2Dec(val) {
 function strOrNull(val) {
   const s = (val ?? "").toString().trim();
   return s.length ? s : null;
+}
+
+function normalizarClavesFila(rawRow) {
+  const out = {};
+  if (!rawRow || typeof rawRow !== "object") return out;
+  Object.keys(rawRow).forEach((k) => {
+    const cleanKey = String(k || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_");
+    if (cleanKey) out[cleanKey] = rawRow[k];
+  });
+  return out;
 }
 
 function normalizarFechaImport(val) {
@@ -507,24 +530,20 @@ function normalizarFechaImport(val) {
   return obtenerFechaHoyLocal();
 }
 
-function construirClaveRegistro(reg) {
-  return [
-    normalizarFechaImport(reg.fecha),
-    (reg.empresa || "").toString().trim().toUpperCase(),
-    (reg.frente || "Obra").toString().trim().toUpperCase(),
-    (reg.ruta || "").toString().trim().toUpperCase(),
-    (reg.subtramo || "").toString().trim().toUpperCase(),
-    (reg.km || "").toString().trim().toUpperCase(),
-    (reg.sentido || "").toString().trim().toUpperCase(),
-    (reg.tarea || "").toString().trim().toUpperCase(),
-    (reg.observacion1 || "").toString().trim().toUpperCase(),
-    (reg.hoja_origen || "").toString().trim().toUpperCase()
-  ].join("|");
-}
+function mapearFilaMaestroASupabase(rawRow, fotosPreviasPorId = new Map(), estadosPreviosPorId = new Map()) {
+  const row = normalizarClavesFila(rawRow);
+  const idM = idOrNull(row.id_m ?? row.id);
+  const tarea = strOrNull(row.tarea ?? row.subtarea);
+  const km = strOrNull(row.km);
+  const obs1 = strOrNull(row.observacion1 ?? row.observacion);
+  const sup = numOrNull(row.superficie_m2, 2);
+  const vol = numOrNull(row.volumen_m3, 2);
+  const av = numOrNull(row.avance_cantidad, 2);
 
-function mapearFilaMaestroASupabase(row) {
-  const tarea = strOrNull(row.tarea);
-  if (!tarea) return null;
+  // Omitir solo si la fila está completamente vacía
+  if (idM === null && !tarea && !km && !obs1 && sup === null && vol === null && av === null) {
+    return null;
+  }
 
   const reg = {
     user_id: usuarioActual.id,
@@ -534,40 +553,60 @@ function mapearFilaMaestroASupabase(row) {
     frente: strOrNull(row.frente) || "Obra",
     ruta: strOrNull(row.ruta),
     subtramo: strOrNull(row.subtramo),
-    km: strOrNull(row.km),
+    km,
     sentido: strOrNull(row.sentido),
-    tarea,
+    tarea: tarea || "SIN TAREA ESPECIFICADA",
     cantidad_u: numOrNull(row.cantidad_u, 2),
     largo_m: numOrNull(row.largo_m, 2),
     ancho_m: numOrNull(row.ancho_m, 2),
     espesor_m: numOrNull(row.espesor_m, 2),
-    superficie_m2: numOrNull(row.superficie_m2, 2),
-    volumen_m3: numOrNull(row.volumen_m3, 2),
-    avance_cantidad: numOrNull(row.avance_cantidad, 2),
+    superficie_m2: sup,
+    volumen_m3: vol,
+    avance_cantidad: av,
     avance_unidad: strOrNull(row.avance_unidad),
-    observacion1: strOrNull(row.observacion1),
+    observacion1: obs1,
     hoja_origen: strOrNull(row.hoja_origen),
-    estado: strOrNull(row.estado) || "Finalizada",
-    imagenes: []
+    estado: strOrNull(row.estado) || (idM !== null && estadosPreviosPorId.get(String(idM))) || "Finalizada",
+    imagenes: idM !== null && fotosPreviasPorId.has(String(idM)) ? fotosPreviasPorId.get(String(idM)) : [],
+    updated_at: new Date().toISOString()
   };
+
+  if (idM !== null) {
+    reg.id = idM;
+  }
 
   return reg;
 }
 
-async function obtenerPartesExistentesParaSync() {
-  let query = supabaseClient
-    .from("partes_diarios")
-    .select("id, fecha, empresa, frente, ruta, subtramo, km, sentido, tarea, observacion1, hoja_origen, imagenes, estado");
+async function obtenerMetadatosPorId(ids) {
+  const fotosMap = new Map();
+  const estadoMap = new Map();
+  if (!ids.length) return { fotosMap, estadoMap };
 
-  if (organizacionUsuario) {
-    query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
-  } else {
-    query = query.eq("user_id", usuarioActual.id);
+  const tam = 200;
+  for (let i = 0; i < ids.length; i += tam) {
+    const loteIds = ids.slice(i, i + tam);
+    const { data, error } = await supabaseClient
+      .from("partes_diarios")
+      .select("id, imagenes, estado")
+      .in("id", loteIds);
+
+    if (error) {
+      console.warn("No se pudieron consultar metadatos previos por id:", error.message);
+      break;
+    }
+    (data || []).forEach((r) => {
+      const k = String(r.id);
+      if (Array.isArray(r.imagenes) && r.imagenes.length) {
+        fotosMap.set(k, r.imagenes.filter(Boolean));
+      }
+      if (r.estado) {
+        estadoMap.set(k, r.estado);
+      }
+    });
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return Array.isArray(data) ? data : [];
+  return { fotosMap, estadoMap };
 }
 
 async function procesarArchivoMaestro(file) {
@@ -583,118 +622,97 @@ async function procesarArchivoMaestro(file) {
   btnImp.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
 
   try {
-    mostrarAlertaImportacion("info", `Leyendo "${file.name}" y consultando registros existentes...`);
+    mostrarAlertaImportacion("info", `Leyendo "${file.name}"...`);
     const buffer = await file.arrayBuffer();
     const libro = XLSX.read(buffer, { type: "array" });
     const primeraHoja = libro.SheetNames[0];
     const filasRaw = XLSX.utils.sheet_to_json(libro.Sheets[primeraHoja], { defval: null });
 
-    const registros = filasRaw
-      .map(mapearFilaMaestroASupabase)
-      .filter(Boolean);
-
-    if (registros.length === 0) {
-      mostrarAlertaImportacion("warning", "No se encontraron filas válidas con columna 'tarea' en el archivo.");
+    if (!filasRaw.length) {
+      mostrarAlertaImportacion("warning", "El archivo no contiene filas de datos.");
       return;
     }
 
-    const existentes = await obtenerPartesExistentesParaSync();
-    const mapaExistentes = new Map();
-    existentes.forEach((row) => {
-      const clave = construirClaveRegistro(row);
-      if (!mapaExistentes.has(clave)) {
-        mapaExistentes.set(clave, row);
+    // Extraer id_m previos para conservar fotos/estado existentes al actualizar por id
+    const idsCandidatos = Array.from(new Set(
+      filasRaw
+        .map((r) => idOrNull(normalizarClavesFila(r).id_m ?? normalizarClavesFila(r).id))
+        .filter((v) => v !== null)
+    ));
+
+    const { fotosMap, estadoMap } = await obtenerMetadatosPorId(idsCandidatos);
+
+    // Deduplicar por id_m dentro del mismo archivo (si hay id_m repetido, gana el último)
+    const mapaPorId = new Map();
+    const sinId = [];
+    let omitidasVacias = 0;
+
+    filasRaw.forEach((rawRow) => {
+      const reg = mapearFilaMaestroASupabase(rawRow, fotosMap, estadoMap);
+      if (!reg) {
+        omitidasVacias++;
+        return;
       }
-    });
-
-    const paraInsertar = [];
-    const paraActualizar = [];
-    const clavesVistasEnArchivo = new Set();
-
-    registros.forEach((reg) => {
-      const clave = construirClaveRegistro(reg);
-      if (clavesVistasEnArchivo.has(clave)) {
-        // Si el mismo archivo trae dos filas idénticas en su clave, actualiza la última en vez de duplicar
-        const idxPrev = paraActualizar.findIndex(item => construirClaveRegistro(item.payload) === clave);
-        if (idxPrev >= 0) {
-          paraActualizar[idxPrev].payload = {
-            ...reg,
-            imagenes: paraActualizar[idxPrev].payload.imagenes,
-            estado: paraActualizar[idxPrev].payload.estado
-          };
-          return;
-        }
-        const idxIns = paraInsertar.findIndex(item => construirClaveRegistro(item) === clave);
-        if (idxIns >= 0) {
-          paraInsertar[idxIns] = reg;
-          return;
-        }
-      }
-      clavesVistasEnArchivo.add(clave);
-
-      const previo = mapaExistentes.get(clave);
-      if (previo) {
-        const fotosPrevias = Array.isArray(previo.imagenes) ? previo.imagenes.filter(Boolean) : [];
-        paraActualizar.push({
-          id: previo.id,
-          payload: {
-            ...reg,
-            imagenes: fotosPrevias,
-            estado: previo.estado || reg.estado,
-            updated_at: new Date().toISOString()
-          }
-        });
+      if (reg.id !== undefined && reg.id !== null) {
+        mapaPorId.set(String(reg.id), reg);
       } else {
-        paraInsertar.push(reg);
+        sinId.push(reg);
       }
     });
+
+    const conIdUnicos = Array.from(mapaPorId.values());
+    const totalAProcesar = conIdUnicos.length + sinId.length;
+
+    if (!totalAProcesar) {
+      mostrarAlertaImportacion("warning", "No se encontraron registros válidos para importar.");
+      return;
+    }
 
     const tamanoLote = 50;
-    let insertados = 0;
-    let actualizados = 0;
+    let procesados = 0;
 
-    for (let i = 0; i < paraInsertar.length; i += tamanoLote) {
-      const lote = paraInsertar.slice(i, i + tamanoLote);
+    // 1. Upsert de filas con id_m -> id (actualiza existentes sin duplicar e inserta si no existe el id)
+    for (let i = 0; i < conIdUnicos.length; i += tamanoLote) {
+      const lote = conIdUnicos.slice(i, i + tamanoLote);
+      procesados += lote.length;
       mostrarAlertaImportacion(
         "info",
-        `Insertando nuevos: ${Math.min(i + lote.length, paraInsertar.length)} de ${paraInsertar.length}...`
+        `Sincronizando por id_m: ${procesados} de ${totalAProcesar} registros...`
+      );
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .upsert(lote, { onConflict: "id" });
+
+      if (error) {
+        throw new Error(`Error en upsert por id (${procesados} procesados): ${error.message}`);
+      }
+    }
+
+    // 2. Insert de filas sin id_m (deja que Supabase genere el id)
+    for (let i = 0; i < sinId.length; i += tamanoLote) {
+      const lote = sinId.slice(i, i + tamanoLote);
+      procesados += lote.length;
+      mostrarAlertaImportacion(
+        "info",
+        `Insertando filas sin id_m: ${procesados} de ${totalAProcesar} registros...`
       );
       const { error } = await supabaseClient
         .from("partes_diarios")
         .insert(lote);
 
       if (error) {
-        throw new Error(`Error al insertar lote (${insertados} insertados): ${error.message}`);
+        throw new Error(`Error al insertar filas sin id_m (${procesados} procesados): ${error.message}`);
       }
-      insertados += lote.length;
-    }
-
-    for (let i = 0; i < paraActualizar.length; i++) {
-      const item = paraActualizar[i];
-      if (i % 10 === 0 || i === paraActualizar.length - 1) {
-        mostrarAlertaImportacion(
-          "info",
-          `Actualizando existentes: ${i + 1} de ${paraActualizar.length}...`
-        );
-      }
-      const { error } = await supabaseClient
-        .from("partes_diarios")
-        .update(item.payload)
-        .eq("id", item.id);
-
-      if (error) {
-        throw new Error(`Error al actualizar registro (${actualizados} actualizados): ${error.message}`);
-      }
-      actualizados++;
     }
 
     mostrarAlertaImportacion(
       "success",
-      `Sincronización completada desde "${file.name}": ${insertados} nuevos insertados y ${actualizados} existentes actualizados (sin duplicados).`
+      `Importación completada desde "${file.name}": ${conIdUnicos.length} sincronizados por id_m (actualizados/insertados sin duplicados), ${sinId.length} insertados sin id_m` +
+      (omitidasVacias ? ` (${omitidasVacias} filas vacías omitidas).` : ".")
     );
   } catch (err) {
     console.error("Error procesando maestro:", err);
-    mostrarAlertaImportacion("danger", "No se pudo sincronizar el archivo: " + err.message);
+    mostrarAlertaImportacion("danger", "Error en la importación: " + err.message);
   } finally {
     btnImp.disabled = false;
     btnImp.innerHTML = textoOrig;
