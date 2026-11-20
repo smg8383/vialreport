@@ -45,6 +45,18 @@
       border-left: 4px solid var(--primary-color);
     }
 
+    .dim-chip {
+      display: inline-block;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 0.75rem;
+      color: #334155;
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+
     .parte-foto-thumb {
       width: 68px;
       height: 68px;
@@ -89,7 +101,7 @@
   </div>
 </nav>
 
-<div class="container" style="max-width: 1140px;">
+<div class="container" style="max-width: 1200px;">
   <!-- Encabezado y acciones -->
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
@@ -152,6 +164,15 @@
         </div>
       </div>
     </div>
+
+    <div class="col-12">
+      <div class="card kpi-card" style="border-left-color: #6366f1;">
+        <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2 small">
+          <span class="fw-semibold text-secondary"><i class="bi bi-rulers"></i> Cómputos acumulados (filtrados):</span>
+          <div id="kpiDimensiones" class="fw-semibold text-dark">Sup: 0 m² · Vol: 0 m³ · Unid: 0 u</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Filtros -->
@@ -166,6 +187,15 @@
         <div class="col-6 col-md-2">
           <label for="filtroHasta" class="form-label small fw-semibold mb-1">Hasta</label>
           <input type="date" id="filtroHasta" class="form-control form-control-sm">
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label for="filtroFrente" class="form-label small fw-semibold mb-1">Frente</label>
+          <select id="filtroFrente" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="Obra">Obra</option>
+            <option value="Peaje">Peaje</option>
+          </select>
         </div>
 
         <div class="col-6 col-md-2">
@@ -192,15 +222,16 @@
           </select>
         </div>
 
-        <div class="col-6 col-md-2">
+        <div class="col-12 col-md-4 mt-2">
           <label for="filtroTarea" class="form-label small fw-semibold mb-1">Tarea</label>
           <select id="filtroTarea" class="form-select form-select-sm">
             <option value="">Todas</option>
           </select>
         </div>
 
-        <div class="col-12 col-md-9 mt-2">
-          <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Buscar por Km, observación, empresa o sentido...">
+        <div class="col-12 col-md-5 mt-2">
+          <label for="filtroTexto" class="form-label small fw-semibold mb-1">Buscar</label>
+          <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Km, observación, empresa, sentido, frente...">
         </div>
 
         <div class="col-12 col-md-3 mt-2 d-flex gap-2">
@@ -224,10 +255,11 @@
         <thead class="table-light">
           <tr>
             <th>Fecha</th>
-            <th>Ruta / Subtramo</th>
+            <th>Frente / Ruta / Subtramo</th>
             <th>Km</th>
             <th>Tarea</th>
             <th>Avance</th>
+            <th>Dimensiones</th>
             <th>Estado</th>
             <th>Fotos</th>
             <th class="text-end">Acciones</th>
@@ -291,6 +323,14 @@ function escaparHTML(texto) {
     .replace(/"/g, "&quot;");
 }
 
+function badgeFrente(frente) {
+  const fr = (frente || "Obra").trim();
+  if (fr.toLowerCase() === "peaje") {
+    return `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill">${escaparHTML(fr)}</span>`;
+  }
+  return `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle rounded-pill">${escaparHTML(fr)}</span>`;
+}
+
 function badgeEstado(estado) {
   const est = (estado || "").trim();
   if (est === "Finalizada") {
@@ -307,6 +347,17 @@ function formatearAvance(parte) {
   const un = parte.avance_unidad || "";
   if (cant == null || cant === "") return un ? un : "—";
   return `${cant} ${un}`.trim();
+}
+
+function obtenerChipsDimensiones(parte) {
+  const chips = [];
+  if (parte.largo_m != null && parte.largo_m !== "") chips.push(`L: ${parte.largo_m} m`);
+  if (parte.ancho_m != null && parte.ancho_m !== "") chips.push(`A: ${parte.ancho_m} m`);
+  if (parte.espesor_m != null && parte.espesor_m !== "") chips.push(`E: ${parte.espesor_m} m`);
+  if (parte.superficie_m2 != null && parte.superficie_m2 !== "") chips.push(`${parte.superficie_m2} m²`);
+  if (parte.volumen_m3 != null && parte.volumen_m3 !== "") chips.push(`${parte.volumen_m3} m³`);
+  if (parte.cantidad_u != null && parte.cantidad_u !== "") chips.push(`${parte.cantidad_u} u`);
+  return chips;
 }
 
 function poblarSelectFiltro(idSelect, valores) {
@@ -338,11 +389,24 @@ function actualizarKPIs(lista) {
   document.getElementById("kpiActivos").textContent = activos;
 
   const acumPorUnidad = {};
+  let sumaSup = 0;
+  let sumaVol = 0;
+  let sumaUnid = 0;
+
   lista.forEach((p) => {
     const num = Number(p.avance_cantidad);
-    if (!Number.isFinite(num) || p.avance_cantidad === null || p.avance_cantidad === "") return;
-    const unidad = (p.avance_unidad || "sin unidad").trim();
-    acumPorUnidad[unidad] = (acumPorUnidad[unidad] || 0) + num;
+    if (Number.isFinite(num) && p.avance_cantidad !== null && p.avance_cantidad !== "") {
+      const unidad = (p.avance_unidad || "sin unidad").trim();
+      acumPorUnidad[unidad] = (acumPorUnidad[unidad] || 0) + num;
+    }
+    const sup = Number(p.superficie_m2);
+    if (Number.isFinite(sup) && p.superficie_m2 !== null && p.superficie_m2 !== "") sumaSup += sup;
+
+    const vol = Number(p.volumen_m3);
+    if (Number.isFinite(vol) && p.volumen_m3 !== null && p.volumen_m3 !== "") sumaVol += vol;
+
+    const unid = Number(p.cantidad_u);
+    if (Number.isFinite(unid) && p.cantidad_u !== null && p.cantidad_u !== "") sumaUnid += unid;
   });
 
   const claves = Object.keys(acumPorUnidad);
@@ -353,6 +417,9 @@ function actualizarKPIs(lista) {
       .map(u => `${Number(acumPorUnidad[u].toFixed(2))} ${escaparHTML(u)}`)
       .join(" · ");
   }
+
+  document.getElementById("kpiDimensiones").textContent =
+    `Superficie: ${Number(sumaSup.toFixed(2))} m² · Volumen: ${Number(sumaVol.toFixed(3))} m³ · Unidades: ${Number(sumaUnid.toFixed(2))} u`;
 }
 
 function renderTarjetas(lista) {
@@ -373,10 +440,13 @@ function renderTarjetas(lista) {
 
   cont.innerHTML = lista.map((p) => {
     const fotos = Array.isArray(p.imagenes) ? p.imagenes.filter(Boolean) : [];
+    const chipsDim = obtenerChipsDimensiones(p);
     const tieneGPS = p.latitud != null && p.longitud != null && !Number.isNaN(Number(p.latitud)) && !Number.isNaN(Number(p.longitud));
     const linkMaps = tieneGPS
       ? `https://www.google.com/maps?q=${encodeURIComponent(p.latitud)},${encodeURIComponent(p.longitud)}`
       : null;
+
+    const obsTexto = [p.observacion1, p.observacion].filter(Boolean).join(" — ");
 
     return `
       <div class="col-12 col-md-6 col-lg-4">
@@ -384,8 +454,8 @@ function renderTarjetas(lista) {
           <div class="card-body d-flex flex-column">
             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
               <div>
-                <div class="fw-bold text-dark">${escaparHTML(p.fecha || "Sin fecha")}</div>
-                <div class="small text-muted">
+                <div class="fw-bold text-dark">${escaparHTML(p.fecha || "Sin fecha")} ${badgeFrente(p.frente)}</div>
+                <div class="small text-muted mt-1">
                   ${escaparHTML(p.ruta || "—")} · ${escaparHTML(p.subtramo || "—")}
                   ${p.km ? ` · <strong>Km ${escaparHTML(p.km)}</strong>` : ""}
                 </div>
@@ -400,7 +470,13 @@ function renderTarjetas(lista) {
               ${p.sentido ? ` · <strong>Sentido:</strong> ${escaparHTML(p.sentido)}` : ""}
             </div>
 
-            ${p.observacion ? `<p class="small text-muted mb-2 flex-grow-1">${escaparHTML(p.observacion)}</p>` : `<div class="flex-grow-1"></div>`}
+            ${chipsDim.length > 0 ? `
+              <div class="mb-2">
+                ${chipsDim.map(c => `<span class="dim-chip">${escaparHTML(c)}</span>`).join("")}
+              </div>
+            ` : ""}
+
+            ${obsTexto ? `<p class="small text-muted mb-2 flex-grow-1">${escaparHTML(obsTexto)}</p>` : `<div class="flex-grow-1"></div>`}
 
             ${fotos.length > 0 ? `
               <div class="d-flex flex-wrap gap-2 mb-3">
@@ -446,7 +522,7 @@ function renderTabla(lista) {
   if (!lista.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="text-center py-4 text-muted">
+        <td colspan="9" class="text-center py-4 text-muted">
           No hay partes diarios que coincidan con los filtros seleccionados.
         </td>
       </tr>
@@ -456,16 +532,21 @@ function renderTabla(lista) {
 
   tbody.innerHTML = lista.map((p) => {
     const fotos = Array.isArray(p.imagenes) ? p.imagenes.filter(Boolean) : [];
+    const chipsDim = obtenerChipsDimensiones(p);
     return `
       <tr>
         <td class="text-nowrap fw-semibold">${escaparHTML(p.fecha || "—")}</td>
         <td>
-          <div>${escaparHTML(p.ruta || "—")}</div>
+          <div>${badgeFrente(p.frente)} <strong>${escaparHTML(p.ruta || "—")}</strong></div>
           <small class="text-muted">${escaparHTML(p.subtramo || "—")}</small>
         </td>
         <td class="text-nowrap">${escaparHTML(p.km || "—")}</td>
-        <td>${escaparHTML(p.tarea || "—")}</td>
+        <td>
+          <div>${escaparHTML(p.tarea || "—")}</div>
+          ${p.observacion1 ? `<small class="text-muted">${escaparHTML(p.observacion1)}</small>` : ""}
+        </td>
         <td class="text-nowrap fw-semibold">${escaparHTML(formatearAvance(p))}</td>
+        <td>${chipsDim.length ? chipsDim.map(c => `<span class="dim-chip">${escaparHTML(c)}</span>`).join("") : "—"}</td>
         <td class="text-nowrap">${badgeEstado(p.estado)}</td>
         <td class="text-nowrap">${fotos.length > 0 ? `<span class="badge bg-secondary-subtle text-dark">${fotos.length} foto(s)</span>` : "—"}</td>
         <td class="text-end text-nowrap">
@@ -487,6 +568,7 @@ function renderTabla(lista) {
 function aplicarFiltros() {
   const desde = document.getElementById("filtroDesde").value;
   const hasta = document.getElementById("filtroHasta").value;
+  const frente = document.getElementById("filtroFrente").value;
   const ruta = document.getElementById("filtroRuta").value;
   const subtramo = document.getElementById("filtroSubtramo").value;
   const estado = document.getElementById("filtroEstado").value;
@@ -496,6 +578,7 @@ function aplicarFiltros() {
   partesFiltrados = todosLosPartes.filter((p) => {
     if (desde && (!p.fecha || p.fecha < desde)) return false;
     if (hasta && (!p.fecha || p.fecha > hasta)) return false;
+    if (frente && (p.frente || "Obra").trim() !== frente) return false;
     if (ruta && (p.ruta || "").trim() !== ruta) return false;
     if (subtramo && (p.subtramo || "").trim() !== subtramo) return false;
     if (estado && (p.estado || "").trim() !== estado) return false;
@@ -504,12 +587,15 @@ function aplicarFiltros() {
     if (texto) {
       const bolsa = [
         p.km,
+        p.frente,
+        p.observacion1,
         p.observacion,
         p.empresa,
         p.sentido,
         p.tarea,
         p.ruta,
-        p.subtramo
+        p.subtramo,
+        p.hoja_origen
       ].map(x => String(x || "").toLowerCase()).join(" ");
 
       if (!bolsa.includes(texto)) return false;
@@ -533,6 +619,7 @@ window.abrirDetalleParte = function(id) {
   if (!parte) return;
 
   const fotos = Array.isArray(parte.imagenes) ? parte.imagenes.filter(Boolean) : [];
+  const chipsDim = obtenerChipsDimensiones(parte);
   const tieneGPS = parte.latitud != null && parte.longitud != null && !Number.isNaN(Number(parte.latitud)) && !Number.isNaN(Number(parte.longitud));
   const linkMaps = tieneGPS
     ? `https://www.google.com/maps?q=${encodeURIComponent(parte.latitud)},${encodeURIComponent(parte.longitud)}`
@@ -540,18 +627,31 @@ window.abrirDetalleParte = function(id) {
 
   document.getElementById("contenidoModalDetalle").innerHTML = `
     <div class="row g-3 mb-3 small">
-      <div class="col-6 col-md-4"><strong>Fecha:</strong><br>${escaparHTML(parte.fecha || "—")}</div>
-      <div class="col-6 col-md-4"><strong>Empresa:</strong><br>${escaparHTML(parte.empresa || "—")}</div>
-      <div class="col-6 col-md-4"><strong>Estado:</strong><br>${badgeEstado(parte.estado)}</div>
+      <div class="col-6 col-md-3"><strong>Fecha:</strong><br>${escaparHTML(parte.fecha || "—")}</div>
+      <div class="col-6 col-md-3"><strong>Frente:</strong><br>${badgeFrente(parte.frente)}</div>
+      <div class="col-6 col-md-3"><strong>Empresa:</strong><br>${escaparHTML(parte.empresa || "—")}</div>
+      <div class="col-6 col-md-3"><strong>Estado:</strong><br>${badgeEstado(parte.estado)}</div>
       <div class="col-6 col-md-4"><strong>Ruta:</strong><br>${escaparHTML(parte.ruta || "—")}</div>
       <div class="col-6 col-md-4"><strong>Subtramo:</strong><br>${escaparHTML(parte.subtramo || "—")}</div>
-      <div class="col-6 col-md-4"><strong>Km / Sentido:</strong><br>${escaparHTML(parte.km || "—")} ${parte.sentido ? `(${escaparHTML(parte.sentido)})` : ""}</div>
+      <div class="col-12 col-md-4"><strong>Km / Sentido:</strong><br>${escaparHTML(parte.km || "—")} ${parte.sentido ? `(${escaparHTML(parte.sentido)})` : ""}</div>
       <div class="col-12 col-md-8"><strong>Tarea:</strong><br><span class="text-primary fw-semibold">${escaparHTML(parte.tarea || "—")}</span></div>
       <div class="col-12 col-md-4"><strong>Avance:</strong><br><span class="fw-semibold">${escaparHTML(formatearAvance(parte))}</span></div>
+      <div class="col-12">
+        <strong>Dimensiones y cómputos:</strong><br>
+        ${chipsDim.length ? chipsDim.map(c => `<span class="dim-chip mt-1">${escaparHTML(c)}</span>`).join("") : "Sin dimensiones cargadas"}
+      </div>
+      ${parte.hoja_origen ? `<div class="col-12 text-muted"><strong>Hoja origen:</strong> ${escaparHTML(parte.hoja_origen)}</div>` : ""}
     </div>
 
+    ${parte.observacion1 ? `
+      <div class="mb-2">
+        <div class="small fw-bold text-secondary mb-1">Detalle técnico (observacion1)</div>
+        <div class="p-2 bg-light rounded small">${escaparHTML(parte.observacion1)}</div>
+      </div>
+    ` : ""}
+
     <div class="mb-3">
-      <div class="small fw-bold text-secondary mb-1">Observación</div>
+      <div class="small fw-bold text-secondary mb-1">Observación general</div>
       <div class="p-2 bg-light rounded small">${escaparHTML(parte.observacion || "Sin observaciones.")}</div>
     </div>
 
@@ -609,6 +709,7 @@ function exportarCSV() {
   const encabezados = [
     "fecha",
     "empresa",
+    "frente",
     "ruta",
     "subtramo",
     "km",
@@ -617,7 +718,15 @@ function exportarCSV() {
     "tarea",
     "avance_cantidad",
     "avance_unidad",
+    "largo_m",
+    "ancho_m",
+    "espesor_m",
+    "superficie_m2",
+    "volumen_m3",
+    "cantidad_u",
+    "observacion1",
     "observacion",
+    "hoja_origen",
     "latitud",
     "longitud"
   ];
@@ -699,7 +808,9 @@ async function cargarPartesDiarios() {
     .order("created_at", { ascending: false });
 
   if (organizacionUsuario) {
-    query = query.eq("organizacion_id", organizacionUsuario);
+    query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
+  } else {
+    query = query.eq("user_id", usuarioActual.id);
   }
 
   const { data, error } = await query;
@@ -722,6 +833,7 @@ async function cargarPartesDiarios() {
 [
   "filtroDesde",
   "filtroHasta",
+  "filtroFrente",
   "filtroRuta",
   "filtroSubtramo",
   "filtroEstado",
@@ -735,6 +847,7 @@ async function cargarPartesDiarios() {
 document.getElementById("btnLimpiarFiltros").addEventListener("click", () => {
   document.getElementById("filtroDesde").value = "";
   document.getElementById("filtroHasta").value = "";
+  document.getElementById("filtroFrente").value = "";
   document.getElementById("filtroRuta").value = "";
   document.getElementById("filtroSubtramo").value = "";
   document.getElementById("filtroEstado").value = "";
