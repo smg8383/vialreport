@@ -84,8 +84,11 @@
     </a>
 
     <div class="d-flex align-items-center gap-1 flex-shrink-0">
-      <a href="index.html" class="btn btn-outline-primary btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
-        <i class="bi bi-clipboard-check"></i> <span class="d-none d-sm-inline">Relevamiento /</span> Inspección
+      <a href="visor-partes.html" class="btn btn-outline-primary btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
+        <i class="bi bi-journal-check"></i> <span class="d-none d-sm-inline">Ver partes</span>
+      </a>
+      <a href="index.html" class="btn btn-outline-secondary btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
+        <i class="bi bi-clipboard-check"></i> <span class="d-none d-md-inline">Inspección</span>
       </a>
       <button type="button" id="btnLogout" class="btn btn-outline-danger btn-sm rounded-pill px-2 px-sm-3 fw-semibold">
         <i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Salir</span>
@@ -96,12 +99,17 @@
 
 <div class="container" style="max-width: 820px;">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h2 class="fw-bold fs-4 text-dark m-0">
+    <h2 id="tituloPaginaParte" class="fw-bold fs-4 text-dark m-0">
       <i class="bi bi-journal-text text-primary"></i> Nuevo Parte Diario
     </h2>
-    <span id="badgeOrg" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2">
-      Cargando organización...
-    </span>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" id="btnCancelarEdicion" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold d-none">
+        <i class="bi bi-x-lg"></i> Cancelar edición
+      </button>
+      <span id="badgeOrg" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2">
+        Cargando organización...
+      </span>
+    </div>
   </div>
 
   <div class="card">
@@ -239,10 +247,17 @@
               </label>
               <input type="file" id="inputAdjuntar" accept="image/*" multiple class="d-none">
             </div>
-            <div id="contadorFotos" class="small text-muted mt-2">0 fotos seleccionadas</div>
+            <div id="contadorFotos" class="small text-muted mt-2">0 fotos nuevas seleccionadas</div>
           </div>
         </div>
 
+        <!-- Fotos ya guardadas en edición -->
+        <div id="seccionFotosExistentes" class="mb-3 d-none">
+          <div class="small fw-bold text-secondary mb-2">Fotografías guardadas</div>
+          <div id="previewFotosExistentes" class="row g-2"></div>
+        </div>
+
+        <!-- Fotos nuevas seleccionadas -->
         <div id="previewFotos" class="row g-2 mb-4"></div>
 
         <div id="alertaForm" class="alert d-none py-2 px-3 small"></div>
@@ -257,7 +272,7 @@
   </div>
 </div>
 
-<!-- Modal para agregar nueva tarea y subtarea en Supabase (mismo IDs que index.html) -->
+<!-- Modal para agregar nueva tarea y subtarea en Supabase -->
 <div class="modal fade" id="modalNuevaTarea" tabindex="-1" aria-labelledby="modalNuevaTareaLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow rounded-4">
@@ -321,6 +336,7 @@ const supabaseClient = supabase.createClient(
 const CLOUD_NAME = "ddgc2azm8";
 const UPLOAD_PRESET = "unsigned_upload";
 const STORAGE_KEY_UNIDADES = "vial_report_unidades_parte_diario";
+const STORAGE_KEY_EDITANDO = "editandoParteDiario";
 
 const UNIDADES_BASE = ["km", "m", "m²", "m³", "tn", "un", "hs", "%"];
 
@@ -328,7 +344,9 @@ let usuarioActual = null;
 let organizacionUsuario = null;
 let coordsActuales = { latitud: null, longitud: null };
 let fotosSeleccionadas = [];
+let fotosExistentes = [];
 let tareasCache = [];
+let editandoParteId = localStorage.getItem(STORAGE_KEY_EDITANDO) || null;
 
 function obtenerFechaHoyLocal() {
   const hoy = new Date();
@@ -345,21 +363,46 @@ function mostrarAlerta(tipo, mensaje) {
   el.classList.remove("d-none");
 }
 
-function obtenerUnidadesGuardadas() {
+function actualizarUIModoEdicion() {
+  const titulo = document.getElementById("tituloPaginaParte");
+  const btnGuardar = document.getElementById("btnGuardar");
+  const btnCancelar = document.getElementById("btnCancelarEdicion");
+
+  if (editandoParteId) {
+    titulo.innerHTML = `<i class="bi bi-pencil-square text-primary"></i> Editar Parte Diario`;
+    btnGuardar.innerHTML = `<i class="bi bi-check-circle-fill"></i> Actualizar Parte Diario`;
+    btnCancelar.classList.remove("d-none");
+  } else {
+    titulo.innerHTML = `<i class="bi bi-journal-text text-primary"></i> Nuevo Parte Diario`;
+    btnGuardar.innerHTML = `<i class="bi bi-check-circle-fill"></i> Guardar Parte Diario`;
+    btnCancelar.classList.add("d-none");
+  }
+}
+
+document.getElementById("btnCancelarEdicion").addEventListener("click", () => {
+  localStorage.removeItem(STORAGE_KEY_EDITANDO);
+  window.location.href = "visor-partes.html";
+});
+
+function obtenerUnidadesGuardadas(unidadExtra = null) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_UNIDADES);
     const extras = raw ? JSON.parse(raw) : [];
     const lista = Array.isArray(extras) ? extras : [];
-    return Array.from(new Set([...UNIDADES_BASE, ...lista.map(u => String(u).trim()).filter(Boolean)]));
+    const combinadas = [...UNIDADES_BASE, ...lista.map(u => String(u).trim()).filter(Boolean)];
+    if (unidadExtra && String(unidadExtra).trim()) {
+      combinadas.push(String(unidadExtra).trim());
+    }
+    return Array.from(new Set(combinadas));
   } catch (e) {
-    return [...UNIDADES_BASE];
+    return unidadExtra ? Array.from(new Set([...UNIDADES_BASE, String(unidadExtra).trim()])) : [...UNIDADES_BASE];
   }
 }
 
 function cargarUnidades(seleccionarValor = null) {
   const selectUnidad = document.getElementById("avance_unidad");
   const valorActual = seleccionarValor || selectUnidad.value;
-  const unidades = obtenerUnidadesGuardadas();
+  const unidades = obtenerUnidadesGuardadas(valorActual);
 
   selectUnidad.innerHTML = `<option value="">Seleccionar...</option>`;
   unidades.forEach((u) => {
@@ -505,12 +548,45 @@ document.getElementById("btnGuardarNuevaTarea").addEventListener("click", async 
   }
 });
 
+function renderFotosExistentes() {
+  const seccion = document.getElementById("seccionFotosExistentes");
+  const cont = document.getElementById("previewFotosExistentes");
+
+  if (!editandoParteId || fotosExistentes.length === 0) {
+    seccion.classList.add("d-none");
+    cont.innerHTML = "";
+    return;
+  }
+
+  seccion.classList.remove("d-none");
+  cont.innerHTML = fotosExistentes.map((url, idx) => `
+    <div class="col-4 col-md-3">
+      <div class="preview-card">
+        <img src="${url}" class="preview-img" alt="Foto guardada ${idx + 1}">
+        <button
+          type="button"
+          class="btn btn-danger btn-quitar-foto"
+          onclick="quitarFotoExistente(${idx})"
+          title="Quitar foto guardada"
+        >
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+
+window.quitarFotoExistente = function(index) {
+  fotosExistentes.splice(index, 1);
+  renderFotosExistentes();
+};
+
 function renderPreviews() {
   const contenedor = document.getElementById("previewFotos");
   const contador = document.getElementById("contadorFotos");
   contenedor.innerHTML = "";
 
-  contador.textContent = `${fotosSeleccionadas.length} ${fotosSeleccionadas.length === 1 ? "foto seleccionada" : "fotos seleccionadas"}`;
+  contador.textContent = `${fotosSeleccionadas.length} ${fotosSeleccionadas.length === 1 ? "foto nueva seleccionada" : "fotos nuevas seleccionadas"}`;
 
   fotosSeleccionadas.forEach((file, idx) => {
     const url = URL.createObjectURL(file);
@@ -625,9 +701,102 @@ async function subirFotos(archivos) {
   return urls;
 }
 
+async function cargarParteParaEdicion() {
+  if (!editandoParteId) return;
+
+  let query = supabaseClient
+    .from("partes_diarios")
+    .select("*")
+    .eq("id", editandoParteId);
+
+  if (organizacionUsuario) {
+    query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
+  } else {
+    query = query.eq("user_id", usuarioActual.id);
+  }
+
+  const { data, error } = await query.single();
+
+  if (error || !data) {
+    console.error("No se pudo cargar el parte diario para edición:", error);
+    localStorage.removeItem(STORAGE_KEY_EDITANDO);
+    editandoParteId = null;
+    actualizarUIModoEdicion();
+    mostrarAlerta("warning", "No se encontró el parte diario solicitado para editar.");
+    return;
+  }
+
+  actualizarUIModoEdicion();
+
+  if (data.fecha) document.getElementById("fecha").value = data.fecha;
+
+  if (data.empresa) {
+    const selEmpresa = document.getElementById("empresa");
+    if (!Array.from(selEmpresa.options).some(o => o.value === data.empresa)) {
+      const opt = document.createElement("option");
+      opt.value = data.empresa;
+      opt.textContent = data.empresa;
+      selEmpresa.appendChild(opt);
+    }
+    selEmpresa.value = data.empresa;
+  }
+
+  if (data.ruta) {
+    const selRuta = document.getElementById("ruta");
+    if (!Array.from(selRuta.options).some(o => o.value === data.ruta)) {
+      const opt = document.createElement("option");
+      opt.value = data.ruta;
+      opt.textContent = data.ruta;
+      selRuta.appendChild(opt);
+    }
+    selRuta.value = data.ruta;
+  }
+
+  if (data.subtramo) {
+    const selSubtramo = document.getElementById("subtramo");
+    if (!Array.from(selSubtramo.options).some(o => o.value === data.subtramo)) {
+      const opt = document.createElement("option");
+      opt.value = data.subtramo;
+      opt.textContent = data.subtramo;
+      selSubtramo.appendChild(opt);
+    }
+    selSubtramo.value = data.subtramo;
+  }
+
+  document.getElementById("km").value = data.km || "";
+  if (data.sentido) document.getElementById("sentido").value = data.sentido;
+  if (data.estado) document.getElementById("estado").value = data.estado;
+
+  if (data.tarea) {
+    const selTarea = document.getElementById("tarea");
+    const valorTarea = String(data.tarea).toUpperCase();
+    if (!Array.from(selTarea.options).some(o => o.value === valorTarea)) {
+      const opt = document.createElement("option");
+      opt.value = valorTarea;
+      opt.textContent = valorTarea;
+      selTarea.appendChild(opt);
+    }
+    selTarea.value = valorTarea;
+  }
+
+  document.getElementById("avance_cantidad").value = data.avance_cantidad != null ? data.avance_cantidad : "";
+  cargarUnidades(data.avance_unidad || "");
+  document.getElementById("observacion").value = data.observacion || "";
+
+  if (data.latitud != null && data.longitud != null && !Number.isNaN(Number(data.latitud)) && !Number.isNaN(Number(data.longitud))) {
+    coordsActuales.latitud = Number(data.latitud);
+    coordsActuales.longitud = Number(data.longitud);
+    document.getElementById("estadoGPS").textContent = `${coordsActuales.latitud.toFixed(5)}, ${coordsActuales.longitud.toFixed(5)}`;
+  }
+
+  fotosExistentes = Array.isArray(data.imagenes) ? [...data.imagenes.filter(Boolean)] : [];
+  renderFotosExistentes();
+}
+
 async function initParteDiario() {
   document.getElementById("fecha").value = obtenerFechaHoyLocal();
   cargarUnidades();
+  actualizarUIModoEdicion();
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) {
@@ -650,14 +819,17 @@ async function initParteDiario() {
   const badge = document.getElementById("badgeOrg");
   if (organizacionUsuario) {
     badge.textContent = organizacionUsuario;
-    const selectEmpresa = document.getElementById("empresa");
-    const opcionExiste = Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario);
-    if (opcionExiste) selectEmpresa.value = organizacionUsuario;
+    if (!editandoParteId) {
+      const selectEmpresa = document.getElementById("empresa");
+      const opcionExiste = Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario);
+      if (opcionExiste) selectEmpresa.value = organizacionUsuario;
+    }
   } else {
     badge.textContent = "Sin organización asignada";
   }
 
   await cargarTareasJerarquicas();
+  await cargarParteParaEdicion();
 }
 
 document.getElementById("btnGPS").addEventListener("click", () => {
@@ -698,12 +870,14 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
   btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
 
   try {
-    const urlsFotos = fotosSeleccionadas.length > 0 ? await subirFotos(fotosSeleccionadas) : [];
+    const urlsNuevas = fotosSeleccionadas.length > 0 ? await subirFotos(fotosSeleccionadas) : [];
+    const urlsFinales = editandoParteId
+      ? [...fotosExistentes, ...urlsNuevas]
+      : urlsNuevas;
+
     const avanceVal = document.getElementById("avance_cantidad").value;
 
     const payload = {
-      user_id: usuarioActual.id,
-      organizacion_id: organizacionUsuario,
       fecha: document.getElementById("fecha").value,
       empresa: document.getElementById("empresa").value || null,
       ruta: document.getElementById("ruta").value || null,
@@ -717,12 +891,32 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
       observacion: document.getElementById("observacion").value.trim() || null,
       latitud: coordsActuales.latitud,
       longitud: coordsActuales.longitud,
-      imagenes: urlsFotos
+      imagenes: urlsFinales
     };
+
+    if (editandoParteId) {
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .update(payload)
+        .eq("id", editandoParteId);
+
+      if (error) throw new Error(error.message);
+
+      localStorage.removeItem(STORAGE_KEY_EDITANDO);
+      mostrarAlerta("success", "Parte diario actualizado correctamente.");
+      setTimeout(() => {
+        window.location.href = "visor-partes.html";
+      }, 600);
+      return;
+    }
 
     const { error } = await supabaseClient
       .from("partes_diarios")
-      .insert(payload);
+      .insert({
+        ...payload,
+        user_id: usuarioActual.id,
+        organizacion_id: organizacionUsuario
+      });
 
     if (error) throw new Error(error.message);
 
@@ -739,11 +933,12 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
     mostrarAlerta("danger", err.message || "No se pudo guardar el parte diario.");
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> Guardar Parte Diario`;
+    actualizarUIModoEdicion();
   }
 });
 
 document.getElementById("btnLogout").addEventListener("click", async () => {
+  localStorage.removeItem(STORAGE_KEY_EDITANDO);
   await supabaseClient.auth.signOut();
   window.location.href = "login.html";
 });
