@@ -297,7 +297,7 @@
           <h6 class="fw-bold text-dark m-0">
             <i class="bi bi-grid-3x3-gap-fill text-primary me-1"></i> Resumen de Tareas por Empresa (Cantidades Realizadas)
           </h6>
-          <small class="text-muted">Los totales se actulizan sobre los partes filtros aplicados.</small>
+          <small class="text-muted">Calculado sobre los partes filtrados · JCR SA discriminada por subtramo (Norte / Sur) · Redondeado a 2 decimales al mostrar</small>
         </div>
         <button type="button" id="btnToggleResumen" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
           <i class="bi bi-chevron-up"></i> Ocultar / Mostrar
@@ -441,14 +441,18 @@ function normalizarClaveUnidad(u) {
 }
 
 function extraerCantidadYUnidadParte(p) {
-  const cantAvance = numRealOrNull(p.avance_cantidad);
   const unidadNorm = normalizarClaveUnidad(p.avance_unidad);
+  const vol = numRealOrNull(p.volumen_m3);
+  const cantAvance = numRealOrNull(p.avance_cantidad);
+
+  if ((unidadNorm === "m³" || !unidadNorm) && vol !== null) {
+    return { valor: vol, unidad: "m³" };
+  }
 
   if (cantAvance !== null) {
     return { valor: cantAvance, unidad: unidadNorm || "u" };
   }
 
-  const vol = numRealOrNull(p.volumen_m3);
   if (vol !== null) {
     return { valor: vol, unidad: "m³" };
   }
@@ -497,8 +501,6 @@ function renderResumenTareasPorEmpresa(lista) {
 
   const empresasSet = new Set();
   const tareasSet = new Set();
-
-  // estructura: matriz[tarea][empresaEtiqueta][unidad] = sumaReal
   const matriz = {};
   const totalesPorTareaUnidades = {};
 
@@ -584,26 +586,21 @@ function actualizarKPIs(lista) {
     const sup = numRealOrNull(p.superficie_m2);
     const vol = numRealOrNull(p.volumen_m3);
     const unid = numRealOrNull(p.cantidad_u);
-    const cant = numRealOrNull(p.avance_cantidad);
 
     if (sup !== null) sumaSup += sup;
     if (vol !== null) sumaVol += vol;
     if (unid !== null) sumaUnid += unid;
 
-    const unidadNorm = normalizarClaveUnidad(p.avance_unidad);
-    if (cant !== null && unidadNorm) {
-      acumPorUnidad[unidadNorm] = (acumPorUnidad[unidadNorm] || 0) + cant;
+    const item = extraerCantidadYUnidadParte(p);
+    if (item && item.unidad) {
+      acumPorUnidad[item.unidad] = (acumPorUnidad[item.unidad] || 0) + item.valor;
     }
   });
-
-  if (sumaVol > 0 && (acumPorUnidad["m³"] !== undefined)) {
-    acumPorUnidad["m³"] = sumaVol;
-  }
 
   document.getElementById("kpiDimensiones").textContent =
     `Superficie: ${fmtTotal2(sumaSup)} m² · Volumen: ${fmtTotal2(sumaVol)} m³ · Unidades: ${fmtTotal2(sumaUnid)} u`;
 
-  const entradas = Object.entries(acumPorUnidad);
+  const entradas = Object.entries(acumPorUnidad).filter(([, tot]) => Math.abs(tot) > 0);
   if (entradas.length === 0) {
     document.getElementById("kpiAvances").textContent = "—";
   } else {
