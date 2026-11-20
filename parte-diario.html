@@ -434,6 +434,14 @@ let tareasCache = [];
 let editandoParteId = localStorage.getItem(STORAGE_KEY_EDITANDO) || null;
 let hojaOrigenExistente = null;
 
+function escapeHTML(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function obtenerFechaHoyLocal() {
   const hoy = new Date();
   const año = hoy.getFullYear();
@@ -466,10 +474,12 @@ function numOrNull(val, decimals = null) {
   } else {
     let s = String(val).trim().replace(/\s+/g, "");
     if (!s) return null;
-    if (s.includes(",") && !s.includes(".")) {
-      s = s.replace(",", ".");
-    } else if (s.includes(",") && s.includes(".")) {
+    if (s.includes(",") && s.includes(".")) {
       s = s.replace(/\./g, "").replace(",", ".");
+    } else if (s.includes(",")) {
+      s = s.replace(",", ".");
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, "");
     }
     n = Number(s);
   }
@@ -802,176 +812,263 @@ function obtenerUnidadesGuardadas(unidadExtra = null) {
   }
 }
 
-function cargarUnidades(seleccionarValor = null) {
-  const selectUnidad = document.getElementById("avance_unidad");
-  const valorActual = seleccionarValor || selectUnidad.value;
+function guardarNuevaUnidadLocal(unidad) {
+  const limpia = String(unidad || "").trim();
+  if (!limpia) return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_UNIDADES);
+    const actual = raw ? JSON.parse(raw) : [];
+    const lista = Array.isArray(actual) ? actual : [];
+    if (!UNIDADES_BASE.includes(limpia) && !lista.includes(limpia)) {
+      lista.push(limpia);
+      localStorage.setItem(STORAGE_KEY_UNIDADES, JSON.stringify(lista));
+    }
+  } catch (e) {
+    console.warn("No se pudo guardar unidad en localStorage:", e);
+  }
+}
+
+function poblarSelectUnidades(unidadSeleccionada = null) {
+  const sel = document.getElementById("avance_unidad");
+  const valorActual = unidadSeleccionada !== null ? unidadSeleccionada : sel.value;
   const unidades = obtenerUnidadesGuardadas(valorActual);
 
-  selectUnidad.innerHTML = `<option value="">Seleccionar...</option>`;
+  sel.innerHTML = `<option value="">Seleccionar...</option>`;
   unidades.forEach((u) => {
     const opt = document.createElement("option");
     opt.value = u;
     opt.textContent = u;
-    selectUnidad.appendChild(opt);
+    sel.appendChild(opt);
   });
 
   if (valorActual && unidades.includes(valorActual)) {
-    selectUnidad.value = valorActual;
+    sel.value = valorActual;
   }
 }
 
 document.getElementById("btnGuardarNuevaUnidad").addEventListener("click", () => {
-  const inputUnidad = document.getElementById("nuevaUnidadNombre");
-  const nuevaUnidad = (inputUnidad?.value || "").trim();
-
-  if (!nuevaUnidad) {
-    alert("Ingresá el nombre o símbolo de la unidad.");
+  const inp = document.getElementById("nuevaUnidadNombre");
+  const nueva = inp.value.trim();
+  if (!nueva) {
+    inp.focus();
     return;
   }
-
-  const actuales = obtenerUnidadesGuardadas();
-  const yaExiste = actuales.find(u => u.toLowerCase() === nuevaUnidad.toLowerCase());
-  const valorFinal = yaExiste || nuevaUnidad;
-
-  if (!yaExiste) {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_UNIDADES);
-      const extras = raw ? JSON.parse(raw) : [];
-      const lista = Array.isArray(extras) ? extras : [];
-      lista.push(nuevaUnidad);
-      localStorage.setItem(STORAGE_KEY_UNIDADES, JSON.stringify(Array.from(new Set(lista))));
-    } catch (e) {
-      console.warn("No se pudo guardar la unidad en localStorage:", e);
-    }
-  }
-
-  cargarUnidades(valorFinal);
-  document.getElementById("avance_unidad").value = valorFinal;
-  inputUnidad.value = "";
-
+  guardarNuevaUnidadLocal(nueva);
+  poblarSelectUnidades(nueva);
+  inp.value = "";
   const modalEl = document.getElementById("modalNuevaUnidad");
-  const modalInstancia = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstancia) modalInstancia.hide();
+  const inst = bootstrap.Modal.getInstance(modalEl);
+  if (inst) inst.hide();
 });
 
-function llenarSelectsTareas(data) {
-  document.querySelectorAll(".tarea-select").forEach((select) => {
-    select.innerHTML = `<option value="">Seleccionar...</option>`;
+function poblarSelectTareas(tareaSeleccionada = null) {
+  const sel = document.getElementById("tarea");
+  const valorActual = tareaSeleccionada !== null ? tareaSeleccionada : sel.value;
+  const opciones = Array.from(new Set(tareasCache.filter(Boolean)));
 
-    let currentTarea = "";
-    let currentOptGroup = null;
+  if (valorActual && !opciones.includes(valorActual)) {
+    opciones.unshift(valorActual);
+  }
 
-    data.forEach((item) => {
-      if (!item?.tarea || !item?.subtarea) return;
-
-      if (item.tarea !== currentTarea) {
-        currentTarea = item.tarea;
-        currentOptGroup = document.createElement("optgroup");
-        currentOptGroup.label = currentTarea;
-        select.appendChild(currentOptGroup);
-      }
-
-      const option = document.createElement("option");
-      option.value = item.subtarea.toUpperCase();
-      option.textContent = item.subtarea.toUpperCase();
-      currentOptGroup.appendChild(option);
-    });
+  sel.innerHTML = `<option value="">Seleccionar tarea...</option>`;
+  opciones.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    sel.appendChild(opt);
   });
+
+  if (valorActual) {
+    sel.value = valorActual;
+  }
 }
 
-async function cargarTareasJerarquicas(forceRefresh = false) {
-  if (!forceRefresh && tareasCache.length > 0) {
-    llenarSelectsTareas(tareasCache);
-    return tareasCache;
+async function cargarTareasJerarquicas(tareaSeleccionada = null) {
+  const tareasFallback = [
+    "Bacheo Superficial y/o profundo con Mezcla Bituminosa en Caliente",
+    "Bacheo profundo con estabilizado granular",
+    "Bacheo con hormigón en calzada de pavimento rígido",
+    "Sellado tipo puente de grietas y fisuras",
+    "Fresado de deformaciones de borde y de crestas",
+    "Calce de banquinas de suelo con aporte de material",
+    "Señalización horizontal por pulverización",
+    "Señalamiento horizontal por extrusión",
+    "Reparación de juntas de dilatación en puentes",
+    "Reparación, limpieza y pintura de pasarelas peatonales",
+    "Terraplén con compactación especial como complemento de banquinas de suelo",
+    "Reparación de socavaciones en taludes",
+    "Hormigonado de prolongación de isletas",
+    "Demolición de muretes",
+    "Demolición y reposición de losas de hormigón en zona de peaje",
+    "Mantenimiento y pintura de cabinas de peaje",
+    "Reparación o reposición de defensas metálicas de protección"
+  ];
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("tareas")
+      .select("tarea, subtarea")
+      .order("tarea", { ascending: true });
+
+    if (error || !Array.isArray(data) || !data.length) {
+      tareasCache = tareasFallback;
+    } else {
+      const combinadas = [];
+      data.forEach((row) => {
+        const t = strOrNull(row.tarea);
+        const s = strOrNull(row.subtarea);
+        if (t && s) combinadas.push(`${t} - ${s}`);
+        else if (s) combinadas.push(s);
+        else if (t) combinadas.push(t);
+      });
+      tareasCache = combinadas.length ? combinadas : tareasFallback;
+    }
+  } catch (e) {
+    tareasCache = tareasFallback;
   }
 
-  const { data, error } = await supabaseClient
-    .from("tareas")
-    .select("*")
-    .order("tarea", { ascending: true })
-    .order("subtarea", { ascending: true });
-
-  if (error) {
-    console.error("Error cargando tareas:", error);
-    return [];
-  }
-
-  tareasCache = data || [];
-  llenarSelectsTareas(tareasCache);
-  return tareasCache;
+  poblarSelectTareas(tareaSeleccionada);
 }
 
 document.getElementById("btnGuardarNuevaTarea").addEventListener("click", async () => {
-  const inputTarea = document.getElementById("nuevaTareaNombre");
-  const inputSubtarea = document.getElementById("nuevaSubtareaNombre");
-  const btn = document.getElementById("btnGuardarNuevaTarea");
+  const tInp = document.getElementById("nuevaTareaNombre");
+  const sInp = document.getElementById("nuevaSubtareaNombre");
+  const tareaVal = tInp.value.trim();
+  const subtareaVal = sInp.value.trim();
 
-  const tarea = (inputTarea?.value || "").trim();
-  const subtarea = (inputSubtarea?.value || "").trim();
-
-  if (!tarea || !subtarea) {
-    alert("Completá tanto la tarea principal como la subtarea.");
+  if (!tareaVal && !subtareaVal) {
+    tInp.focus();
     return;
   }
 
-  const textoOriginal = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+  const etiqueta = tareaVal && subtareaVal ? `${tareaVal} - ${subtareaVal}` : (subtareaVal || tareaVal);
 
   try {
-    const { error } = await supabaseClient
-      .from("tareas")
-      .insert([{ tarea, subtarea }]);
-
-    if (error) {
-      console.error("Error al guardar nueva tarea:", error);
-      alert("No se pudo guardar la tarea en Supabase: " + error.message);
-      return;
-    }
-
-    await cargarTareasJerarquicas(true);
-
-    const valorSeleccionado = subtarea.toUpperCase();
-    document.querySelectorAll(".tarea-select").forEach((select) => {
-      select.value = valorSeleccionado;
-    });
-
-    if (inputTarea) inputTarea.value = "";
-    if (inputSubtarea) inputSubtarea.value = "";
-
-    const modalEl = document.getElementById("modalNuevaTarea");
-    const modalInstancia = bootstrap.Modal.getInstance(modalEl);
-    if (modalInstancia) modalInstancia.hide();
-  } catch (err) {
-    console.error("Error inesperado al agregar tarea:", err);
-    alert("Ocurrió un error al guardar la tarea.");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = textoOriginal;
+    await supabaseClient.from("tareas").insert([{
+      tarea: tareaVal || subtareaVal,
+      subtarea: subtareaVal || null
+    }]);
+  } catch (e) {
+    console.warn("No se pudo guardar en tabla tareas:", e);
   }
+
+  if (!tareasCache.includes(etiqueta)) {
+    tareasCache.unshift(etiqueta);
+  }
+  poblarSelectTareas(etiqueta);
+
+  tInp.value = "";
+  sInp.value = "";
+  const modalEl = document.getElementById("modalNuevaTarea");
+  const inst = bootstrap.Modal.getInstance(modalEl);
+  if (inst) inst.hide();
 });
 
+document.getElementById("btnGPS").addEventListener("click", () => {
+  const estado = document.getElementById("estadoGPS");
+  if (!navigator.geolocation) {
+    estado.textContent = "Geolocalización no soportada en este dispositivo";
+    return;
+  }
+  estado.textContent = "Obteniendo coordenadas...";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      coordsActuales = {
+        latitud: pos.coords.latitude,
+        longitud: pos.coords.longitude
+      };
+      estado.textContent = `GPS: ${coordsActuales.latitud.toFixed(5)}, ${coordsActuales.longitud.toFixed(5)}`;
+    },
+    (err) => {
+      estado.textContent = "No se pudo obtener GPS: " + err.message;
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+async function comprimirImagen(file, maxDim = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const nuevoNombre = (file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg";
+            resolve(new File([blob], nuevoNombre, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = ev.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPreviewsFotos() {
+  const cont = document.getElementById("previewFotos");
+  const contador = document.getElementById("contadorFotos");
+  contador.textContent = `${fotosSeleccionadas.length} foto(s) nueva(s) seleccionada(s)`;
+
+  cont.innerHTML = fotosSeleccionadas.map((file, idx) => {
+    const url = URL.createObjectURL(file);
+    return `
+      <div class="col-4 col-sm-3">
+        <div class="preview-card">
+          <img src="${url}" class="preview-img" alt="Foto nueva ${idx + 1}">
+          <button type="button" class="btn btn-danger btn-quitar-foto" onclick="quitarFotoNueva(${idx})" title="Quitar">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+window.quitarFotoNueva = function(idx) {
+  fotosSeleccionadas.splice(idx, 1);
+  renderPreviewsFotos();
+};
+
 function renderFotosExistentes() {
-  const seccion = document.getElementById("seccionFotosExistentes");
+  const sec = document.getElementById("seccionFotosExistentes");
   const cont = document.getElementById("previewFotosExistentes");
 
-  if (!editandoParteId || fotosExistentes.length === 0) {
-    seccion.classList.add("d-none");
+  if (!fotosExistentes.length) {
+    sec.classList.add("d-none");
     cont.innerHTML = "";
     return;
   }
 
-  seccion.classList.remove("d-none");
+  sec.classList.remove("d-none");
   cont.innerHTML = fotosExistentes.map((url, idx) => `
-    <div class="col-4 col-md-3">
+    <div class="col-4 col-sm-3">
       <div class="preview-card">
-        <img src="${url}" class="preview-img" alt="Foto guardada ${idx + 1}">
-        <button
-          type="button"
-          class="btn btn-danger btn-quitar-foto"
-          onclick="quitarFotoExistente(${idx})"
-          title="Quitar foto guardada"
-        >
+        <img src="${escapeHTML(url)}" class="preview-img" alt="Foto guardada ${idx + 1}">
+        <button type="button" class="btn btn-danger btn-quitar-foto" onclick="quitarFotoExistente(${idx})" title="Quitar">
           <i class="bi bi-x"></i>
         </button>
       </div>
@@ -979,195 +1076,105 @@ function renderFotosExistentes() {
   `).join("");
 }
 
-window.quitarFotoExistente = function(index) {
-  fotosExistentes.splice(index, 1);
+window.quitarFotoExistente = function(idx) {
+  fotosExistentes.splice(idx, 1);
   renderFotosExistentes();
 };
 
-function renderPreviews() {
-  const contenedor = document.getElementById("previewFotos");
-  const contador = document.getElementById("contadorFotos");
-  contenedor.innerHTML = "";
-
-  contador.textContent = `${fotosSeleccionadas.length} ${fotosSeleccionadas.length === 1 ? "foto nueva seleccionada" : "fotos nuevas seleccionadas"}`;
-
-  fotosSeleccionadas.forEach((file, idx) => {
-    const url = URL.createObjectURL(file);
-    contenedor.innerHTML += `
-      <div class="col-4 col-md-3">
-        <div class="preview-card">
-          <img src="${url}" class="preview-img" alt="Vista previa ${idx + 1}">
-          <button
-            type="button"
-            class="btn btn-danger btn-quitar-foto"
-            onclick="quitarFoto(${idx})"
-            title="Quitar foto"
-          >
-            <i class="bi bi-x"></i>
-          </button>
-        </div>
-      </div>
-    `;
-  });
+async function manejarSeleccionFotos(filesList) {
+  const files = Array.from(filesList || []).filter(f => f && f.type.startsWith("image/"));
+  if (!files.length) return;
+  for (const f of files) {
+    const comprimida = await comprimirImagen(f);
+    fotosSeleccionadas.push(comprimida);
+  }
+  renderPreviewsFotos();
 }
 
-function agregarFotos(archivosNuevos) {
-  const validos = Array.from(archivosNuevos || []).filter(f => f && f.type && f.type.startsWith("image/"));
-  if (validos.length === 0) return;
-  fotosSeleccionadas = [...fotosSeleccionadas, ...validos];
-  renderPreviews();
-}
+document.getElementById("inputCamara").addEventListener("change", async (e) => {
+  await manejarSeleccionFotos(e.target.files);
+  e.target.value = "";
+});
 
-function quitarFoto(index) {
-  fotosSeleccionadas.splice(index, 1);
-  renderPreviews();
-}
+document.getElementById("inputAdjuntar").addEventListener("change", async (e) => {
+  await manejarSeleccionFotos(e.target.files);
+  e.target.value = "";
+});
 
-function limpiarFotos() {
-  fotosSeleccionadas = [];
-  document.getElementById("inputCamara").value = "";
-  document.getElementById("inputAdjuntar").value = "";
-  renderPreviews();
-}
-
-async function comprimirImagen(file, maxAncho = 1600, calidad = 0.82) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const urlTemporal = URL.createObjectURL(file);
-
-    img.onload = () => {
-      URL.revokeObjectURL(urlTemporal);
-
-      let ancho = img.naturalWidth || img.width;
-      let alto = img.naturalHeight || img.height;
-
-      if (ancho > maxAncho) {
-        alto = Math.round((alto * maxAncho) / ancho);
-        ancho = maxAncho;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = ancho;
-      canvas.height = alto;
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, ancho, alto);
-
-      canvas.toBlob(
-        (blob) => {
-          resolve(blob ? new File([blob], file.name || "foto.jpg", { type: "image/jpeg" }) : file);
-        },
-        "image/jpeg",
-        calidad
-      );
-    };
-
-    img.onerror = (err) => {
-      URL.revokeObjectURL(urlTemporal);
-      reject(err);
-    };
-
-    img.src = urlTemporal;
-  });
-}
-
-function subirACloudinary(file) {
-  return new Promise((resolve, reject) => {
-    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
-
-    xhr.open("POST", url);
-    xhr.onload = () => {
-      try {
-        const res = JSON.parse(xhr.responseText);
-        if (res.secure_url) resolve(res.secure_url);
-        else reject(new Error("No se obtuvo URL segura de Cloudinary."));
-      } catch (err) {
-        reject(new Error("Error al procesar respuesta de Cloudinary."));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Error de red al subir imagen a Cloudinary."));
-    xhr.send(formData);
-  });
-}
-
-async function subirFotos(archivos) {
+async function subirFotosACloudinary(archivos) {
   const urls = [];
-  for (let i = 0; i < archivos.length; i++) {
-    const comprimida = await comprimirImagen(archivos[i], 1600, 0.82);
-    const urlSegura = await subirACloudinary(comprimida);
-    urls.push(urlSegura);
+  for (const archivo of archivos) {
+    const fd = new FormData();
+    fd.append("file", archivo);
+    fd.append("upload_preset", UPLOAD_PRESET);
+
+    const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: fd
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Error al subir imagen a Cloudinary (${resp.status})`);
+    }
+    const data = await resp.json();
+    if (data.secure_url) {
+      urls.push(data.secure_url);
+    }
   }
   return urls;
 }
 
-function asegurarOpcionSelect(selectId, valor) {
-  if (!valor) return;
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
-  if (!Array.from(sel.options).some(o => o.value === valor)) {
-    const opt = document.createElement("option");
-    opt.value = valor;
-    opt.textContent = valor;
-    sel.appendChild(opt);
-  }
-  sel.value = valor;
-}
-
-async function cargarParteParaEdicion() {
+async function cargarParteParaEditar() {
   if (!editandoParteId) return;
 
-  let query = supabaseClient
+  const { data, error } = await supabaseClient
     .from("partes_diarios")
     .select("*")
-    .eq("id", editandoParteId);
-
-  if (organizacionUsuario) {
-    query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
-  } else {
-    query = query.eq("user_id", usuarioActual.id);
-  }
-
-  const { data, error } = await query.single();
+    .eq("id", editandoParteId)
+    .single();
 
   if (error || !data) {
-    console.error("No se pudo cargar el parte diario para edición:", error);
-    localStorage.removeItem(STORAGE_KEY_EDITANDO);
+    console.warn("No se encontró el parte a editar:", error);
     editandoParteId = null;
+    localStorage.removeItem(STORAGE_KEY_EDITANDO);
     actualizarUIModoEdicion();
-    mostrarAlerta("warning", "No se encontró el parte diario solicitado para editar.");
     return;
   }
 
-  actualizarUIModoEdicion();
   hojaOrigenExistente = data.hoja_origen || null;
+  document.getElementById("fecha").value = data.fecha || obtenerFechaHoyLocal();
+  document.getElementById("frente").value = data.frente || "Obra";
 
-  if (data.fecha) document.getElementById("fecha").value = data.fecha;
-  if (data.frente) document.getElementById("frente").value = data.frente;
-  if (data.empresa) asegurarOpcionSelect("empresa", data.empresa);
-  if (data.ruta) asegurarOpcionSelect("ruta", data.ruta);
-  if (data.subtramo) document.getElementById("subtramo").value = data.subtramo;
-  document.getElementById("km").value = data.km || "";
-  if (data.sentido) asegurarOpcionSelect("sentido", data.sentido);
-  if (data.estado) asegurarOpcionSelect("estado", data.estado);
-
-  if (data.tarea) {
-    const selTarea = document.getElementById("tarea");
-    const valorTarea = String(data.tarea).toUpperCase();
-    if (!Array.from(selTarea.options).some(o => o.value === valorTarea)) {
+  if (data.empresa) {
+    const empSel = document.getElementById("empresa");
+    if (!Array.from(empSel.options).some(o => o.value === data.empresa)) {
       const opt = document.createElement("option");
-      opt.value = valorTarea;
-      opt.textContent = valorTarea;
-      selTarea.appendChild(opt);
+      opt.value = data.empresa;
+      opt.textContent = data.empresa;
+      empSel.appendChild(opt);
     }
-    selTarea.value = valorTarea;
+    empSel.value = data.empresa;
   }
 
+  if (data.ruta) {
+    const rutaSel = document.getElementById("ruta");
+    if (!Array.from(rutaSel.options).some(o => o.value === data.ruta)) {
+      const opt = document.createElement("option");
+      opt.value = data.ruta;
+      opt.textContent = data.ruta;
+      rutaSel.appendChild(opt);
+    }
+    rutaSel.value = data.ruta;
+  }
+
+  document.getElementById("subtramo").value = data.subtramo || "";
+  document.getElementById("km").value = data.km || "";
+  document.getElementById("sentido").value = data.sentido || "";
+  document.getElementById("estado").value = data.estado || "En ejecución";
+
+  await cargarTareasJerarquicas(data.tarea || "");
   document.getElementById("avance_cantidad").value = format2Dec(data.avance_cantidad);
-  cargarUnidades(data.avance_unidad || "");
+  poblarSelectUnidades(data.avance_unidad || "");
 
   document.getElementById("largo_m").value = format2Dec(data.largo_m);
   document.getElementById("ancho_m").value = format2Dec(data.ancho_m);
@@ -1179,21 +1186,113 @@ async function cargarParteParaEdicion() {
   document.getElementById("observacion1").value = data.observacion1 || "";
   document.getElementById("observacion").value = data.observacion || "";
 
-  if (data.latitud != null && data.longitud != null && !Number.isNaN(Number(data.latitud)) && !Number.isNaN(Number(data.longitud))) {
-    coordsActuales.latitud = Number(data.latitud);
-    coordsActuales.longitud = Number(data.longitud);
-    document.getElementById("estadoGPS").textContent = `${coordsActuales.latitud.toFixed(5)}, ${coordsActuales.longitud.toFixed(5)}`;
+  if (data.latitud != null && data.longitud != null) {
+    coordsActuales = { latitud: data.latitud, longitud: data.longitud };
+    document.getElementById("estadoGPS").textContent =
+      `GPS: ${Number(data.latitud).toFixed(5)}, ${Number(data.longitud).toFixed(5)}`;
   }
 
-  fotosExistentes = Array.isArray(data.imagenes) ? [...data.imagenes.filter(Boolean)] : [];
+  fotosExistentes = Array.isArray(data.imagenes) ? data.imagenes.filter(Boolean) : [];
   renderFotosExistentes();
 }
 
-async function initParteDiario() {
-  document.getElementById("fecha").value = obtenerFechaHoyLocal();
-  cargarUnidades();
-  actualizarUIModoEdicion();
+document.getElementById("formParteDiario").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!usuarioActual) return;
 
+  const btn = document.getElementById("btnGuardar");
+  const textoOrig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando...`;
+
+  try {
+    const nuevasUrls = fotosSeleccionadas.length
+      ? await subirFotosACloudinary(fotosSeleccionadas)
+      : [];
+
+    const payload = {
+      user_id: usuarioActual.id,
+      organizacion_id: organizacionUsuario,
+      fecha: document.getElementById("fecha").value || obtenerFechaHoyLocal(),
+      frente: document.getElementById("frente").value || "Obra",
+      empresa: strOrNull(document.getElementById("empresa").value) || organizacionUsuario,
+      ruta: strOrNull(document.getElementById("ruta").value),
+      subtramo: strOrNull(document.getElementById("subtramo").value),
+      km: strOrNull(document.getElementById("km").value),
+      sentido: strOrNull(document.getElementById("sentido").value),
+      estado: document.getElementById("estado").value || "En ejecución",
+      tarea: document.getElementById("tarea").value,
+      avance_cantidad: numOrNull(document.getElementById("avance_cantidad").value, 2),
+      avance_unidad: strOrNull(document.getElementById("avance_unidad").value),
+      largo_m: numOrNull(document.getElementById("largo_m").value, 2),
+      ancho_m: numOrNull(document.getElementById("ancho_m").value, 2),
+      espesor_m: numOrNull(document.getElementById("espesor_m").value, 2),
+      superficie_m2: numOrNull(document.getElementById("superficie_m2").value, 2),
+      volumen_m3: numOrNull(document.getElementById("volumen_m3").value, 2),
+      cantidad_u: numOrNull(document.getElementById("cantidad_u").value, 2),
+      observacion1: strOrNull(document.getElementById("observacion1").value),
+      observacion: strOrNull(document.getElementById("observacion").value),
+      latitud: coordsActuales.latitud,
+      longitud: coordsActuales.longitud,
+      imagenes: [...fotosExistentes, ...nuevasUrls],
+      updated_at: new Date().toISOString()
+    };
+
+    if (hojaOrigenExistente) {
+      payload.hoja_origen = hojaOrigenExistente;
+    }
+
+    if (editandoParteId) {
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .update(payload)
+        .eq("id", editandoParteId);
+
+      if (error) throw error;
+      localStorage.removeItem(STORAGE_KEY_EDITANDO);
+      mostrarAlerta("success", "Parte diario actualizado correctamente.");
+      setTimeout(() => {
+        window.location.href = "visor-partes.html";
+      }, 600);
+    } else {
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .insert([payload]);
+
+      if (error) throw error;
+
+      fotosSeleccionadas = [];
+      fotosExistentes = [];
+      renderPreviewsFotos();
+      renderFotosExistentes();
+      document.getElementById("avance_cantidad").value = "";
+      document.getElementById("largo_m").value = "";
+      document.getElementById("ancho_m").value = "";
+      document.getElementById("espesor_m").value = "";
+      document.getElementById("superficie_m2").value = "";
+      document.getElementById("volumen_m3").value = "";
+      document.getElementById("cantidad_u").value = "";
+      document.getElementById("observacion1").value = "";
+      document.getElementById("observacion").value = "";
+
+      mostrarAlerta("success", "Parte diario guardado correctamente.");
+    }
+  } catch (err) {
+    console.error("Error guardando parte diario:", err);
+    mostrarAlerta("danger", "Error al guardar: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOrig;
+  }
+});
+
+document.getElementById("btnLogout").addEventListener("click", async () => {
+  localStorage.removeItem(STORAGE_KEY_EDITANDO);
+  await supabaseClient.auth.signOut();
+  window.location.href = "login.html";
+});
+
+async function initParteDiario() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) {
     window.location.href = "login.html";
@@ -1212,163 +1311,26 @@ async function initParteDiario() {
     ? String(empRows[0].nombre).trim()
     : null;
 
-  const badge = document.getElementById("badgeOrg");
+  document.getElementById("badgeOrg").textContent = organizacionUsuario
+    ? `Organización: ${organizacionUsuario}`
+    : "Vista personal";
+
   if (organizacionUsuario) {
-    badge.textContent = organizacionUsuario;
-    if (!editandoParteId) {
-      const selectEmpresa = document.getElementById("empresa");
-      const opcionExiste = Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario);
-      if (opcionExiste) selectEmpresa.value = organizacionUsuario;
+    const empSel = document.getElementById("empresa");
+    if (!empSel.value && Array.from(empSel.options).some(o => o.value === organizacionUsuario)) {
+      empSel.value = organizacionUsuario;
     }
-  } else {
-    badge.textContent = "Sin organización asignada";
   }
 
+  document.getElementById("fecha").value = obtenerFechaHoyLocal();
+  poblarSelectUnidades();
   await cargarTareasJerarquicas();
-  await cargarParteParaEdicion();
+  actualizarUIModoEdicion();
+
+  if (editandoParteId) {
+    await cargarParteParaEditar();
+  }
 }
-
-document.getElementById("btnGPS").addEventListener("click", () => {
-  const estado = document.getElementById("estadoGPS");
-  if (!navigator.geolocation) {
-    estado.textContent = "GPS no soportado";
-    return;
-  }
-  estado.textContent = "Obteniendo GPS...";
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      coordsActuales.latitud = pos.coords.latitude;
-      coordsActuales.longitud = pos.coords.longitude;
-      estado.textContent = `${coordsActuales.latitud.toFixed(5)}, ${coordsActuales.longitud.toFixed(5)}`;
-    },
-    (err) => {
-      estado.textContent = "No se pudo obtener GPS";
-      console.warn("Error GPS:", err);
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
-});
-
-document.getElementById("inputCamara").addEventListener("change", (e) => {
-  agregarFotos(e.target.files);
-  e.target.value = "";
-});
-
-document.getElementById("inputAdjuntar").addEventListener("change", (e) => {
-  agregarFotos(e.target.files);
-  e.target.value = "";
-});
-
-document.getElementById("formParteDiario").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const btn = document.getElementById("btnGuardar");
-  const textoOriginal = btn.innerHTML;
-
-  try {
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${editandoParteId ? "Actualizando..." : "Guardando..."}`;
-
-    let nuevasUrls = [];
-    if (fotosSeleccionadas.length > 0) {
-      nuevasUrls = await subirFotos(fotosSeleccionadas);
-    }
-
-    const imagenesFinales = [...fotosExistentes, ...nuevasUrls];
-
-    const payload = {
-      fecha: document.getElementById("fecha").value,
-      frente: document.getElementById("frente").value,
-      empresa: strOrNull(document.getElementById("empresa").value),
-      ruta: strOrNull(document.getElementById("ruta").value),
-      subtramo: strOrNull(document.getElementById("subtramo").value),
-      km: strOrNull(document.getElementById("km").value),
-      sentido: strOrNull(document.getElementById("sentido").value),
-      tarea: document.getElementById("tarea").value.trim(),
-      avance_cantidad: numOrNull(document.getElementById("avance_cantidad").value, 2),
-      avance_unidad: strOrNull(document.getElementById("avance_unidad").value),
-      largo_m: numOrNull(document.getElementById("largo_m").value, 2),
-      ancho_m: numOrNull(document.getElementById("ancho_m").value, 2),
-      espesor_m: numOrNull(document.getElementById("espesor_m").value, 2),
-      superficie_m2: numOrNull(document.getElementById("superficie_m2").value, 2),
-      volumen_m3: numOrNull(document.getElementById("volumen_m3").value, 2),
-      cantidad_u: numOrNull(document.getElementById("cantidad_u").value, 2),
-      observacion1: strOrNull(document.getElementById("observacion1").value),
-      observacion: strOrNull(document.getElementById("observacion").value),
-      estado: document.getElementById("estado").value,
-      latitud: coordsActuales.latitud,
-      longitud: coordsActuales.longitud,
-      imagenes: imagenesFinales,
-      updated_at: new Date().toISOString()
-    };
-
-    if (hojaOrigenExistente) {
-      payload.hoja_origen = hojaOrigenExistente;
-    }
-
-    let res;
-    if (editandoParteId) {
-      res = await supabaseClient
-        .from("partes_diarios")
-        .update(payload)
-        .eq("id", editandoParteId)
-        .select();
-    } else {
-      payload.user_id = usuarioActual.id;
-      payload.organizacion_id = organizacionUsuario;
-      res = await supabaseClient
-        .from("partes_diarios")
-        .insert([payload])
-        .select();
-    }
-
-    if (res.error) {
-      console.error("Error guardando parte diario:", res.error);
-      mostrarAlerta("danger", "Error al guardar en Supabase: " + res.error.message);
-      return;
-    }
-
-    if (editandoParteId) {
-      localStorage.removeItem(STORAGE_KEY_EDITANDO);
-      editandoParteId = null;
-      hojaOrigenExistente = null;
-      actualizarUIModoEdicion();
-      mostrarAlerta("success", "Parte diario actualizado correctamente.");
-    } else {
-      document.getElementById("formParteDiario").reset();
-      document.getElementById("fecha").value = obtenerFechaHoyLocal();
-      document.getElementById("frente").value = "Obra";
-      document.getElementById("ruta").value = "RN N° 16";
-      document.getElementById("subtramo").value = "CHACO";
-      document.getElementById("sentido").value = "ASCENDENTE";
-      document.getElementById("estado").value = "En ejecución";
-      if (organizacionUsuario) {
-        const selectEmpresa = document.getElementById("empresa");
-        if (Array.from(selectEmpresa.options).some(o => o.value === organizacionUsuario)) {
-          selectEmpresa.value = organizacionUsuario;
-        }
-      }
-      coordsActuales = { latitud: null, longitud: null };
-      document.getElementById("estadoGPS").textContent = "Sin coordenadas";
-      fotosExistentes = [];
-      renderFotosExistentes();
-      limpiarFotos();
-      cargarUnidades();
-      mostrarAlerta("success", "Parte diario guardado correctamente.");
-    }
-  } catch (err) {
-    console.error("Error inesperado al enviar parte diario:", err);
-    mostrarAlerta("danger", "Ocurrió un error al procesar el parte diario.");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = textoOriginal;
-  }
-});
-
-document.getElementById("btnLogout").addEventListener("click", async () => {
-  localStorage.removeItem(STORAGE_KEY_EDITANDO);
-  await supabaseClient.auth.signOut();
-  window.location.href = "login.html";
-});
 
 initParteDiario();
 </script>
