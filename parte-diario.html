@@ -234,7 +234,7 @@
 
           <div class="col-md-3">
             <label for="avance_cantidad" class="form-label small fw-semibold">Cantidad / Avance</label>
-            <input type="number" step="0.0001" id="avance_cantidad" class="form-control form-control-sm" placeholder="0.00">
+            <input type="number" step="0.01" id="avance_cantidad" class="form-control form-control-sm" placeholder="0.00">
           </div>
 
           <div class="col-md-3">
@@ -257,7 +257,7 @@
 
         <div class="dim-box mb-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="small fw-semibold text-secondary">Largo, ancho, espesor, superficie, volumen y unidades</span>
+            <span class="small fw-semibold text-secondary">Largo, ancho, espesor, superficie, volumen y unidades (2 decimales)</span>
             <div class="form-check form-switch mb-0">
               <input class="form-check-input" type="checkbox" id="autoCalcular" checked>
               <label class="form-check-label small" for="autoCalcular">Autocalcular m² y m³</label>
@@ -267,32 +267,32 @@
           <div class="row g-2">
             <div class="col-6 col-md-2">
               <label for="largo_m" class="form-label small fw-semibold mb-1">Largo (m)</label>
-              <input type="number" step="0.0001" id="largo_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+              <input type="number" step="0.01" id="largo_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
             </div>
 
             <div class="col-6 col-md-2">
               <label for="ancho_m" class="form-label small fw-semibold mb-1">Ancho (m)</label>
-              <input type="number" step="0.0001" id="ancho_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+              <input type="number" step="0.01" id="ancho_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
             </div>
 
             <div class="col-6 col-md-2">
               <label for="espesor_m" class="form-label small fw-semibold mb-1">Espesor (m)</label>
-              <input type="number" step="0.0001" id="espesor_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
+              <input type="number" step="0.01" id="espesor_m" class="form-control form-control-sm dim-calc" placeholder="0.00">
             </div>
 
             <div class="col-6 col-md-2">
               <label for="superficie_m2" class="form-label small fw-semibold mb-1">Superficie (m²)</label>
-              <input type="number" step="0.0001" id="superficie_m2" class="form-control form-control-sm dim-calc" placeholder="0.00">
+              <input type="number" step="0.01" id="superficie_m2" class="form-control form-control-sm dim-calc" placeholder="0.00">
             </div>
 
             <div class="col-6 col-md-2">
               <label for="volumen_m3" class="form-label small fw-semibold mb-1">Volumen (m³)</label>
-              <input type="number" step="0.0001" id="volumen_m3" class="form-control form-control-sm" placeholder="0.00">
+              <input type="number" step="0.01" id="volumen_m3" class="form-control form-control-sm" placeholder="0.00">
             </div>
 
             <div class="col-6 col-md-2">
               <label for="cantidad_u" class="form-label small fw-semibold mb-1">Cantidad (u)</label>
-              <input type="number" step="0.01" id="cantidad_u" class="form-control form-control-sm" placeholder="0">
+              <input type="number" step="0.01" id="cantidad_u" class="form-control form-control-sm" placeholder="0.00">
             </div>
           </div>
         </div>
@@ -456,18 +456,30 @@ function mostrarAlertaImportacion(tipo, mensaje) {
   el.classList.remove("d-none");
 }
 
-function numOrNull(val) {
+function numOrNull(val, decimals = 2) {
   if (val === "" || val === null || val === undefined) return null;
-  if (typeof val === "number") return Number.isFinite(val) ? val : null;
-  let s = String(val).trim().replace(/\s+/g, "");
-  if (!s) return null;
-  if (s.includes(",") && !s.includes(".")) {
-    s = s.replace(",", ".");
-  } else if (s.includes(",") && s.includes(".")) {
-    s = s.replace(/\./g, "").replace(",", ".");
+  let n;
+  if (typeof val === "number") {
+    n = val;
+  } else {
+    let s = String(val).trim().replace(/\s+/g, "");
+    if (!s) return null;
+    if (s.includes(",") && !s.includes(".")) {
+      s = s.replace(",", ".");
+    } else if (s.includes(",") && s.includes(".")) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    }
+    n = Number(s);
   }
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  const factor = Math.pow(10, decimals);
+  return Math.round(n * factor) / factor;
+}
+
+function format2Dec(val) {
+  const n = numOrNull(val, 2);
+  if (n === null) return "";
+  return n.toFixed(2);
 }
 
 function strOrNull(val) {
@@ -495,11 +507,26 @@ function normalizarFechaImport(val) {
   return obtenerFechaHoyLocal();
 }
 
+function construirClaveRegistro(reg) {
+  return [
+    normalizarFechaImport(reg.fecha),
+    (reg.empresa || "").toString().trim().toUpperCase(),
+    (reg.frente || "Obra").toString().trim().toUpperCase(),
+    (reg.ruta || "").toString().trim().toUpperCase(),
+    (reg.subtramo || "").toString().trim().toUpperCase(),
+    (reg.km || "").toString().trim().toUpperCase(),
+    (reg.sentido || "").toString().trim().toUpperCase(),
+    (reg.tarea || "").toString().trim().toUpperCase(),
+    (reg.observacion1 || "").toString().trim().toUpperCase(),
+    (reg.hoja_origen || "").toString().trim().toUpperCase()
+  ].join("|");
+}
+
 function mapearFilaMaestroASupabase(row) {
   const tarea = strOrNull(row.tarea);
   if (!tarea) return null;
 
-  return {
+  const reg = {
     user_id: usuarioActual.id,
     organizacion_id: organizacionUsuario,
     fecha: normalizarFechaImport(row.fecha),
@@ -510,19 +537,37 @@ function mapearFilaMaestroASupabase(row) {
     km: strOrNull(row.km),
     sentido: strOrNull(row.sentido),
     tarea,
-    cantidad_u: numOrNull(row.cantidad_u),
-    largo_m: numOrNull(row.largo_m),
-    ancho_m: numOrNull(row.ancho_m),
-    espesor_m: numOrNull(row.espesor_m),
-    superficie_m2: numOrNull(row.superficie_m2),
-    volumen_m3: numOrNull(row.volumen_m3),
-    avance_cantidad: numOrNull(row.avance_cantidad),
+    cantidad_u: numOrNull(row.cantidad_u, 2),
+    largo_m: numOrNull(row.largo_m, 2),
+    ancho_m: numOrNull(row.ancho_m, 2),
+    espesor_m: numOrNull(row.espesor_m, 2),
+    superficie_m2: numOrNull(row.superficie_m2, 2),
+    volumen_m3: numOrNull(row.volumen_m3, 2),
+    avance_cantidad: numOrNull(row.avance_cantidad, 2),
     avance_unidad: strOrNull(row.avance_unidad),
     observacion1: strOrNull(row.observacion1),
     hoja_origen: strOrNull(row.hoja_origen),
-    estado: "Finalizada",
+    estado: strOrNull(row.estado) || "Finalizada",
     imagenes: []
   };
+
+  return reg;
+}
+
+async function obtenerPartesExistentesParaSync() {
+  let query = supabaseClient
+    .from("partes_diarios")
+    .select("id, fecha, empresa, frente, ruta, subtramo, km, sentido, tarea, observacion1, hoja_origen, imagenes, estado");
+
+  if (organizacionUsuario) {
+    query = query.or(`organizacion_id.eq.${organizacionUsuario},user_id.eq.${usuarioActual.id}`);
+  } else {
+    query = query.eq("user_id", usuarioActual.id);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data : [];
 }
 
 async function procesarArchivoMaestro(file) {
@@ -538,7 +583,7 @@ async function procesarArchivoMaestro(file) {
   btnImp.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
 
   try {
-    mostrarAlertaImportacion("info", `Leyendo "${file.name}"...`);
+    mostrarAlertaImportacion("info", `Leyendo "${file.name}" y consultando registros existentes...`);
     const buffer = await file.arrayBuffer();
     const libro = XLSX.read(buffer, { type: "array" });
     const primeraHoja = libro.SheetNames[0];
@@ -553,37 +598,103 @@ async function procesarArchivoMaestro(file) {
       return;
     }
 
+    const existentes = await obtenerPartesExistentesParaSync();
+    const mapaExistentes = new Map();
+    existentes.forEach((row) => {
+      const clave = construirClaveRegistro(row);
+      if (!mapaExistentes.has(clave)) {
+        mapaExistentes.set(clave, row);
+      }
+    });
+
+    const paraInsertar = [];
+    const paraActualizar = [];
+    const clavesVistasEnArchivo = new Set();
+
+    registros.forEach((reg) => {
+      const clave = construirClaveRegistro(reg);
+      if (clavesVistasEnArchivo.has(clave)) {
+        // Si el mismo archivo trae dos filas idénticas en su clave, actualiza la última en vez de duplicar
+        const idxPrev = paraActualizar.findIndex(item => construirClaveRegistro(item.payload) === clave);
+        if (idxPrev >= 0) {
+          paraActualizar[idxPrev].payload = {
+            ...reg,
+            imagenes: paraActualizar[idxPrev].payload.imagenes,
+            estado: paraActualizar[idxPrev].payload.estado
+          };
+          return;
+        }
+        const idxIns = paraInsertar.findIndex(item => construirClaveRegistro(item) === clave);
+        if (idxIns >= 0) {
+          paraInsertar[idxIns] = reg;
+          return;
+        }
+      }
+      clavesVistasEnArchivo.add(clave);
+
+      const previo = mapaExistentes.get(clave);
+      if (previo) {
+        const fotosPrevias = Array.isArray(previo.imagenes) ? previo.imagenes.filter(Boolean) : [];
+        paraActualizar.push({
+          id: previo.id,
+          payload: {
+            ...reg,
+            imagenes: fotosPrevias,
+            estado: previo.estado || reg.estado,
+            updated_at: new Date().toISOString()
+          }
+        });
+      } else {
+        paraInsertar.push(reg);
+      }
+    });
+
     const tamanoLote = 50;
     let insertados = 0;
+    let actualizados = 0;
 
-    for (let i = 0; i < registros.length; i += tamanoLote) {
-      const lote = registros.slice(i, i + tamanoLote);
+    for (let i = 0; i < paraInsertar.length; i += tamanoLote) {
+      const lote = paraInsertar.slice(i, i + tamanoLote);
       mostrarAlertaImportacion(
         "info",
-        `Importando registros ${Math.min(i + lote.length, registros.length)} de ${registros.length} en partes_diarios...`
+        `Insertando nuevos: ${Math.min(i + lote.length, paraInsertar.length)} de ${paraInsertar.length}...`
       );
       const { error } = await supabaseClient
         .from("partes_diarios")
         .insert(lote);
 
       if (error) {
-        console.error("Error al importar lote:", error);
-        mostrarAlertaImportacion(
-          "danger",
-          `Error en lote (${insertados} insertados antes del fallo): ${error.message}`
-        );
-        return;
+        throw new Error(`Error al insertar lote (${insertados} insertados): ${error.message}`);
       }
       insertados += lote.length;
     }
 
+    for (let i = 0; i < paraActualizar.length; i++) {
+      const item = paraActualizar[i];
+      if (i % 10 === 0 || i === paraActualizar.length - 1) {
+        mostrarAlertaImportacion(
+          "info",
+          `Actualizando existentes: ${i + 1} de ${paraActualizar.length}...`
+        );
+      }
+      const { error } = await supabaseClient
+        .from("partes_diarios")
+        .update(item.payload)
+        .eq("id", item.id);
+
+      if (error) {
+        throw new Error(`Error al actualizar registro (${actualizados} actualizados): ${error.message}`);
+      }
+      actualizados++;
+    }
+
     mostrarAlertaImportacion(
       "success",
-      `Importación completada: se cargaron ${insertados} registros desde "${file.name}" a partes_diarios.`
+      `Sincronización completada desde "${file.name}": ${insertados} nuevos insertados y ${actualizados} existentes actualizados (sin duplicados).`
     );
   } catch (err) {
     console.error("Error procesando maestro:", err);
-    mostrarAlertaImportacion("danger", "No se pudo leer o importar el archivo: " + err.message);
+    mostrarAlertaImportacion("danger", "No se pudo sincronizar el archivo: " + err.message);
   } finally {
     btnImp.disabled = false;
     btnImp.innerHTML = textoOrig;
@@ -610,19 +721,19 @@ function recalcularDimensiones() {
   const supEl = document.getElementById("superficie_m2");
   const volEl = document.getElementById("volumen_m3");
 
-  const largo = numOrNull(largoEl.value);
-  const ancho = numOrNull(anchoEl.value);
-  const espesor = numOrNull(espesorEl.value);
-  let sup = numOrNull(supEl.value);
+  const largo = numOrNull(largoEl.value, 2);
+  const ancho = numOrNull(anchoEl.value, 2);
+  const espesor = numOrNull(espesorEl.value, 2);
+  let sup = numOrNull(supEl.value, 2);
 
   if (largo !== null && ancho !== null && document.activeElement !== supEl) {
-    sup = Number((largo * ancho).toFixed(4));
-    supEl.value = sup;
+    sup = Number((largo * ancho).toFixed(2));
+    supEl.value = sup.toFixed(2);
   }
 
   if (sup !== null && espesor !== null && document.activeElement !== volEl) {
-    const vol = Number((sup * espesor).toFixed(4));
-    volEl.value = vol;
+    const vol = Number((sup * espesor).toFixed(2));
+    volEl.value = vol.toFixed(2);
   }
 }
 
@@ -1039,15 +1150,15 @@ async function cargarParteParaEdicion() {
     selTarea.value = valorTarea;
   }
 
-  document.getElementById("avance_cantidad").value = data.avance_cantidad != null ? data.avance_cantidad : "";
+  document.getElementById("avance_cantidad").value = format2Dec(data.avance_cantidad);
   cargarUnidades(data.avance_unidad || "");
 
-  document.getElementById("largo_m").value = data.largo_m != null ? data.largo_m : "";
-  document.getElementById("ancho_m").value = data.ancho_m != null ? data.ancho_m : "";
-  document.getElementById("espesor_m").value = data.espesor_m != null ? data.espesor_m : "";
-  document.getElementById("superficie_m2").value = data.superficie_m2 != null ? data.superficie_m2 : "";
-  document.getElementById("volumen_m3").value = data.volumen_m3 != null ? data.volumen_m3 : "";
-  document.getElementById("cantidad_u").value = data.cantidad_u != null ? data.cantidad_u : "";
+  document.getElementById("largo_m").value = format2Dec(data.largo_m);
+  document.getElementById("ancho_m").value = format2Dec(data.ancho_m);
+  document.getElementById("espesor_m").value = format2Dec(data.espesor_m);
+  document.getElementById("superficie_m2").value = format2Dec(data.superficie_m2);
+  document.getElementById("volumen_m3").value = format2Dec(data.volumen_m3);
+  document.getElementById("cantidad_u").value = format2Dec(data.cantidad_u);
 
   document.getElementById("observacion1").value = data.observacion1 || "";
   document.getElementById("observacion").value = data.observacion || "";
@@ -1157,14 +1268,14 @@ document.getElementById("formParteDiario").addEventListener("submit", async (e) 
       km: strOrNull(document.getElementById("km").value),
       sentido: strOrNull(document.getElementById("sentido").value),
       tarea: document.getElementById("tarea").value.trim(),
-      avance_cantidad: numOrNull(document.getElementById("avance_cantidad").value),
+      avance_cantidad: numOrNull(document.getElementById("avance_cantidad").value, 2),
       avance_unidad: strOrNull(document.getElementById("avance_unidad").value),
-      largo_m: numOrNull(document.getElementById("largo_m").value),
-      ancho_m: numOrNull(document.getElementById("ancho_m").value),
-      espesor_m: numOrNull(document.getElementById("espesor_m").value),
-      superficie_m2: numOrNull(document.getElementById("superficie_m2").value),
-      volumen_m3: numOrNull(document.getElementById("volumen_m3").value),
-      cantidad_u: numOrNull(document.getElementById("cantidad_u").value),
+      largo_m: numOrNull(document.getElementById("largo_m").value, 2),
+      ancho_m: numOrNull(document.getElementById("ancho_m").value, 2),
+      espesor_m: numOrNull(document.getElementById("espesor_m").value, 2),
+      superficie_m2: numOrNull(document.getElementById("superficie_m2").value, 2),
+      volumen_m3: numOrNull(document.getElementById("volumen_m3").value, 2),
+      cantidad_u: numOrNull(document.getElementById("cantidad_u").value, 2),
       observacion1: strOrNull(document.getElementById("observacion1").value),
       observacion: strOrNull(document.getElementById("observacion").value),
       estado: document.getElementById("estado").value,
