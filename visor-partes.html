@@ -272,7 +272,7 @@
         <div class="col-6 col-md-2">
           <label for="filtroSubtramo" class="form-label small fw-semibold mb-1">Subtramo</label>
           <select id="filtroSubtramo" class="form-select form-select-sm">
-            <option value="">Todos</option>
+            <option value="">Todas</option>
           </select>
         </div>
 
@@ -418,8 +418,8 @@ const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v2";
 
 const KPIS_PUNTUALES_DEFAULT = [
   {
-    titulo: "Bacheo mezcla bituminosa",
-    tareaContiene: "Mezcla Bituminosa",
+    titulo: "Bacheo con mezcla bituminosa",
+    tareaContiene: "BACHEO SUPERFICIAL Y/O PROFUNDO CON MEZCLA BITUMINOSA EN CALIENTE",
     empresa: "",
     frente: "",
     campo: "volumen_m3",
@@ -434,37 +434,37 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
-    desglose: "H30, H21, RDC 180",
+    desglose: "H30, H21, RDC 180, H8",
     color: "#198754"
   },
   {
     titulo: "Bacheo profundo con E° G°",
-    tareaContiene: "estabilizado",
+    tareaContiene: "Bacheo Profundo",
     empresa: "",
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
-    desglose: "",
+    desglose: "RN 16, RN 12",
     color: "#fd7e14"
   },
   {
-    titulo: "Sellado fisuras y juntas",
+    titulo: "Sellado tipo puente en grietas y fisuras",
     tareaContiene: "Sellado",
     empresa: "",
     frente: "",
     campo: "avance_cantidad",
     unidad: "ML",
-    desglose: "",
+    desglose: "RN 16, RN 12",
     color: "#0dcaf0"
   },
   {
     titulo: "Calce de banquina",
-    tareaContiene: "banquina",
+    tareaContiene: "Calce",
     empresa: "",
     frente: "",
     campo: "avance_cantidad",
     unidad: "Hm",
-    desglose: "",
+    desglose: "RN 16, RN 12",
     color: "#6f42c1"
   },
   {
@@ -474,7 +474,7 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "superficie_m2",
     unidad: "m²",
-    desglose: "",
+    desglose: "RN 16, RN 12",
     color: "#dc3545"
   }
 ];
