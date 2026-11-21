@@ -424,7 +424,7 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
-    desglose: "Bacheo Superficial - Bacheo Provisorio de Emergencia, Bacheo Profundo, Bacheo Provisorio de Emergencia",
+    desglose: "Bacheo Superficial - Bacheo Profundo - Bacheo Provisorio de Emergencia, Bacheo Profundo, Bacheo Provisorio de Emergencia",
     color: "#0d6efd"
   },
   {
@@ -780,17 +780,21 @@ function renderKPIsPuntuales(lista) {
     let bloqueInferiorHTML = "";
     if (terminosDesglose.length > 0) {
       const itemsHTML = terminosDesglose.map((expr) => {
-        // Soporta resta del tipo "Bacheo Superficial - Bacheo Provisorio de Emergencia"
+        // Soporta una o más restas encadenadas: "A - B" o "A - B - C"
         const partesResta = expr.split(" - ").map(s => s.trim()).filter(Boolean);
 
         let etiqueta = expr;
         let subTotal = 0;
 
-        if (partesResta.length === 2) {
-          const minuendo = sumarPorTermino(coinciden, partesResta[0], cfg.campo);
-          const sustraendo = sumarPorTermino(coinciden, partesResta[1], cfg.campo);
-          subTotal = minuendo - sustraendo;
-          etiqueta = `${partesResta[0]} (s/ ${partesResta[1]})`;
+        if (partesResta.length >= 2) {
+          const base = sumarPorTermino(coinciden, partesResta[0], cfg.campo);
+          const restas = partesResta.slice(1);
+          const sumaRestas = restas.reduce(
+            (acc, r) => acc + sumarPorTermino(coinciden, r, cfg.campo),
+            0
+          );
+          subTotal = base - sumaRestas;
+          etiqueta = `${partesResta[0]} (s/ ${restas.join(" y ")})`;
         } else {
           subTotal = sumarPorTermino(coinciden, expr, cfg.campo);
         }
@@ -873,7 +877,7 @@ function abrirEditorConfigKPIs() {
             </div>
             <div class="mb-2">
               <label class="form-label small mb-1">Desglose interno (separado por comas)</label>
-              <input type="text" class="form-control form-control-sm cfg-desglose" data-idx="${idx}" value="${escapeHTML(cfg.desglose || "")}" placeholder="Ej: A - B, C">
+              <input type="text" class="form-control form-control-sm cfg-desglose" data-idx="${idx}" value="${escapeHTML(cfg.desglose || "")}" placeholder="Ej: A - B - C, D">
             </div>
             <div class="row g-2">
               <div class="col-6">
