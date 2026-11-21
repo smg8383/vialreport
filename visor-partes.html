@@ -172,9 +172,9 @@
     </div>
   </div>
 
-  <!-- KPIs -->
+  <!-- Estado general de partes filtrados -->
   <div class="row g-3 mb-3">
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4">
       <div class="card kpi-card h-100">
         <div class="card-body py-3">
           <div class="text-muted small fw-semibold">Partes filtrados</div>
@@ -183,7 +183,7 @@
       </div>
     </div>
 
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4">
       <div class="card kpi-card h-100" style="border-left-color: #198754;">
         <div class="card-body py-3">
           <div class="text-muted small fw-semibold">Finalizados</div>
@@ -192,7 +192,7 @@
       </div>
     </div>
 
-    <div class="col-6 col-md-3">
+    <div class="col-12 col-md-4">
       <div class="card kpi-card h-100" style="border-left-color: #ffc107;">
         <div class="card-body py-3">
           <div class="text-muted small fw-semibold">En ejecución / Parc.</div>
@@ -200,25 +200,34 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="col-6 col-md-3">
-      <div class="card kpi-card h-100" style="border-left-color: #0dcaf0;">
-        <div class="card-body py-3">
-          <div class="text-muted small fw-semibold">Avance por unidad</div>
-          <div id="kpiAvances" class="small fw-semibold text-dark mt-1">—</div>
-        </div>
-      </div>
+  <!-- Encabezado y controles de KPIs puntuales configurables -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <span class="small fw-bold text-secondary text-uppercase">
+      <i class="bi bi-speedometer2 text-primary me-1"></i> KPIs puntuales configurables
+    </span>
+    <div class="d-flex gap-2">
+      <button type="button" id="btnRestaurarKPIs" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        Restaurar
+      </button>
+      <button type="button" id="btnConfigKPIs" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalConfigKPIs">
+        <i class="bi bi-sliders"></i> Configurar KPIs
+      </button>
     </div>
   </div>
 
-  <!-- Resumen de cómputos geométricos acumulados -->
+  <!-- 4 Tarjetas KPI configurables -->
+  <div id="gridKPIsPuntuales" class="row g-3 mb-3"></div>
+
+  <!-- Contexto puntual de la selección filtrada -->
   <div class="card mb-3">
     <div class="card-body py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small">
       <span class="fw-semibold text-secondary">
-        <i class="bi bi-rulers text-primary me-1"></i> Cómputos acumulados (filtrados):
+        <i class="bi bi-funnel text-primary me-1"></i> Alcance de la selección:
       </span>
-      <span id="kpiDimensiones" class="fw-bold text-dark">
-        Superficie: 0.00 m² · Volumen: 0.00 m³ · Unidades: 0.00 u
+      <span id="kpiContextoSeleccion" class="fw-semibold text-dark">
+        0 empresas · 0 tareas · 0 frentes activos
       </span>
     </div>
   </div>
@@ -358,6 +367,27 @@
   </div>
 </div>
 
+<!-- Modal Configurar KPIs Puntuales -->
+<div class="modal fade" id="modalConfigKPIs" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow rounded-4">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold fs-6">
+          <i class="bi bi-sliders text-primary me-1"></i> Configurar Tarjetas KPI
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div id="cuerpoModalConfigKPIs" class="modal-body"></div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnGuardarConfigKPIs" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold">
+          <i class="bi bi-check-lg"></i> Guardar KPIs
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Detalle -->
 <div class="modal fade" id="modalDetalleParte" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -384,6 +414,46 @@ const supabaseClient = supabase.createClient(
 );
 
 const STORAGE_KEY_EDITANDO = "editandoParteDiario";
+const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v1";
+
+const KPIS_PUNTUALES_DEFAULT = [
+  {
+    titulo: "Bacheo mezcla bituminosa",
+    tareaContiene: "Mezcla Bituminosa",
+    empresa: "",
+    frente: "",
+    campo: "volumen_m3",
+    unidad: "m³",
+    color: "#0d6efd"
+  },
+  {
+    titulo: "Bacheo hormigón rígido",
+    tareaContiene: "hormigón",
+    empresa: "",
+    frente: "",
+    campo: "volumen_m3",
+    unidad: "m³",
+    color: "#198754"
+  },
+  {
+    titulo: "Estabilizado granular",
+    tareaContiene: "estabilizado",
+    empresa: "",
+    frente: "",
+    campo: "volumen_m3",
+    unidad: "m³",
+    color: "#fd7e14"
+  },
+  {
+    titulo: "Sellado fisuras y juntas",
+    tareaContiene: "Sellado",
+    empresa: "",
+    frente: "",
+    campo: "avance_cantidad",
+    unidad: "ML",
+    color: "#0dcaf0"
+  }
+];
 
 let usuarioActual = null;
 let organizacionUsuario = null;
@@ -429,6 +499,12 @@ function fmtTotal2(val) {
   const n = numRealOrNull(val);
   if (n === null) return "0.00";
   return n.toFixed(2);
+}
+
+function fmtAR2(val) {
+  const n = numRealOrNull(val);
+  if (n === null) return "0,00";
+  return n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function badgeEstado(estado) {
@@ -606,6 +682,164 @@ function renderResumenTareasPorEmpresa(lista) {
   `;
 }
 
+function obtenerConfigKPIs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_KPIS);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length === 4) {
+      return parsed.map((item, idx) => ({
+        ...KPIS_PUNTUALES_DEFAULT[idx],
+        ...item
+      }));
+    }
+  } catch (e) {}
+  return KPIS_PUNTUALES_DEFAULT.map(x => ({ ...x }));
+}
+
+function guardarConfigKPIs(lista) {
+  localStorage.setItem(STORAGE_KEY_KPIS, JSON.stringify(lista));
+}
+
+function renderKPIsPuntuales(lista) {
+  const cont = document.getElementById("gridKPIsPuntuales");
+  if (!cont) return;
+  const configs = obtenerConfigKPIs();
+
+  cont.innerHTML = configs.map((cfg) => {
+    const coinciden = lista.filter((p) => {
+      const tareaOk = !cfg.tareaContiene ||
+        String(p.tarea || "").toLowerCase().includes(String(cfg.tareaContiene).toLowerCase());
+      const empresaOk = !cfg.empresa ||
+        String(p.empresa || "").trim().toLowerCase() === String(cfg.empresa).trim().toLowerCase();
+      const frenteOk = !cfg.frente ||
+        normalizarFrente(p.frente) === cfg.frente;
+      return tareaOk && empresaOk && frenteOk;
+    });
+
+    const total = coinciden.reduce((acc, p) => {
+      const v = numRealOrNull(p[cfg.campo]);
+      return acc + (v !== null ? v : 0);
+    }, 0);
+
+    const detalleFiltro = [
+      cfg.frente || null,
+      cfg.empresa || null,
+      cfg.tareaContiene ? `"${cfg.tareaContiene}"` : "Todo"
+    ].filter(Boolean).join(" · ");
+
+    return `
+      <div class="col-6 col-md-3">
+        <div class="card kpi-card h-100" style="border-left-color: ${escapeHTML(cfg.color || "#0d6efd")};">
+          <div class="card-body py-3">
+            <div class="text-muted small fw-semibold text-truncate" title="${escapeHTML(cfg.titulo)}">
+              ${escapeHTML(cfg.titulo)}
+            </div>
+            <div class="fs-4 fw-bold text-dark mt-1">
+              ${fmtAR2(total)} <span class="fs-6 fw-semibold text-secondary">${escapeHTML(cfg.unidad || "")}</span>
+            </div>
+            <div class="text-muted mt-1 text-truncate" style="font-size: 11px;" title="${escapeHTML(detalleFiltro)}">
+              ${escapeHTML(detalleFiltro)} (${coinciden.length})
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function abrirEditorConfigKPIs() {
+  const cont = document.getElementById("cuerpoModalConfigKPIs");
+  const configs = obtenerConfigKPIs();
+
+  const empresasUnicas = Array.from(new Set(
+    todosLosPartes.map(p => (p.empresa || "").trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+
+  const tareasUnicas = Array.from(new Set(
+    todosLosPartes.map(p => (p.tarea || "").trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+
+  cont.innerHTML = `
+    <datalist id="listaTareasConfigKPI">
+      ${tareasUnicas.map(t => `<option value="${escapeHTML(t)}">`).join("")}
+    </datalist>
+    <div class="row g-3">
+      ${configs.map((cfg, idx) => `
+        <div class="col-12 col-md-6">
+          <div class="border rounded-3 p-3 bg-light h-100">
+            <div class="fw-bold small text-primary mb-2">KPI ${idx + 1}</div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Título</label>
+              <input type="text" class="form-control form-control-sm cfg-titulo" data-idx="${idx}" value="${escapeHTML(cfg.titulo)}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Tarea o palabra clave</label>
+              <input type="text" list="listaTareasConfigKPI" class="form-control form-control-sm cfg-tarea" data-idx="${idx}" value="${escapeHTML(cfg.tareaContiene || "")}" placeholder="Vacío = todas las tareas">
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small mb-1">Campo numérico</label>
+                <select class="form-select form-select-sm cfg-campo" data-idx="${idx}">
+                  <option value="volumen_m3" ${cfg.campo === "volumen_m3" ? "selected" : ""}>Volumen (volumen_m3)</option>
+                  <option value="superficie_m2" ${cfg.campo === "superficie_m2" ? "selected" : ""}>Superficie (superficie_m2)</option>
+                  <option value="avance_cantidad" ${cfg.campo === "avance_cantidad" ? "selected" : ""}>Avance (avance_cantidad)</option>
+                  <option value="cantidad_u" ${cfg.campo === "cantidad_u" ? "selected" : ""}>Cantidad (cantidad_u)</option>
+                  <option value="largo_m" ${cfg.campo === "largo_m" ? "selected" : ""}>Largo (largo_m)</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Unidad visible</label>
+                <input type="text" class="form-control form-control-sm cfg-unidad" data-idx="${idx}" value="${escapeHTML(cfg.unidad || "")}" placeholder="m³, m², ML...">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Frente fijo</label>
+                <select class="form-select form-select-sm cfg-frente" data-idx="${idx}">
+                  <option value="" ${!cfg.frente ? "selected" : ""}>Filtro global</option>
+                  <option value="Obra" ${cfg.frente === "Obra" ? "selected" : ""}>Obra</option>
+                  <option value="Peaje" ${cfg.frente === "Peaje" ? "selected" : ""}>Peaje</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Empresa fija</label>
+                <select class="form-select form-select-sm cfg-empresa" data-idx="${idx}">
+                  <option value="">Filtro global</option>
+                  ${empresasUnicas.map(emp => `
+                    <option value="${escapeHTML(emp)}" ${cfg.empresa === emp ? "selected" : ""}>${escapeHTML(emp)}</option>
+                  `).join("")}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+document.getElementById("modalConfigKPIs").addEventListener("show.bs.modal", abrirEditorConfigKPIs);
+
+document.getElementById("btnGuardarConfigKPIs").addEventListener("click", () => {
+  const actual = obtenerConfigKPIs();
+  const nueva = actual.map((item, idx) => ({
+    ...item,
+    titulo: document.querySelector(`.cfg-titulo[data-idx="${idx}"]`).value.trim() || `KPI ${idx + 1}`,
+    tareaContiene: document.querySelector(`.cfg-tarea[data-idx="${idx}"]`).value.trim(),
+    campo: document.querySelector(`.cfg-campo[data-idx="${idx}"]`).value,
+    unidad: document.querySelector(`.cfg-unidad[data-idx="${idx}"]`).value.trim(),
+    frente: document.querySelector(`.cfg-frente[data-idx="${idx}"]`).value,
+    empresa: document.querySelector(`.cfg-empresa[data-idx="${idx}"]`).value
+  }));
+  guardarConfigKPIs(nueva);
+  renderKPIsPuntuales(partesFiltrados);
+  const inst = bootstrap.Modal.getInstance(document.getElementById("modalConfigKPIs"));
+  if (inst) inst.hide();
+});
+
+document.getElementById("btnRestaurarKPIs").addEventListener("click", () => {
+  guardarConfigKPIs(KPIS_PUNTUALES_DEFAULT);
+  renderKPIsPuntuales(partesFiltrados);
+});
+
 function actualizarKPIs(lista) {
   document.getElementById("kpiTotal").textContent = lista.length;
 
@@ -615,37 +849,12 @@ function actualizarKPIs(lista) {
   document.getElementById("kpiFinalizados").textContent = finalizados;
   document.getElementById("kpiActivos").textContent = activos;
 
-  let sumaSup = 0;
-  let sumaVol = 0;
-  let sumaUnid = 0;
-  const acumPorUnidad = {};
+  const empresasSet = new Set(lista.map(p => obtenerEtiquetaEmpresaResumen(p)).filter(Boolean));
+  const tareasSet = new Set(lista.map(p => (p.tarea || "").trim()).filter(Boolean));
+  const frentesSet = new Set(lista.map(p => normalizarFrente(p.frente)).filter(Boolean));
 
-  lista.forEach((p) => {
-    const sup = numRealOrNull(p.superficie_m2);
-    const vol = numRealOrNull(p.volumen_m3);
-    const unid = numRealOrNull(p.cantidad_u);
-
-    if (sup !== null) sumaSup += sup;
-    if (vol !== null) sumaVol += vol;
-    if (unid !== null) sumaUnid += unid;
-
-    const item = extraerCantidadYUnidadParte(p);
-    if (item && item.unidad) {
-      acumPorUnidad[item.unidad] = (acumPorUnidad[item.unidad] || 0) + item.valor;
-    }
-  });
-
-  document.getElementById("kpiDimensiones").textContent =
-    `Superficie: ${fmtTotal2(sumaSup)} m² · Volumen: ${fmtTotal2(sumaVol)} m³ · Unidades: ${fmtTotal2(sumaUnid)} u`;
-
-  const entradas = Object.entries(acumPorUnidad).filter(([, tot]) => Math.abs(tot) > 0);
-  if (entradas.length === 0) {
-    document.getElementById("kpiAvances").textContent = "—";
-  } else {
-    document.getElementById("kpiAvances").innerHTML = entradas
-      .map(([u, total]) => `<span class="me-2">${fmtTotal2(total)} ${escapeHTML(u)}</span>`)
-      .join("");
-  }
+  document.getElementById("kpiContextoSeleccion").textContent =
+    `${empresasSet.size} empresa(s) · ${tareasSet.size} tarea(s) · Frentes: ${Array.from(frentesSet).join(" / ") || "—"}`;
 }
 
 function resumenDimensionesChips(p) {
@@ -941,6 +1150,7 @@ function aplicarFiltros() {
   }
 
   actualizarKPIs(partesFiltrados);
+  renderKPIsPuntuales(partesFiltrados);
   renderResumenTareasPorEmpresa(partesFiltrados);
   renderTarjetas(partesFiltrados);
   renderTabla(partesFiltrados);
@@ -1116,6 +1326,7 @@ async function initVisor() {
     ? `Organización: ${organizacionUsuario}`
     : "Vista personal";
 
+  renderKPIsPuntuales([]);
   await cargarPartesDiarios();
 }
 
