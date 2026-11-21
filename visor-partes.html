@@ -217,7 +217,7 @@
     </div>
   </div>
 
-  <!-- 4 Tarjetas KPI configurables -->
+  <!-- 6 Tarjetas KPI configurables -->
   <div id="gridKPIsPuntuales" class="row g-3 mb-3"></div>
 
   <!-- Contexto puntual de la selección filtrada -->
@@ -227,7 +227,7 @@
         <i class="bi bi-funnel text-primary me-1"></i> Alcance de la selección:
       </span>
       <span id="kpiContextoSeleccion" class="fw-semibold text-dark">
-        0 empresas · 0 tareas · 0 frentes activos
+        0 empresa(s) · 0 tarea(s) · Frentes: —
       </span>
     </div>
   </div>
@@ -414,7 +414,7 @@ const supabaseClient = supabase.createClient(
 );
 
 const STORAGE_KEY_EDITANDO = "editandoParteDiario";
-const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v1";
+const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v2";
 
 const KPIS_PUNTUALES_DEFAULT = [
   {
@@ -424,24 +424,27 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
+    desglose: "Superficial, Profundo",
     color: "#0d6efd"
   },
   {
-    titulo: "Bacheo hormigón rígido",
+    titulo: "Bacheo con hormigón",
     tareaContiene: "hormigón",
     empresa: "",
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
+    desglose: "H30, H21, RDC 180",
     color: "#198754"
   },
   {
-    titulo: "Estabilizado granular",
+    titulo: "Bacheo profundo con E° G°",
     tareaContiene: "estabilizado",
     empresa: "",
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
+    desglose: "",
     color: "#fd7e14"
   },
   {
@@ -451,7 +454,28 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "avance_cantidad",
     unidad: "ML",
+    desglose: "",
     color: "#0dcaf0"
+  },
+  {
+    titulo: "Calce de banquina",
+    tareaContiene: "banquina",
+    empresa: "",
+    frente: "",
+    campo: "avance_cantidad",
+    unidad: "Hm",
+    desglose: "",
+    color: "#6f42c1"
+  },
+  {
+    titulo: "Fresado",
+    tareaContiene: "Fresado",
+    empresa: "",
+    frente: "",
+    campo: "superficie_m2",
+    unidad: "m²",
+    desglose: "",
+    color: "#dc3545"
   }
 ];
 
@@ -467,6 +491,13 @@ function escapeHTML(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function normalizarBusqueda(txt) {
+  return String(txt || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function numRealOrNull(val) {
@@ -686,7 +717,7 @@ function obtenerConfigKPIs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_KPIS);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed) && parsed.length === 4) {
+    if (Array.isArray(parsed) && parsed.length === 6) {
       return parsed.map((item, idx) => ({
         ...KPIS_PUNTUALES_DEFAULT[idx],
         ...item
@@ -706,11 +737,14 @@ function renderKPIsPuntuales(lista) {
   const configs = obtenerConfigKPIs();
 
   cont.innerHTML = configs.map((cfg) => {
+    const filtroTareaNorm = normalizarBusqueda(cfg.tareaContiene);
+    const filtroEmpresaNorm = normalizarBusqueda(cfg.empresa).trim();
+
     const coinciden = lista.filter((p) => {
-      const tareaOk = !cfg.tareaContiene ||
-        String(p.tarea || "").toLowerCase().includes(String(cfg.tareaContiene).toLowerCase());
-      const empresaOk = !cfg.empresa ||
-        String(p.empresa || "").trim().toLowerCase() === String(cfg.empresa).trim().toLowerCase();
+      const tareaOk = !filtroTareaNorm ||
+        normalizarBusqueda(p.tarea).includes(filtroTareaNorm);
+      const empresaOk = !filtroEmpresaNorm ||
+        normalizarBusqueda(p.empresa).trim() === filtroEmpresaNorm;
       const frenteOk = !cfg.frente ||
         normalizarFrente(p.frente) === cfg.frente;
       return tareaOk && empresaOk && frenteOk;
@@ -721,25 +755,67 @@ function renderKPIsPuntuales(lista) {
       return acc + (v !== null ? v : 0);
     }, 0);
 
-    const detalleFiltro = [
-      cfg.frente || null,
-      cfg.empresa || null,
-      cfg.tareaContiene ? `"${cfg.tareaContiene}"` : "Todo"
-    ].filter(Boolean).join(" · ");
+    const terminosDesglose = String(cfg.desglose || "")
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    let bloqueInferiorHTML = "";
+    if (terminosDesglose.length > 0) {
+      const itemsHTML = terminosDesglose.map((termino) => {
+        const termNorm = normalizarBusqueda(termino);
+        const subTotal = coinciden.reduce((acc, p) => {
+          const bolsa = normalizarBusqueda([
+            p.tarea,
+            p.observacion1,
+            p.observacion,
+            p.hoja_origen
+          ].join(" "));
+          if (!bolsa.includes(termNorm)) return acc;
+          const v = numRealOrNull(p[cfg.campo]);
+          return acc + (v !== null ? v : 0);
+        }, 0);
+
+        return `
+          <div class="d-flex justify-content-between align-items-center text-secondary" style="font-size: 11px;">
+            <span class="text-truncate me-2">${escapeHTML(termino)}</span>
+            <span class="fw-semibold text-dark text-nowrap">${fmtAR2(subTotal)} ${escapeHTML(cfg.unidad || "")}</span>
+          </div>
+        `;
+      }).join("");
+
+      bloqueInferiorHTML = `
+        <div class="border-top mt-2 pt-2 d-flex flex-column gap-1">
+          ${itemsHTML}
+        </div>
+      `;
+    } else {
+      const detalleFiltro = [
+        cfg.frente || null,
+        cfg.empresa || null,
+        cfg.tareaContiene ? `"${cfg.tareaContiene}"` : "Todo"
+      ].filter(Boolean).join(" · ");
+
+      bloqueInferiorHTML = `
+        <div class="text-muted mt-1 text-truncate" style="font-size: 11px;" title="${escapeHTML(detalleFiltro)}">
+          ${escapeHTML(detalleFiltro)} (${coinciden.length})
+        </div>
+      `;
+    }
 
     return `
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-4">
         <div class="card kpi-card h-100" style="border-left-color: ${escapeHTML(cfg.color || "#0d6efd")};">
-          <div class="card-body py-3">
-            <div class="text-muted small fw-semibold text-truncate" title="${escapeHTML(cfg.titulo)}">
-              ${escapeHTML(cfg.titulo)}
+          <div class="card-body py-3 d-flex flex-column justify-content-between">
+            <div>
+              <div class="text-muted small fw-semibold text-truncate" title="${escapeHTML(cfg.titulo)}">
+                ${escapeHTML(cfg.titulo)}
+              </div>
+              <div class="fs-4 fw-bold text-dark mt-1">
+                ${fmtAR2(total)} <span class="fs-6 fw-semibold text-secondary">${escapeHTML(cfg.unidad || "")}</span>
+              </div>
             </div>
-            <div class="fs-4 fw-bold text-dark mt-1">
-              ${fmtAR2(total)} <span class="fs-6 fw-semibold text-secondary">${escapeHTML(cfg.unidad || "")}</span>
-            </div>
-            <div class="text-muted mt-1 text-truncate" style="font-size: 11px;" title="${escapeHTML(detalleFiltro)}">
-              ${escapeHTML(detalleFiltro)} (${coinciden.length})
-            </div>
+            ${bloqueInferiorHTML}
           </div>
         </div>
       </div>
@@ -776,6 +852,10 @@ function abrirEditorConfigKPIs() {
               <label class="form-label small mb-1">Tarea o palabra clave</label>
               <input type="text" list="listaTareasConfigKPI" class="form-control form-control-sm cfg-tarea" data-idx="${idx}" value="${escapeHTML(cfg.tareaContiene || "")}" placeholder="Vacío = todas las tareas">
             </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Desglose interno (separado por comas)</label>
+              <input type="text" class="form-control form-control-sm cfg-desglose" data-idx="${idx}" value="${escapeHTML(cfg.desglose || "")}" placeholder="Ej: Superficial, Profundo o H30, H21, RDC 180">
+            </div>
             <div class="row g-2">
               <div class="col-6">
                 <label class="form-label small mb-1">Campo numérico</label>
@@ -789,7 +869,7 @@ function abrirEditorConfigKPIs() {
               </div>
               <div class="col-6">
                 <label class="form-label small mb-1">Unidad visible</label>
-                <input type="text" class="form-control form-control-sm cfg-unidad" data-idx="${idx}" value="${escapeHTML(cfg.unidad || "")}" placeholder="m³, m², ML...">
+                <input type="text" class="form-control form-control-sm cfg-unidad" data-idx="${idx}" value="${escapeHTML(cfg.unidad || "")}" placeholder="m³, m², ML, Hm...">
               </div>
               <div class="col-6">
                 <label class="form-label small mb-1">Frente fijo</label>
@@ -824,6 +904,7 @@ document.getElementById("btnGuardarConfigKPIs").addEventListener("click", () => 
     ...item,
     titulo: document.querySelector(`.cfg-titulo[data-idx="${idx}"]`).value.trim() || `KPI ${idx + 1}`,
     tareaContiene: document.querySelector(`.cfg-tarea[data-idx="${idx}"]`).value.trim(),
+    desglose: document.querySelector(`.cfg-desglose[data-idx="${idx}"]`).value.trim(),
     campo: document.querySelector(`.cfg-campo[data-idx="${idx}"]`).value,
     unidad: document.querySelector(`.cfg-unidad[data-idx="${idx}"]`).value.trim(),
     frente: document.querySelector(`.cfg-frente[data-idx="${idx}"]`).value,
