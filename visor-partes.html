@@ -424,7 +424,7 @@ const KPIS_PUNTUALES_DEFAULT = [
     frente: "",
     campo: "volumen_m3",
     unidad: "m³",
-    desglose: "Superficial, Profundo",
+    desglose: "Bacheo Superficial - Bacheo Provisorio de Emergencia, Bacheo Profundo, Bacheo Provisorio de Emergencia",
     color: "#0d6efd"
   },
   {
@@ -731,6 +731,23 @@ function guardarConfigKPIs(lista) {
   localStorage.setItem(STORAGE_KEY_KPIS, JSON.stringify(lista));
 }
 
+function sumarPorTermino(registros, termino, campo) {
+  const termNorm = normalizarBusqueda(termino);
+  if (!termNorm) return 0;
+
+  return registros.reduce((acc, p) => {
+    const bolsa = normalizarBusqueda([
+      p.tarea,
+      p.observacion1,
+      p.observacion,
+      p.hoja_origen
+    ].join(" "));
+    if (!bolsa.includes(termNorm)) return acc;
+    const v = numRealOrNull(p[campo]);
+    return acc + (v !== null ? v : 0);
+  }, 0);
+}
+
 function renderKPIsPuntuales(lista) {
   const cont = document.getElementById("gridKPIsPuntuales");
   if (!cont) return;
@@ -762,23 +779,25 @@ function renderKPIsPuntuales(lista) {
 
     let bloqueInferiorHTML = "";
     if (terminosDesglose.length > 0) {
-      const itemsHTML = terminosDesglose.map((termino) => {
-        const termNorm = normalizarBusqueda(termino);
-        const subTotal = coinciden.reduce((acc, p) => {
-          const bolsa = normalizarBusqueda([
-            p.tarea,
-            p.observacion1,
-            p.observacion,
-            p.hoja_origen
-          ].join(" "));
-          if (!bolsa.includes(termNorm)) return acc;
-          const v = numRealOrNull(p[cfg.campo]);
-          return acc + (v !== null ? v : 0);
-        }, 0);
+      const itemsHTML = terminosDesglose.map((expr) => {
+        // Soporta resta del tipo "Bacheo Superficial - Bacheo Provisorio de Emergencia"
+        const partesResta = expr.split(" - ").map(s => s.trim()).filter(Boolean);
+
+        let etiqueta = expr;
+        let subTotal = 0;
+
+        if (partesResta.length === 2) {
+          const minuendo = sumarPorTermino(coinciden, partesResta[0], cfg.campo);
+          const sustraendo = sumarPorTermino(coinciden, partesResta[1], cfg.campo);
+          subTotal = minuendo - sustraendo;
+          etiqueta = `${partesResta[0]} (s/ ${partesResta[1]})`;
+        } else {
+          subTotal = sumarPorTermino(coinciden, expr, cfg.campo);
+        }
 
         return `
           <div class="d-flex justify-content-between align-items-center text-secondary" style="font-size: 11px;">
-            <span class="text-truncate me-2">${escapeHTML(termino)}</span>
+            <span class="text-truncate me-2" title="${escapeHTML(etiqueta)}">${escapeHTML(etiqueta)}</span>
             <span class="fw-semibold text-dark text-nowrap">${fmtAR2(subTotal)} ${escapeHTML(cfg.unidad || "")}</span>
           </div>
         `;
@@ -854,7 +873,7 @@ function abrirEditorConfigKPIs() {
             </div>
             <div class="mb-2">
               <label class="form-label small mb-1">Desglose interno (separado por comas)</label>
-              <input type="text" class="form-control form-control-sm cfg-desglose" data-idx="${idx}" value="${escapeHTML(cfg.desglose || "")}" placeholder="Ej: Superficial, Profundo o H30, H21, RDC 180">
+              <input type="text" class="form-control form-control-sm cfg-desglose" data-idx="${idx}" value="${escapeHTML(cfg.desglose || "")}" placeholder="Ej: A - B, C">
             </div>
             <div class="row g-2">
               <div class="col-6">
