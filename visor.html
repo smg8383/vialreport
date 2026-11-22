@@ -401,7 +401,7 @@ if (btnLogout) {
   });
 }
 
-// 🚀 CARGAR DATOS COMPARTIDOS POR ORGANIZACIÓN
+// 🚀 CARGAR DATOS COMPARTIDOS POR ORGANIZACIÓN (DEL MÁS RECIENTE AL MÁS ANTIGUO)
 async function cargar() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) { window.location.href = "login.html"; return; }
@@ -425,7 +425,9 @@ async function cargar() {
   if (subtramo) query = query.eq("subtramo", subtramo);
   if (subtarea) query = query.eq("tarea", subtarea);
 
-  const { data, error } = await query.order("fecha", { ascending: false });
+  const { data, error } = await query
+    .order("fecha", { ascending: false })
+    .order("id", { ascending: false });
 
   if (error) { 
     console.error("Error al cargar de Supabase:", error);
