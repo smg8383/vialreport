@@ -44,6 +44,21 @@
       border-left: 4px solid #0d6efd;
     }
 
+    .kpi-titulo {
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .kpi-desglose-item {
+      font-size: 11px;
+      line-height: 1.25;
+      gap: 6px;
+    }
+
+    .kpi-desglose-label {
+      word-break: break-word;
+    }
+
     .parte-card {
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
@@ -105,6 +120,20 @@
       vertical-align: middle;
     }
 
+    .matriz-resumen th.col-sticky-tarea,
+    .matriz-resumen td.col-sticky-tarea {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background-color: #ffffff;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+    }
+
+    .matriz-resumen th.col-sticky-tarea {
+      background-color: #f8f9fa;
+      z-index: 3;
+    }
+
     .matriz-seccion-row td {
       background-color: #eef3f8;
       font-weight: 700;
@@ -118,6 +147,40 @@
       font-weight: 700;
       color: #0d6efd;
       background-color: #f8fbff;
+    }
+
+    @media (max-width: 575.98px) {
+      body {
+        padding-bottom: 92px;
+      }
+
+      .kpi-card .card-body {
+        padding: 0.75rem 0.65rem;
+      }
+
+      .kpi-titulo {
+        font-size: 0.78rem !important;
+      }
+
+      .kpi-valor-principal {
+        font-size: 1.25rem !important;
+      }
+
+      .kpi-valor-principal span {
+        font-size: 0.8rem !important;
+      }
+
+      .kpi-desglose-item {
+        font-size: 10.5px;
+      }
+
+      .matriz-resumen th.col-sticky-tarea,
+      .matriz-resumen td.col-sticky-tarea {
+        min-width: 175px !important;
+        max-width: 205px;
+        white-space: normal;
+        font-size: 12px;
+      }
     }
   </style>
 </head>
@@ -218,7 +281,7 @@
   </div>
 
   <!-- 6 Tarjetas KPI configurables -->
-  <div id="gridKPIsPuntuales" class="row g-3 mb-3"></div>
+  <div id="gridKPIsPuntuales" class="row g-2 g-sm-3 mb-3"></div>
 
   <!-- Contexto puntual de la selección filtrada -->
   <div class="card mb-3">
@@ -272,7 +335,7 @@
         <div class="col-6 col-md-2">
           <label for="filtroSubtramo" class="form-label small fw-semibold mb-1">Subtramo</label>
           <select id="filtroSubtramo" class="form-select form-select-sm">
-            <option value="">Todas</option>
+            <option value="">Todos</option>
           </select>
         </div>
 
@@ -661,7 +724,7 @@ function renderResumenTareasPorEmpresa(lista) {
   const theadHTML = `
     <thead class="table-light">
       <tr>
-        <th style="min-width: 240px;">TAREAS</th>
+        <th class="col-sticky-tarea" style="min-width: 240px;">TAREAS</th>
         ${empresas.map(emp => `<th class="text-end">${escapeHTML(emp)}</th>`).join("")}
         <th class="text-end">Total tarea</th>
       </tr>
@@ -691,7 +754,7 @@ function renderResumenTareasPorEmpresa(lista) {
 
       return `
         <tr>
-          <td class="fw-semibold text-dark">${escapeHTML(tarea)}</td>
+          <td class="col-sticky-tarea fw-semibold text-dark">${escapeHTML(tarea)}</td>
           ${celdasEmpresas}
           <td class="text-end fw-bold text-secondary">${escapeHTML(totalTareaTexto)}</td>
         </tr>
@@ -780,7 +843,6 @@ function renderKPIsPuntuales(lista) {
     let bloqueInferiorHTML = "";
     if (terminosDesglose.length > 0) {
       const itemsHTML = terminosDesglose.map((expr) => {
-        // Soporta una o más restas encadenadas: "A - B" o "A - B - C"
         const partesResta = expr.split(" - ").map(s => s.trim()).filter(Boolean);
 
         let etiqueta = expr;
@@ -800,8 +862,8 @@ function renderKPIsPuntuales(lista) {
         }
 
         return `
-          <div class="d-flex justify-content-between align-items-center text-secondary" style="font-size: 11px;">
-            <span class="text-truncate me-2" title="${escapeHTML(etiqueta)}">${escapeHTML(etiqueta)}</span>
+          <div class="d-flex justify-content-between align-items-start text-secondary kpi-desglose-item">
+            <span class="kpi-desglose-label">${escapeHTML(etiqueta)}</span>
             <span class="fw-semibold text-dark text-nowrap">${fmtAR2(subTotal)} ${escapeHTML(cfg.unidad || "")}</span>
           </div>
         `;
@@ -820,7 +882,7 @@ function renderKPIsPuntuales(lista) {
       ].filter(Boolean).join(" · ");
 
       bloqueInferiorHTML = `
-        <div class="text-muted mt-1 text-truncate" style="font-size: 11px;" title="${escapeHTML(detalleFiltro)}">
+        <div class="text-muted mt-1 kpi-desglose-item" style="font-size: 11px;">
           ${escapeHTML(detalleFiltro)} (${coinciden.length})
         </div>
       `;
@@ -831,10 +893,10 @@ function renderKPIsPuntuales(lista) {
         <div class="card kpi-card h-100" style="border-left-color: ${escapeHTML(cfg.color || "#0d6efd")};">
           <div class="card-body py-3 d-flex flex-column justify-content-between">
             <div>
-              <div class="text-muted small fw-semibold text-truncate" title="${escapeHTML(cfg.titulo)}">
+              <div class="text-muted small fw-semibold kpi-titulo">
                 ${escapeHTML(cfg.titulo)}
               </div>
-              <div class="fs-4 fw-bold text-dark mt-1">
+              <div class="fs-4 fw-bold text-dark mt-1 kpi-valor-principal">
                 ${fmtAR2(total)} <span class="fs-6 fw-semibold text-secondary">${escapeHTML(cfg.unidad || "")}</span>
               </div>
             </div>
