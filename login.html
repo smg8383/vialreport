@@ -6,9 +6,10 @@
 <!-- 🔥 IMPORTANTE RESPONSIVE -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Login</title>
+<title>Ingreso - Vial Report</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
 <style>
 body{
@@ -18,7 +19,7 @@ body{
   align-items:center;
   justify-content:center;
   font-family: 'Segoe UI', sans-serif;
-  padding:15px;
+  padding:15px 15px 65px 15px;
   position:relative;
 }
 
@@ -28,7 +29,7 @@ body::before{
   position:absolute;
   width:100%;
   height:100%;
-  background:rgba(0,0,0,0.4);
+  background:rgba(0,0,0,0.45);
   top:0;
   left:0;
 }
@@ -36,32 +37,46 @@ body::before{
 /* CONTENEDOR */
 .card{
   width:100%;
-  max-width:380px;
-  padding:25px;
+  max-width:390px;
+  padding:26px;
   border-radius:18px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.3);
+  box-shadow:0 10px 30px rgba(0,0,0,0.32);
   background:white;
-  animation: fadeIn 0.5s ease;
+  animation: fadeIn 0.45s ease;
   position:relative;
   z-index:2;
 }
 
 /* ANIMACIÓN */
 @keyframes fadeIn {
-  from {opacity:0; transform:translateY(20px);}
+  from {opacity:0; transform:translateY(16px);}
   to {opacity:1; transform:translateY(0);}
 }
 
 /* INPUTS */
-input{
-  border-radius:10px !important;
-  padding:10px;
+.form-control{
+  border-radius:10px;
+  padding:10px 12px;
+}
+
+.input-group .form-control{
+  border-top-right-radius:0;
+  border-bottom-right-radius:0;
+}
+
+.input-group .btn-toggle-pass{
+  border-top-left-radius:0;
+  border-bottom-left-radius:0;
+  border-top-right-radius:10px;
+  border-bottom-right-radius:10px;
+  border-color:#dee2e6;
 }
 
 /* BOTONES */
-button{
-  border-radius:10px !important;
+#btnLogin{
+  border-radius:10px;
   padding:10px;
+  font-weight:600;
 }
 
 /* LOGO */
@@ -76,11 +91,12 @@ button{
 footer{
   position:fixed;
   bottom:0;
+  left:0;
   width:100%;
   text-align:center;
   font-size:12px;
-  background:rgba(255,255,255,0.9);
-  padding:5px;
+  background:rgba(255,255,255,0.92);
+  padding:6px 10px;
   border-top:1px solid #ddd;
   z-index:2;
 }
@@ -101,53 +117,50 @@ footer{
 }
 </style>
 
-  <!-- Configuración PWA / Pantalla completa iOS -->
+<!-- Configuración PWA / Pantalla completa iOS -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Vial Report">
 <link rel="apple-touch-icon" href="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png">
 
 <link rel="manifest" href="manifest.json">
-
 </head>
 
 <body>
 
 <div class="card">
-
-  <!-- LOGIN -->
   <div id="loginBox">
-    <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" class="logo">
+    <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" class="logo" alt="Logo Vial Report">
 
-    <h5 class="text-center text-primary mb-1">VIAL REPORT</h5>
-    <h6 class="mb-3 text-center text-muted">Informes Fotográficos</h6>
+    <h5 class="text-center text-primary fw-bold mb-1">VIAL REPORT</h5>
+    <h6 class="mb-3 text-center text-muted">Acceso de usuarios habilitados</h6>
 
-    <input id="email" class="form-control mb-2" placeholder="Email">
-    <input id="password" type="password" class="form-control mb-3" placeholder="Password">
+    <div id="alertaLogin" class="alert alert-danger py-2 px-3 small d-none" role="alert"></div>
 
-    <button id="btnLogin" class="btn btn-primary w-100 mb-2">Ingresar</button>
+    <div class="mb-2">
+      <label for="email" class="form-label small fw-semibold text-secondary mb-1">Correo electrónico</label>
+      <input id="email" type="email" autocomplete="username" class="form-control" placeholder="usuario@empresa.com">
+    </div>
 
-    <button class="btn btn-link w-100" onclick="mostrarRegistro()">Crear cuenta</button>
+    <div class="mb-3">
+      <label for="password" class="form-label small fw-semibold text-secondary mb-1">Contraseña</label>
+      <div class="input-group">
+        <input id="password" type="password" autocomplete="current-password" class="form-control" placeholder="••••••••">
+        <button type="button" id="btnTogglePass" class="btn btn-outline-secondary btn-toggle-pass" title="Mostrar u ocultar contraseña" aria-label="Mostrar u ocultar contraseña">
+          <i id="iconoPass" class="bi bi-eye"></i>
+        </button>
+      </div>
+    </div>
+
+    <button id="btnLogin" type="button" class="btn btn-primary w-100">
+      <span id="btnLoginTexto">Ingresar</span>
+      <span id="btnLoginSpinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+    </button>
+
+    <div class="text-center mt-3">
+      <small class="text-muted">El alta de cuentas es administrada por Vial Report.</small>
+    </div>
   </div>
-
-  <!-- REGISTRO -->
-  <div id="registroBox" style="display:none;">
-    <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" class="logo">
-
-    <h5 class="text-center text-primary mb-1">VIAL REPORT</h5>
-    <h6 class="mb-3 text-center text-muted">Crear cuenta</h6>
-
-    <input id="emailReg" class="form-control mb-2" placeholder="Email">
-    <input id="passwordReg" type="password" class="form-control mb-2" placeholder="Password">
-
-    <input id="empresa" class="form-control mb-2" placeholder="Nombre de empresa">
-    <input id="logo" type="file" class="form-control mb-3">
-
-    <button id="btnRegister" class="btn btn-success w-100 mb-2">Registrarse</button>
-
-    <button class="btn btn-link w-100" onclick="mostrarLogin()">Volver</button>
-  </div>
-
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -158,83 +171,121 @@ const supabaseClient = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcGV0aHV6enJldGFraW9xeXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTQwMDcsImV4cCI6MjA5MDUzMDAwN30.1sRjLDe56C7ILa6n3zNHjbC9cl4nAwr-Pkp--uzoXQs"
 );
 
-// 🔄 CAMBIAR VISTAS
-function mostrarRegistro(){
-  document.getElementById("loginBox").style.display = "none";
-  document.getElementById("registroBox").style.display = "block";
+const CLAVE_ULTIMO_EMAIL = "vialReportUltimoEmail";
+const EXIGIR_EMPRESA_HABILITADA = true;
+
+const inputEmail = document.getElementById("email");
+const inputPassword = document.getElementById("password");
+const btnLogin = document.getElementById("btnLogin");
+const btnLoginTexto = document.getElementById("btnLoginTexto");
+const btnLoginSpinner = document.getElementById("btnLoginSpinner");
+const alertaLogin = document.getElementById("alertaLogin");
+
+const guardadoEmail = localStorage.getItem(CLAVE_ULTIMO_EMAIL);
+if (guardadoEmail) {
+  inputEmail.value = guardadoEmail;
 }
 
-function mostrarLogin(){
-  document.getElementById("loginBox").style.display = "block";
-  document.getElementById("registroBox").style.display = "none";
+function mostrarError(mensaje) {
+  alertaLogin.textContent = mensaje;
+  alertaLogin.classList.remove("d-none");
 }
 
-// 🔐 LOGIN
-document.getElementById("btnLogin").addEventListener("click", async () => {
+function ocultarError() {
+  alertaLogin.textContent = "";
+  alertaLogin.classList.add("d-none");
+}
 
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+function setCargando(cargando) {
+  btnLogin.disabled = cargando;
+  inputEmail.disabled = cargando;
+  inputPassword.disabled = cargando;
+  btnLoginTexto.textContent = cargando ? "Ingresando..." : "Ingresar";
+  btnLoginSpinner.classList.toggle("d-none", !cargando);
+}
 
-  const { error } = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
+function traducirErrorAuth(errMsg) {
+  const msg = String(errMsg || "").toLowerCase();
+  if (msg.includes("invalid login credentials")) {
+    return "Correo o contraseña incorrectos.";
+  }
+  if (msg.includes("email not confirmed")) {
+    return "El correo aún no fue confirmado.";
+  }
+  if (msg.includes("too many requests")) {
+    return "Demasiados intentos. Esperá unos minutos y volvé a intentarlo.";
+  }
+  return errMsg || "No se pudo iniciar sesión.";
+}
 
-  if (error) return alert(error.message);
-
-  window.location.href = "index.html";
+document.getElementById("btnTogglePass").addEventListener("click", () => {
+  const esPassword = inputPassword.type === "password";
+  inputPassword.type = esPassword ? "text" : "password";
+  document.getElementById("iconoPass").className = esPassword ? "bi bi-eye-slash" : "bi bi-eye";
 });
 
-// 🧾 REGISTRO COMPLETO
-document.getElementById("btnRegister").addEventListener("click", async () => {
+async function intentarLogin() {
+  ocultarError();
 
-  const email = document.getElementById("emailReg").value;
-  const password = document.getElementById("passwordReg").value;
-  const empresaNombre = document.getElementById("empresa").value;
-  const file = document.getElementById("logo").files[0];
+  const email = inputEmail.value.trim();
+  const password = inputPassword.value;
 
-  if (!email || !password || !empresaNombre || !file) {
-    return alert("Completá todos los campos");
+  if (!email || !password) {
+    mostrarError("Completá el correo electrónico y la contraseña.");
+    return;
   }
 
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  if (error) return alert(error.message);
+  setCargando(true);
 
-  const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (loginError) return alert(loginError.message);
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
 
-  const user = loginData.user;
+    if (error) {
+      mostrarError(traducirErrorAuth(error.message));
+      setCargando(false);
+      return;
+    }
 
-  const fileName = `${Date.now()}_${file.name}`;
+    if (EXIGIR_EMPRESA_HABILITADA && data?.user?.id) {
+      const { data: empRows, error: empError } = await supabaseClient
+        .from("empresas")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .limit(1);
 
-  const { error: uploadError } = await supabaseClient.storage
-    .from("logos")
-    .upload(fileName, file);
+      if (empError || !empRows || empRows.length === 0) {
+        await supabaseClient.auth.signOut();
+        mostrarError("Tu usuario aún no tiene una empresa habilitada. Consultá con el administrador.");
+        setCargando(false);
+        return;
+      }
+    }
 
-  if (uploadError) return alert(uploadError.message);
-
-  const logoUrl = `https://yepethuzzretakioqyqy.supabase.co/storage/v1/object/public/logos/${fileName}`;
-
-  const { error: dbError } = await supabaseClient
-    .from("empresas")
-    .insert([{
-      nombre: empresaNombre,
-      logo: logoUrl,
-      user_id: user.id
-    }]);
-
-  if (dbError) return alert(dbError.message);
-
-  alert("Cuenta creada correctamente ✅");
-
-  setTimeout(() => {
+    localStorage.setItem(CLAVE_ULTIMO_EMAIL, email);
     window.location.href = "index.html";
-  }, 500);
+  } catch (e) {
+    mostrarError("Ocurrió un error de conexión al intentar ingresar.");
+    setCargando(false);
+  }
+}
+
+btnLogin.addEventListener("click", intentarLogin);
+
+[inputEmail, inputPassword].forEach((el) => {
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      intentarLogin();
+    }
+  });
 });
 </script>
 
 <footer>
-  © <span id="year"></span> - VIAL REPORT  
+  © <span id="year"></span> - VIAL REPORT
   <br>
   Powered by <b>SMG DESARROLLOS</b>
 </footer>
