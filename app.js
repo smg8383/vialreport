@@ -250,6 +250,32 @@ document.addEventListener("change", (e) => {
   }
 });
 
+// 🔹 LIMPIAR SOLO FOTOS Y VISTAS PREVIAS
+let editandoId = localStorage.getItem("editandoInforme");
+let imagenesExistentes = [];
+
+function limpiarFotosYPreviews() {
+  imagenesExistentes = [];
+  renderImagenesActuales();
+
+  document.querySelectorAll(".grupo").forEach((g) => {
+    g.querySelectorAll('input[type="file"]').forEach((inputFile) => {
+      inputFile.value = "";
+      try {
+        inputFile.files = new DataTransfer().files;
+      } catch (e) {}
+    });
+
+    const preview = g.querySelector(".preview");
+    if (preview) preview.innerHTML = "";
+
+    const progBar = g.querySelector(".progress-bar");
+    if (progBar) progBar.style.width = "0%";
+  });
+
+  actualizarBarra(0);
+}
+
 // 🔹 AGREGAR NUEVO GRUPO
 let count = 1;
 const btnAddGroup = document.getElementById("addGroup");
@@ -262,7 +288,7 @@ if (btnAddGroup) {
     if (heading) heading.innerText = "Tarea " + count;
     clone.querySelectorAll("[name]").forEach((el) => {
       el.name = el.name.replace(/_\d+$/, "_" + count);
-      if(el.type !== "file") el.value = "";
+      if (el.type !== "file") el.value = "";
     });
 
     clone.querySelector(".preview").innerHTML = "";
@@ -275,21 +301,32 @@ if (btnAddGroup) {
   });
 }
 
-// 🔹 LIMPIAR FORMULARIO
+// 🔹 LIMPIAR FORMULARIO COMPLETO (A pedido del usuario)
 const btnClear = document.getElementById("clearForm");
 if (btnClear) {
   btnClear.addEventListener("click", () => {
     if (!confirm("¿Querés limpiar todos los campos del formulario?")) return;
     localStorage.removeItem("editandoInforme");
     localStorage.removeItem("editandoInformeCoords");
-    window.location.reload();
+    editandoId = null;
+
+    const form = document.getElementById("form");
+    if (form) form.reset();
+
+    const hoy = new Date();
+    const fechaLocal = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+    const inputFecha = document.querySelector(`[name^="date_"]`);
+    if (inputFecha) inputFecha.value = fechaLocal;
+
+    document.querySelectorAll(`[id^="lat_"], [id^="lon_"]`).forEach((coordInput) => {
+      coordInput.value = "";
+    });
+
+    limpiarFotosYPreviews();
   });
 }
 
-// 🔹 GUARDAR FORMULARIO
-let editandoId = localStorage.getItem("editandoInforme");
-let imagenesExistentes = [];
-
+// 🔹 GUARDAR FORMULARIO (Conserva datos precargados y limpia solo las fotos)
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -357,7 +394,6 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
       const subtarea = g.querySelector(".tarea-select").value;
 
-      // Capturar coordenadas de los inputs ocultos correspondientes a este grupo
       const latInput = g.querySelector(`#lat_${grupoId}`) || g.querySelector(`[id^="lat_"]`);
       const lonInput = g.querySelector(`#lon_${grupoId}`) || g.querySelector(`[id^="lon_"]`);
 
@@ -385,32 +421,30 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           .from("informes")
           .update(dataToInsert)
           .eq("id", editandoId);
-        if (error) { 
-          alert("Error al actualizar: " + error.message); 
-          ocultarCarga(); 
-          return; 
+        if (error) {
+          alert("Error al actualizar: " + error.message);
+          ocultarCarga();
+          return;
         }
         localStorage.removeItem("editandoInforme");
         localStorage.removeItem("editandoInformeCoords");
+        editandoId = null;
       } else {
         const { error } = await supabaseClient
           .from("informes")
           .insert([dataToInsert]);
-        if (error) { 
-          alert("Error al insertar: " + error.message); 
-          ocultarCarga(); 
-          return; 
+        if (error) {
+          alert("Error al insertar: " + error.message);
+          ocultarCarga();
+          return;
         }
       }
     }
 
     actualizarBarra(100);
-    alert("Guardado correctamente ✅");
-
-    setTimeout(() => {
-      ocultarCarga();
-      window.location.href = "visor.html";
-    }, 800);
+    limpiarFotosYPreviews();
+    ocultarCarga();
+    alert("Guardado correctamente ✅ Se limpiaron las fotos y se conservaron los datos cargados.");
 
   } catch (err) {
     console.error(err);
@@ -517,7 +551,7 @@ window.eliminarImagen = function(index) {
   const fotosEl = document.querySelector(".fotos");
   if (fotosEl) fotosEl.value = "";
   renderImagenesActuales();
-}
+};
 
 // =============================
 // 🔥 LOADING OVERLAY
