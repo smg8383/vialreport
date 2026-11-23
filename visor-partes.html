@@ -404,7 +404,7 @@
             <i class="bi bi-rulers text-primary me-1"></i> Porcentaje de Avance por Kilómetro por Tarea (Obra)
           </h6>
           <small class="text-muted">
-            Solo frente Obra · Suma de tramos parciales sobre tramo total: RN 16 = 211,20 km (Km 0,00 – 211,20) · RN 12 = 338,49 km (Km 871,20 – 1.209,69)
+            Solo frente Obra · Tramos parciales en km o suma de longitudes (largo_m / 1.000) sobre tramo total: RN 16 = 211,20 km · RN 12 = 338,49 km
           </small>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -776,6 +776,11 @@ function esParteDePeaje(p) {
   return texto.includes("peaje");
 }
 
+function esTareaHormigonPavimentoRigido(tarea) {
+  const t = normalizarBusqueda(tarea);
+  return t.includes("hormigon") && (t.includes("rigido") || t.includes("losas") || t.includes("bacheo"));
+}
+
 function badgeFrente(frente) {
   const f = normalizarFrente(frente);
   if (f === "Peaje") {
@@ -845,7 +850,7 @@ function obtenerEtiquetaEmpresaResumen(p) {
   return empresaBase;
 }
 
-// Solo frente Obra (se omite todo lo relacionado a peajes)
+// Solo frente Obra; si el rango de km es 0 (o es bacheo con hormigón en pavimento rígido sin rango), suma largo_m / 1000
 function renderAvanceKmPorTarea(lista) {
   const cont = document.getElementById("contenedorAvanceKmTareas");
   const listaObra = lista.filter((p) => normalizarFrente(p.frente) === "Obra" && !esParteDePeaje(p));
@@ -870,13 +875,12 @@ function renderAvanceKmPorTarea(lista) {
         descripcionTramo: tramoInfo.descripcionTramo,
         kmsPuntos: [],
         sumaParcialesKm: 0,
-        cantidadPartes: 0,
+        sumaLargoMetros: 0,
         unidades: {}
       });
     }
 
     const g = gruposMap.get(claveGrupo);
-    g.cantidadPartes += 1;
 
     const numsKm = extraerKmNumericosDeParte(p);
     if (numsKm.length >= 2) {
@@ -886,6 +890,11 @@ function renderAvanceKmPorTarea(lista) {
       g.kmsPuntos.push(...numsKm);
     } else if (numsKm.length === 1) {
       g.kmsPuntos.push(numsKm[0]);
+    }
+
+    const largo = numRealOrNull(p.largo_m);
+    if (largo !== null && largo > 0) {
+      g.sumaLargoMetros += largo;
     }
 
     const cantItem = extraerCantidadYUnidadParte(p);
@@ -905,9 +914,20 @@ function renderAvanceKmPorTarea(lista) {
           : `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} – ${maxKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
       }
 
-      const kmParcialesEjecutados = g.sumaParcialesKm;
+      const kmDesdeLargos = g.sumaLargoMetros / 1000;
+      let kmEjecutados = g.sumaParcialesKm;
+      let metodoTexto = "Tramos en km";
+
+      if (esTareaHormigonPavimentoRigido(g.tarea) && kmDesdeLargos > 0) {
+        kmEjecutados = kmDesdeLargos;
+        metodoTexto = `Losas (${g.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
+      } else if (kmEjecutados === 0 && kmDesdeLargos > 0) {
+        kmEjecutados = kmDesdeLargos;
+        metodoTexto = `Suma largos (${g.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
+      }
+
       const porcentaje = g.longitudTramoKm > 0
-        ? (kmParcialesEjecutados / g.longitudTramoKm) * 100
+        ? (kmEjecutados / g.longitudTramoKm) * 100
         : 0;
 
       const porcentajeBarra = Math.min(100, Math.max(0, porcentaje));
@@ -915,7 +935,8 @@ function renderAvanceKmPorTarea(lista) {
 
       return {
         ...g,
-        kmParcialesEjecutados,
+        kmEjecutados,
+        metodoTexto,
         rangoTexto,
         porcentaje,
         porcentajeBarra,
@@ -931,7 +952,7 @@ function renderAvanceKmPorTarea(lista) {
           <th style="min-width: 220px;">Tarea</th>
           <th>Ruta / Tramo (Total km)</th>
           <th>Progresivas registradas</th>
-          <th class="text-end">Km parciales ejecutados</th>
+          <th class="text-end">Km ejecutados</th>
           <th class="text-end">Cantidad acumulada</th>
           <th style="min-width: 170px;">% Avance por km</th>
         </tr>
@@ -939,12 +960,15 @@ function renderAvanceKmPorTarea(lista) {
       <tbody>
         ${filas.map((f) => {
           const pctFmt = `${f.porcentaje.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-          const kmFmt = `${f.kmParcialesEjecutados.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
+          const kmFmt = `${f.kmEjecutados.toLocaleString("es-AR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km`;
           const colorBarra = f.porcentaje >= 75 ? "bg-success" : f.porcentaje >= 35 ? "bg-primary" : "bg-info";
 
           return `
             <tr>
-              <td class="fw-semibold text-dark">${escapeHTML(f.tarea)}</td>
+              <td class="fw-semibold text-dark">
+                ${escapeHTML(f.tarea)}
+                <div class="text-muted fw-normal" style="font-size: 11px;">${escapeHTML(f.metodoTexto)}</div>
+              </td>
               <td class="text-nowrap">
                 <span class="badge bg-light text-dark border me-1">${escapeHTML(f.rutaClave)}</span>
                 <small class="text-muted">${escapeHTML(f.descripcionTramo)}</small>
