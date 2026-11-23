@@ -956,7 +956,7 @@ function renderAvanceKmPorTarea(lista) {
     <table class="table table-bordered table-hover matriz-resumen mb-0">
       <thead class="table-light">
         <tr>
-          <th style="min-width: 220px;">Tarea</th>
+          <th class="col-sticky-tarea" style="min-width: 220px;">Tarea</th>
           <th>Ruta / Tramo (Total km)</th>
           <th>Progresivas registradas</th>
           <th class="text-end">Km ejecutados</th>
@@ -972,7 +972,7 @@ function renderAvanceKmPorTarea(lista) {
 
           return `
             <tr>
-              <td class="fw-semibold text-dark">
+              <td class="col-sticky-tarea fw-semibold text-dark">
                 ${escapeHTML(f.tarea)}
                 <div class="text-muted fw-normal" style="font-size: 11px;">${escapeHTML(f.metodoTexto)}</div>
               </td>
