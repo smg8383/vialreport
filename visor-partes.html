@@ -404,7 +404,7 @@
             <i class="bi bi-rulers text-primary me-1"></i> Porcentaje de Avance por Kilómetro por Tarea (Obra)
           </h6>
           <small class="text-muted">
-            Solo frente Obra · Tramos parciales en km o suma de longitudes (largo_m / 1.000) sobre tramo total: RN 16 = 211,20 km · RN 12 = 338,49 km
+            Solo frente Obra · Tramos parciales en km (en bacheo H° rígido: Km máx – Km mín) sobre tramo total: RN 16 = 211,20 km · RN 12 = 338,49 km
           </small>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -850,7 +850,7 @@ function obtenerEtiquetaEmpresaResumen(p) {
   return empresaBase;
 }
 
-// Solo frente Obra; si el rango de km es 0 (o es bacheo con hormigón en pavimento rígido sin rango), suma largo_m / 1000
+// Solo frente Obra; en bacheo con hormigón en pavimento rígido usa (Km máx - Km mín) si hay >= 2 progresivas
 function renderAvanceKmPorTarea(lista) {
   const cont = document.getElementById("contenedorAvanceKmTareas");
   const listaObra = lista.filter((p) => normalizarFrente(p.frente) === "Obra" && !esParteDePeaje(p));
@@ -906,9 +906,12 @@ function renderAvanceKmPorTarea(lista) {
   const filas = Array.from(gruposMap.values())
     .map((g) => {
       let rangoTexto = "—";
+      let amplitudKm = 0;
+
       if (g.kmsPuntos.length > 0) {
         const minKm = Math.min(...g.kmsPuntos);
         const maxKm = Math.max(...g.kmsPuntos);
+        amplitudKm = maxKm - minKm;
         rangoTexto = g.kmsPuntos.length === 1
           ? `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`
           : `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} – ${maxKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
@@ -918,9 +921,14 @@ function renderAvanceKmPorTarea(lista) {
       let kmEjecutados = g.sumaParcialesKm;
       let metodoTexto = "Tramos en km";
 
-      if (esTareaHormigonPavimentoRigido(g.tarea) && kmDesdeLargos > 0) {
-        kmEjecutados = kmDesdeLargos;
-        metodoTexto = `Losas (${g.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
+      if (esTareaHormigonPavimentoRigido(g.tarea)) {
+        if (g.kmsPuntos.length >= 2 && amplitudKm > 0) {
+          kmEjecutados = amplitudKm;
+          metodoTexto = "Rango Km máx – Km mín";
+        } else if (kmDesdeLargos > 0) {
+          kmEjecutados = kmDesdeLargos;
+          metodoTexto = `Losas (${g.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
+        }
       } else if (kmEjecutados === 0 && kmDesdeLargos > 0) {
         kmEjecutados = kmDesdeLargos;
         metodoTexto = `Suma largos (${g.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
