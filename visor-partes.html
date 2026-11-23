@@ -239,8 +239,8 @@
     </div>
   </div>
 
-  <!-- Estado general de partes filtrados -->
-  <div class="row g-3 mb-3">
+  <!-- Estado general de partes filtrados (oculto) -->
+  <div id="filaKpisEstado" class="row g-3 mb-3 d-none">
     <div class="col-6 col-md-4">
       <div class="card kpi-card h-100">
         <div class="card-body py-3">
@@ -850,7 +850,6 @@ function obtenerEtiquetaEmpresaResumen(p) {
   return empresaBase;
 }
 
-// Solo frente Obra; en bacheo con hormigón en pavimento rígido usa (Km máx - Km mín) si hay >= 2 progresivas
 function renderAvanceKmPorTarea(lista) {
   const cont = document.getElementById("contenedorAvanceKmTareas");
   const listaObra = lista.filter((p) => normalizarFrente(p.frente) === "Obra" && !esParteDePeaje(p));
@@ -1326,13 +1325,17 @@ document.getElementById("btnRestaurarKPIs").addEventListener("click", () => {
 });
 
 function actualizarKPIs(lista) {
-  document.getElementById("kpiTotal").textContent = lista.length;
+  const elTotal = document.getElementById("kpiTotal");
+  const elFinalizados = document.getElementById("kpiFinalizados");
+  const elActivos = document.getElementById("kpiActivos");
+
+  if (elTotal) elTotal.textContent = lista.length;
 
   const finalizados = lista.filter(p => (p.estado || "").trim() === "Finalizada").length;
   const activos = lista.filter(p => (p.estado || "").trim() !== "Finalizada").length;
 
-  document.getElementById("kpiFinalizados").textContent = finalizados;
-  document.getElementById("kpiActivos").textContent = activos;
+  if (elFinalizados) elFinalizados.textContent = finalizados;
+  if (elActivos) elActivos.textContent = activos;
 
   const empresasSet = new Set(lista.map(p => obtenerEtiquetaEmpresaResumen(p)).filter(Boolean));
   const tareasSet = new Set(lista.map(p => (p.tarea || "").trim()).filter(Boolean));
