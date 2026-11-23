@@ -383,7 +383,7 @@
             <i class="bi bi-rulers text-primary me-1"></i> Porcentaje de Avance por Kilómetro por Tarea
           </h6>
           <small class="text-muted">
-            Referencia de tramos: RN 16 = 211,20 km (Km 0,00 – 211,20) · RN 12 = 338,49 km (Km 871,20 – 1.209,69)
+            Suma de tramos parciales ejecutados sobre tramo total: RN 16 = 211,20 km (Km 0,00 – 211,20) · RN 12 = 338,49 km (Km 871,20 – 1.209,69)
           </small>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -651,20 +651,44 @@ function parsearValorKmIndividual(seg, esRN16, esRN12) {
   const s = String(seg || "").trim();
   if (!s) return null;
 
-  if (/[.,]/.test(s)) {
+  // Si tiene punto y coma (ej: 93.919,00)
+  if (s.includes(",") && s.includes(".")) {
+    const sinMiles = s.replace(/\./g, "").replace(",", ".");
+    const n = Number(sinMiles);
+    if (!Number.isFinite(n)) return null;
+    if (esRN16 && n > 211.20 && n / 1000 <= 211.20) return n / 1000;
+    return n;
+  }
+
+  // Si tiene solo punto (ej: 93.919 o 50.270 o 178.1)
+  if (s.includes(".")) {
+    const partesPunto = s.split(".");
+    if (partesPunto.length === 2 && partesPunto[1].length === 3) {
+      // Ej: 93.919 -> en RN 16 es 93,919 km
+      const numDecimal = Number(`${partesPunto[0]}.${partesPunto[1]}`);
+      if (Number.isFinite(numDecimal)) {
+        if (esRN16 && numDecimal <= 211.20) return numDecimal;
+        const numMiles = Number(`${partesPunto[0]}${partesPunto[1]}`);
+        if (esRN12 && numMiles >= 871.20 && numMiles <= 1209.69) return numMiles;
+        return numDecimal;
+      }
+    }
     return numRealOrNull(s);
   }
 
+  // Si tiene coma decimal (ej: 2,49)
+  if (s.includes(",")) {
+    return numRealOrNull(s);
+  }
+
+  // Entero sin separador
   if (/^\d+$/.test(s)) {
     const entero = parseInt(s, 10);
 
-    // En RN 16 (0,00 a 211,20), valores pegados como 50270 o 17717 representan km en milesimos (50.270 km)
     if (esRN16 && entero > 211) {
-      const kmEscalado = entero / 1000;
-      return kmEscalado;
+      return entero / 1000;
     }
 
-    // En RN 12 (871,20 a 1.209,69), valores de 4+ dígitos sin separador como 8712 o 12096
     if (esRN12 && entero >= 8712) {
       const km10 = entero / 10;
       if (km10 >= 871.20 && km10 <= 1209.69) return km10;
@@ -690,7 +714,7 @@ function extraerKmNumericosDeParte(p) {
   const valores = [];
 
   for (const parte of partes) {
-    const matchNum = parte.match(/\d+(?:[.,]\d+)?/);
+    const matchNum = parte.match(/\d[\d.,]*/);
     if (matchNum) {
       const val = parsearValorKmIndividual(matchNum[0], esRN16, esRN12);
       if (val !== null && Number.isFinite(val)) {
@@ -715,34 +739,9 @@ function formatearKmParaTabla(kmValor, rutaValor) {
     const s = String(seg || "").trim();
     if (!s) return "";
 
-    if (/[.,]/.test(s)) {
-      const n = numRealOrNull(s);
-      if (n === null) return s;
-      return n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
-    }
-
-    if (/^\d+$/.test(s)) {
-      const entero = parseInt(s, 10);
-
-      if (esRN16 && entero > 211) {
-        const kmEscalado = entero / 1000;
-        return kmEscalado.toLocaleString("es-AR", {
-          minimumFractionDigits: 3,
-          maximumFractionDigits: 3
-        });
-      }
-
-      if (esRN12 && entero >= 8712) {
-        const km10 = entero / 10;
-        if (km10 >= 871.20 && km10 <= 1209.69) {
-          return km10.toLocaleString("es-AR", {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 2
-          });
-        }
-      }
-
-      return entero.toLocaleString("es-AR");
+    const val = parsearValorKmIndividual(s, esRN16, esRN12);
+    if (val !== null && Number.isFinite(val)) {
+      return val.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
     }
 
     return s;
@@ -843,7 +842,7 @@ function obtenerEtiquetaEmpresaResumen(p) {
   return empresaBase;
 }
 
-// Calcula kilómetros recorridos / cubiertos y % de avance sobre el tramo de cada tarea
+// Suma únicamente los tramos parciales ejecutados (rangos en cada parte) y calcula % sobre el tramo total
 function renderAvanceKmPorTarea(lista) {
   const cont = document.getElementById("contenedorAvanceKmTareas");
   if (!lista.length) {
@@ -864,19 +863,25 @@ function renderAvanceKmPorTarea(lista) {
         rutaClave: tramoInfo.clave,
         longitudTramoKm: tramoInfo.longitudKm,
         descripcionTramo: tramoInfo.descripcionTramo,
-        kms: [],
-        sumaRangosKm: 0,
+        kmsPuntos: [],
+        sumaParcialesKm: 0,
+        cantidadPartes: 0,
         unidades: {}
       });
     }
 
     const g = gruposMap.get(claveGrupo);
+    g.cantidadPartes += 1;
+
     const numsKm = extraerKmNumericosDeParte(p);
     if (numsKm.length >= 2) {
-      g.sumaRangosKm += Math.abs(numsKm[numsKm.length - 1] - numsKm[0]);
-      g.kms.push(...numsKm);
+      // Suma tramo a tramo dentro del rango cargado en este parte
+      for (let idx = 1; idx < numsKm.length; idx++) {
+        g.sumaParcialesKm += Math.abs(numsKm[idx] - numsKm[idx - 1]);
+      }
+      g.kmsPuntos.push(...numsKm);
     } else if (numsKm.length === 1) {
-      g.kms.push(numsKm[0]);
+      g.kmsPuntos.push(numsKm[0]);
     }
 
     const cantItem = extraerCantidadYUnidadParte(p);
@@ -887,22 +892,18 @@ function renderAvanceKmPorTarea(lista) {
 
   const filas = Array.from(gruposMap.values())
     .map((g) => {
-      let kmRecorridos = 0;
       let rangoTexto = "—";
-
-      if (g.kms.length > 0) {
-        const minKm = Math.min(...g.kms);
-        const maxKm = Math.max(...g.kms);
-        rangoTexto = g.kms.length === 1
-          ? `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${maxKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-        const amplitudTotal = Math.max(0, maxKm - minKm);
-        kmRecorridos = g.sumaRangosKm > 0 ? Math.max(g.sumaRangosKm, amplitudTotal) : amplitudTotal;
+      if (g.kmsPuntos.length > 0) {
+        const minKm = Math.min(...g.kmsPuntos);
+        const maxKm = Math.max(...g.kmsPuntos);
+        rangoTexto = g.kmsPuntos.length === 1
+          ? `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`
+          : `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} – ${maxKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
       }
 
+      const kmParcialesEjecutados = g.sumaParcialesKm;
       const porcentaje = g.longitudTramoKm > 0
-        ? (kmRecorridos / g.longitudTramoKm) * 100
+        ? (kmParcialesEjecutados / g.longitudTramoKm) * 100
         : 0;
 
       const porcentajeBarra = Math.min(100, Math.max(0, porcentaje));
@@ -910,7 +911,7 @@ function renderAvanceKmPorTarea(lista) {
 
       return {
         ...g,
-        kmRecorridos,
+        kmParcialesEjecutados,
         rangoTexto,
         porcentaje,
         porcentajeBarra,
@@ -925,8 +926,8 @@ function renderAvanceKmPorTarea(lista) {
         <tr>
           <th style="min-width: 220px;">Tarea</th>
           <th>Ruta / Tramo (Total km)</th>
-          <th>Rango progresivas</th>
-          <th class="text-end">Km cubiertos</th>
+          <th>Progresivas registradas</th>
+          <th class="text-end">Km parciales ejecutados</th>
           <th class="text-end">Cantidad acumulada</th>
           <th style="min-width: 170px;">% Avance por km</th>
         </tr>
@@ -934,7 +935,7 @@ function renderAvanceKmPorTarea(lista) {
       <tbody>
         ${filas.map((f) => {
           const pctFmt = `${f.porcentaje.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-          const kmFmt = `${f.kmRecorridos.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
+          const kmFmt = `${f.kmParcialesEjecutados.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
           const colorBarra = f.porcentaje >= 75 ? "bg-success" : f.porcentaje >= 35 ? "bg-primary" : "bg-info";
 
           return `
