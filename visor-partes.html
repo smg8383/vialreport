@@ -149,6 +149,10 @@
       background-color: #f8fbff;
     }
 
+    .avance-bar-wrap {
+      min-width: 110px;
+    }
+
     @media (max-width: 575.98px) {
       body {
         padding-bottom: 92px;
@@ -192,7 +196,7 @@
       <img src="https://res.cloudinary.com/ddgc2azm8/image/upload/v1775232056/logo2_fnyfpq.png" alt="Logo">
       <div class="ms-2 lh-sm text-truncate">
         <span class="fw-bold text-primary fs-6">VIAL REPORT</span><br>
-        <small class="text-muted fw-semibold d-block text-truncate" style="font-size: 11px;">Control y Avances</small>
+        <small class="text-muted fw-semibold d-block text-truncate" style="font-size: 11px;">Control y Avance</small>
       </div>
     </a>
 
@@ -370,6 +374,29 @@
     </div>
   </div>
 
+  <!-- Cuadro Porcentaje de Avance por Kilómetro por Tarea -->
+  <div class="card mb-4">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <h6 class="fw-bold text-dark m-0">
+            <i class="bi bi-rulers text-primary me-1"></i> Porcentaje de Avance por Kilómetro por Tarea
+          </h6>
+          <small class="text-muted">
+            Referencia de tramos: RN 16 = 211,20 km (Km 0,00 – 211,20) · RN 12 = 338,49 km (Km 871,20 – 1.209,69)
+          </small>
+        </div>
+        <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+          <i class="bi bi-chevron-up"></i> Ocultar / Mostrar
+        </button>
+      </div>
+
+      <div id="contenedorAvanceKmTareas" class="table-responsive mt-2">
+        <div class="text-muted small py-2">Sin datos para calcular avance por km.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Cuadro Resumen: Tareas ejecutadas por empresa y cantidades realizadas -->
   <div class="card mb-4">
     <div class="card-body p-3">
@@ -479,6 +506,10 @@ const supabaseClient = supabase.createClient(
 const STORAGE_KEY_EDITANDO = "editandoParteDiario";
 const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v2";
 
+// Longitudes de tramos de referencia (km)
+const LONGITUD_TRAMO_RN16 = 211.20; // Km 0,00 al Km 211,20
+const LONGITUD_TRAMO_RN12 = 1209.69 - 871.20; // Km 871,20 al Km 1.209,69 = 338,49 km
+
 const KPIS_PUNTUALES_DEFAULT = [
   {
     titulo: "Bacheo con mezcla bituminosa",
@@ -582,7 +613,6 @@ function numRealOrNull(val) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Redondeo SOLO para visualización en pantalla (2 decimales)
 function fmt2(val) {
   const n = numRealOrNull(val);
   if (n === null) return "—";
@@ -599,6 +629,136 @@ function fmtAR2(val) {
   const n = numRealOrNull(val);
   if (n === null) return "0,00";
   return n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function clasificarRutaTramo(rutaValor) {
+  const r = String(rutaValor || "").toUpperCase();
+  if (r.includes("12")) {
+    return {
+      clave: "RN 12",
+      longitudKm: LONGITUD_TRAMO_RN12,
+      descripcionTramo: "Km 871,20 – 1.209,69 (338,49 km)"
+    };
+  }
+  return {
+    clave: "RN 16",
+    longitudKm: LONGITUD_TRAMO_RN16,
+    descripcionTramo: "Km 0,00 – 211,20 (211,20 km)"
+  };
+}
+
+function parsearValorKmIndividual(seg, esRN16, esRN12) {
+  const s = String(seg || "").trim();
+  if (!s) return null;
+
+  if (/[.,]/.test(s)) {
+    return numRealOrNull(s);
+  }
+
+  if (/^\d+$/.test(s)) {
+    const entero = parseInt(s, 10);
+
+    // En RN 16 (0,00 a 211,20), valores pegados como 50270 o 17717 representan km en milesimos (50.270 km)
+    if (esRN16 && entero > 211) {
+      const kmEscalado = entero / 1000;
+      return kmEscalado;
+    }
+
+    // En RN 12 (871,20 a 1.209,69), valores de 4+ dígitos sin separador como 8712 o 12096
+    if (esRN12 && entero >= 8712) {
+      const km10 = entero / 10;
+      if (km10 >= 871.20 && km10 <= 1209.69) return km10;
+      const km100 = entero / 100;
+      if (km100 >= 871.20 && km100 <= 1209.69) return km100;
+    }
+
+    return entero;
+  }
+
+  return null;
+}
+
+function extraerKmNumericosDeParte(p) {
+  const texto = String(p.km || "").trim();
+  if (!texto) return [];
+
+  const rutaUpper = String(p.ruta || "").toUpperCase();
+  const esRN16 = rutaUpper.includes("16") || (!rutaUpper.includes("12"));
+  const esRN12 = rutaUpper.includes("12");
+
+  const partes = texto.split(/\s*(?:-|\/|a)\s*/i).filter(Boolean);
+  const valores = [];
+
+  for (const parte of partes) {
+    const matchNum = parte.match(/\d+(?:[.,]\d+)?/);
+    if (matchNum) {
+      const val = parsearValorKmIndividual(matchNum[0], esRN16, esRN12);
+      if (val !== null && Number.isFinite(val)) {
+        valores.push(val);
+      }
+    }
+  }
+
+  return valores;
+}
+
+function formatearKmParaTabla(kmValor, rutaValor) {
+  if (kmValor === null || kmValor === undefined) return "—";
+  const textoOriginal = String(kmValor).trim();
+  if (!textoOriginal) return "—";
+
+  const rutaUpper = String(rutaValor || "").toUpperCase();
+  const esRN16 = rutaUpper.includes("16");
+  const esRN12 = rutaUpper.includes("12");
+
+  const formatearSegmento = (seg) => {
+    const s = String(seg || "").trim();
+    if (!s) return "";
+
+    if (/[.,]/.test(s)) {
+      const n = numRealOrNull(s);
+      if (n === null) return s;
+      return n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+    }
+
+    if (/^\d+$/.test(s)) {
+      const entero = parseInt(s, 10);
+
+      if (esRN16 && entero > 211) {
+        const kmEscalado = entero / 1000;
+        return kmEscalado.toLocaleString("es-AR", {
+          minimumFractionDigits: 3,
+          maximumFractionDigits: 3
+        });
+      }
+
+      if (esRN12 && entero >= 8712) {
+        const km10 = entero / 10;
+        if (km10 >= 871.20 && km10 <= 1209.69) {
+          return km10.toLocaleString("es-AR", {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 2
+          });
+        }
+      }
+
+      return entero.toLocaleString("es-AR");
+    }
+
+    return s;
+  };
+
+  if (textoOriginal.includes("-") || textoOriginal.includes("/")) {
+    return textoOriginal
+      .split(/(\s*-\s*|\s*\/\s*)/)
+      .map((parte) => {
+        if (/^(\s*-\s*|\s*\/\s*)$/.test(parte)) return parte.trim() === "-" ? " - " : " / ";
+        return formatearSegmento(parte);
+      })
+      .join("");
+  }
+
+  return formatearSegmento(textoOriginal);
 }
 
 function badgeEstado(estado) {
@@ -681,6 +841,128 @@ function obtenerEtiquetaEmpresaResumen(p) {
   }
 
   return empresaBase;
+}
+
+// Calcula kilómetros recorridos / cubiertos y % de avance sobre el tramo de cada tarea
+function renderAvanceKmPorTarea(lista) {
+  const cont = document.getElementById("contenedorAvanceKmTareas");
+  if (!lista.length) {
+    cont.innerHTML = `<div class="text-muted small py-2">No hay registros filtrados para calcular el avance por km.</div>`;
+    return;
+  }
+
+  const gruposMap = new Map();
+
+  lista.forEach((p) => {
+    const tarea = (p.tarea || "SIN TAREA").trim();
+    const tramoInfo = clasificarRutaTramo(p.ruta);
+    const claveGrupo = `${tramoInfo.clave}__${tarea}`;
+
+    if (!gruposMap.has(claveGrupo)) {
+      gruposMap.set(claveGrupo, {
+        tarea,
+        rutaClave: tramoInfo.clave,
+        longitudTramoKm: tramoInfo.longitudKm,
+        descripcionTramo: tramoInfo.descripcionTramo,
+        kms: [],
+        sumaRangosKm: 0,
+        unidades: {}
+      });
+    }
+
+    const g = gruposMap.get(claveGrupo);
+    const numsKm = extraerKmNumericosDeParte(p);
+    if (numsKm.length >= 2) {
+      g.sumaRangosKm += Math.abs(numsKm[numsKm.length - 1] - numsKm[0]);
+      g.kms.push(...numsKm);
+    } else if (numsKm.length === 1) {
+      g.kms.push(numsKm[0]);
+    }
+
+    const cantItem = extraerCantidadYUnidadParte(p);
+    if (cantItem) {
+      g.unidades[cantItem.unidad] = (g.unidades[cantItem.unidad] || 0) + cantItem.valor;
+    }
+  });
+
+  const filas = Array.from(gruposMap.values())
+    .map((g) => {
+      let kmRecorridos = 0;
+      let rangoTexto = "—";
+
+      if (g.kms.length > 0) {
+        const minKm = Math.min(...g.kms);
+        const maxKm = Math.max(...g.kms);
+        rangoTexto = g.kms.length === 1
+          ? `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : `Km ${minKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${maxKm.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        const amplitudTotal = Math.max(0, maxKm - minKm);
+        kmRecorridos = g.sumaRangosKm > 0 ? Math.max(g.sumaRangosKm, amplitudTotal) : amplitudTotal;
+      }
+
+      const porcentaje = g.longitudTramoKm > 0
+        ? (kmRecorridos / g.longitudTramoKm) * 100
+        : 0;
+
+      const porcentajeBarra = Math.min(100, Math.max(0, porcentaje));
+      const cantidadTexto = formatearMapaUnidades(g.unidades) || "—";
+
+      return {
+        ...g,
+        kmRecorridos,
+        rangoTexto,
+        porcentaje,
+        porcentajeBarra,
+        cantidadTexto
+      };
+    })
+    .sort((a, b) => b.porcentaje - a.porcentaje || a.tarea.localeCompare(b.tarea));
+
+  cont.innerHTML = `
+    <table class="table table-bordered table-hover matriz-resumen mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="min-width: 220px;">Tarea</th>
+          <th>Ruta / Tramo (Total km)</th>
+          <th>Rango progresivas</th>
+          <th class="text-end">Km cubiertos</th>
+          <th class="text-end">Cantidad acumulada</th>
+          <th style="min-width: 170px;">% Avance por km</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas.map((f) => {
+          const pctFmt = `${f.porcentaje.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+          const kmFmt = `${f.kmRecorridos.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
+          const colorBarra = f.porcentaje >= 75 ? "bg-success" : f.porcentaje >= 35 ? "bg-primary" : "bg-info";
+
+          return `
+            <tr>
+              <td class="fw-semibold text-dark">${escapeHTML(f.tarea)}</td>
+              <td class="text-nowrap">
+                <span class="badge bg-light text-dark border me-1">${escapeHTML(f.rutaClave)}</span>
+                <small class="text-muted">${escapeHTML(f.descripcionTramo)}</small>
+              </td>
+              <td class="text-nowrap small text-secondary">${escapeHTML(f.rangoTexto)}</td>
+              <td class="text-end fw-bold text-dark text-nowrap">${escapeHTML(kmFmt)}</td>
+              <td class="text-end text-nowrap">${escapeHTML(f.cantidadTexto)}</td>
+              <td>
+                <div class="avance-bar-wrap">
+                  <div class="d-flex justify-content-between align-items-center small fw-bold mb-1">
+                    <span class="text-primary">${escapeHTML(pctFmt)}</span>
+                  </div>
+                  <div class="progress" style="height: 7px;">
+                    <div class="progress-bar ${colorBarra}" role="progressbar" style="width: ${f.porcentajeBarra.toFixed(1)}%;"></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 function renderResumenTareasPorEmpresa(lista) {
@@ -1049,6 +1331,7 @@ function renderTarjetas(lista) {
 
     const chipsHTML = resumenDimensionesChips(p);
     const obsTexto = p.observacion || p.observacion1 || "";
+    const kmFormateado = formatearKmParaTabla(p.km, p.ruta);
 
     const thumbsHTML = fotos.length
       ? `<div class="thumb-grid mt-2">
@@ -1082,7 +1365,7 @@ function renderTarjetas(lista) {
               <div class="small text-muted mb-1">
                 <i class="bi bi-signpost-2"></i> ${escapeHTML(p.ruta || "—")}
                 ${p.subtramo ? `· ${escapeHTML(p.subtramo)}` : ""}
-                ${p.km ? `· <strong>Km ${escapeHTML(p.km)}</strong>` : ""}
+                ${kmFormateado !== "—" ? `· <strong>Km ${escapeHTML(kmFormateado)}</strong>` : ""}
               </div>
 
               <div class="fw-bold text-primary small mb-2">${escapeHTML(p.tarea || "Sin tarea")}</div>
@@ -1140,7 +1423,7 @@ function renderTabla(lista) {
         <td>${badgeFrente(p.frente)}</td>
         <td>${escapeHTML(p.empresa || "—")}</td>
         <td>${escapeHTML(p.ruta || "—")}${p.subtramo ? ` / ${escapeHTML(p.subtramo)}` : ""}</td>
-        <td class="text-nowrap">${escapeHTML(p.km || "—")}</td>
+        <td class="text-nowrap">${escapeHTML(formatearKmParaTabla(p.km, p.ruta))}</td>
         <td>${escapeHTML(p.sentido || "—")}</td>
         <td class="fw-semibold">${escapeHTML(p.tarea || "—")}</td>
         <td class="text-nowrap">${fmt2(p.largo_m)}</td>
@@ -1212,7 +1495,7 @@ window.abrirDetalleParte = function(id) {
       <div class="col-sm-6"><strong>Empresa:</strong> ${escapeHTML(parte.empresa || "—")}</div>
       <div class="col-sm-6"><strong>Ruta:</strong> ${escapeHTML(parte.ruta || "—")}</div>
       <div class="col-sm-6"><strong>Subtramo:</strong> ${escapeHTML(parte.subtramo || "—")}</div>
-      <div class="col-sm-6"><strong>Km:</strong> ${escapeHTML(parte.km || "—")}</div>
+      <div class="col-sm-6"><strong>Km:</strong> ${escapeHTML(formatearKmParaTabla(parte.km, parte.ruta))}</div>
       <div class="col-sm-6"><strong>Sentido:</strong> ${escapeHTML(parte.sentido || "—")}</div>
       <div class="col-12"><strong>Tarea:</strong> ${escapeHTML(parte.tarea || "—")}</div>
       <div class="col-12"><strong>Avance:</strong> ${avanceTexto}</div>
@@ -1317,6 +1600,7 @@ function aplicarFiltros() {
 
   actualizarKPIs(partesFiltrados);
   renderKPIsPuntuales(partesFiltrados);
+  renderAvanceKmPorTarea(partesFiltrados);
   renderResumenTareasPorEmpresa(partesFiltrados);
   renderTarjetas(partesFiltrados);
   renderTabla(partesFiltrados);
@@ -1405,6 +1689,15 @@ function exportarCSV() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+document.getElementById("btnToggleAvanceKm").addEventListener("click", () => {
+  const cont = document.getElementById("contenedorAvanceKmTareas");
+  const btn = document.getElementById("btnToggleAvanceKm");
+  const oculto = cont.classList.toggle("d-none");
+  btn.innerHTML = oculto
+    ? `<i class="bi bi-chevron-down"></i> Mostrar`
+    : `<i class="bi bi-chevron-up"></i> Ocultar`;
+});
 
 document.getElementById("btnToggleResumen").addEventListener("click", () => {
   const cont = document.getElementById("contenedorResumenTareas");
