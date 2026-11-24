@@ -102,6 +102,34 @@
       display: inline-block;
     }
 
+    .fila-secundaria-parte td {
+      background-color: #fafbfd;
+      border-top: 1px dashed #e2e8f0;
+      padding-top: 6px;
+      padding-bottom: 8px;
+    }
+
+    .barra-meta-parte {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .meta-izquierda {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .meta-acciones {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     .table th {
       font-size: 12px;
       text-transform: uppercase;
@@ -480,7 +508,7 @@
           Cargando partes diarios...
         </div>
 
-        <!-- Vista Tabla (predeterminada) -->
+        <!-- Vista Tabla (predeterminada, con Estado, Fotos y Acciones en segunda línea) -->
         <div id="vistaTabla" class="border rounded-3 overflow-hidden">
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -500,9 +528,6 @@
                   <th>Volumen</th>
                   <th>Cant. (u)</th>
                   <th>Avance</th>
-                  <th>Estado</th>
-                  <th>Fotos</th>
-                  <th class="text-end">Acciones</th>
                 </tr>
               </thead>
               <tbody id="cuerpoTablaPartes"></tbody>
@@ -1616,6 +1641,10 @@ function renderTabla(lista) {
       ? `${fmt2(p.avance_cantidad)} ${escapeHTML(p.avance_unidad || "")}`.trim()
       : "—";
 
+    const fotosBadge = fotos.length
+      ? `<span class="badge bg-light text-dark border"><i class="bi bi-camera me-1"></i>${fotos.length} foto${fotos.length === 1 ? "" : "s"}</span>`
+      : `<span class="text-muted small"><i class="bi bi-camera me-1"></i>0 fotos</span>`;
+
     return `
       <tr>
         <td class="text-nowrap">${escapeHTML(p.fecha || "—")}</td>
@@ -1632,18 +1661,26 @@ function renderTabla(lista) {
         <td class="text-nowrap">${fmt2(p.volumen_m3)}</td>
         <td class="text-nowrap">${fmt2(p.cantidad_u)}</td>
         <td class="fw-bold text-nowrap">${avanceTexto}</td>
-        <td>${badgeEstado(p.estado)}</td>
-        <td>${fotos.length ? `<span class="badge bg-light text-dark border">${fotos.length}</span>` : "0"}</td>
-        <td class="text-end text-nowrap">
-          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')">
-            <i class="bi bi-eye"></i>
-          </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1" onclick="editarParte('${escapeHTML(String(p.id))}')">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-1" onclick="eliminarParte('${escapeHTML(String(p.id))}')">
-            <i class="bi bi-trash"></i>
-          </button>
+      </tr>
+      <tr class="fila-secundaria-parte">
+        <td colspan="14">
+          <div class="barra-meta-parte">
+            <div class="meta-izquierda">
+              ${badgeEstado(p.estado)}
+              ${fotosBadge}
+            </div>
+            <div class="meta-acciones">
+              <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-1" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')" title="Detalle">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1" onclick="editarParte('${escapeHTML(String(p.id))}')" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-1" onclick="eliminarParte('${escapeHTML(String(p.id))}')" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
         </td>
       </tr>
     `;
