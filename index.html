@@ -230,7 +230,7 @@ footer {
 
             <div class="col-md-8">
               <label class="form-label fw-semibold text-secondary small">Observación</label>
-              <input type="text" name="observacion_1" class="form-control" placeholder="Ingrese detalles de la inspección">
+              <input type="text" name="observacion_1" id="observacion_1" class="form-control" placeholder="Ingrese detalles de la inspección">
             </div>
 
             <!-- SECCIÓN DE FOTOS CON EXIF -->
@@ -352,6 +352,10 @@ const mapasInstanciados = {};
 const marcadoresUsuario = {};
 let todosLosKmMapa = [];
 let ultimoErrorSupabaseKm = null;
+
+const STORAGE_KEY_CAMPOS_NUEVO = "vialReportCamposNuevoRegistro";
+const STORAGE_KEY_EDITANDO_INFORME = "editandoInforme";
+const STORAGE_KEY_EDITANDO_COORDS = "editandoInformeCoords";
 
 window.posicionarMapaEnEdicion = function(lat, lon, grupoId = 1) {
   const map = mapasInstanciados[grupoId];
@@ -569,6 +573,12 @@ async function inicializarMapa(grupoId) {
         circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
       }
     });
+
+    const latVal = parseFloat(document.getElementById("lat_1")?.value);
+    const lonVal = parseFloat(document.getElementById("lon_1")?.value);
+    if (!Number.isNaN(latVal) && !Number.isNaN(lonVal)) {
+      window.posicionarMapaEnEdicion(latVal, lonVal, grupoId);
+    }
   } catch (err) {
     console.error("Error cargando progresivas en mapa:", err);
   }
@@ -582,9 +592,218 @@ function obtenerFechaHoyLocal() {
   return `${año}-${mes}-${dia}`;
 }
 
+function esModoEdicionActivo() {
+  return Boolean(localStorage.getItem(STORAGE_KEY_EDITANDO_INFORME));
+}
+
+function limpiarFotosYPreviews() {
+  const inputFotos = document.querySelector('input[name="photos_1"]');
+  const inputCamara = document.querySelector('.camara-directa');
+  const preview = document.querySelector('.preview');
+  const actuales = document.getElementById('imagenesActuales');
+  const barra = document.querySelector('.progress-bar');
+
+  if (inputFotos) {
+    try {
+      inputFotos.value = "";
+      inputFotos.files = new DataTransfer().files;
+    } catch (_) {}
+  }
+  if (inputCamara) {
+    try {
+      inputCamara.value = "";
+    } catch (_) {}
+  }
+  if (preview) preview.innerHTML = "";
+  if (actuales) actuales.innerHTML = "";
+  if (barra) barra.style.width = "0%";
+}
+
+function guardarCamposNuevoRegistroEnStorage() {
+  const datos = {
+    fecha: document.getElementById("date_1")?.value || obtenerFechaHoyLocal(),
+    empresa: document.querySelector('select[name="empresa_1"]')?.value || "CORREDOR LITORAL SA",
+    ruta: document.querySelector('select[name="ruta_1"]')?.value || "RN N° 16",
+    subtramo: document.querySelector('select[name="subtramo_1"]')?.value || "CHACO",
+    tarea: document.querySelector('select[name="tarea_1"]')?.value || "",
+    km: document.querySelector('input[name="km_1"]')?.value || "",
+    sentido: document.querySelector('select[name="sentido_1"]')?.value || "ASCENDENTE",
+    observacion: (document.getElementById("observacion_1")?.value || "").toUpperCase(),
+    lat: document.getElementById("lat_1")?.value || "",
+    lon: document.getElementById("lon_1")?.value || ""
+  };
+  localStorage.setItem(STORAGE_KEY_CAMPOS_NUEVO, JSON.stringify(datos));
+}
+
+function aplicarCamposGuardadosNuevoRegistro() {
+  if (esModoEdicionActivo()) return false;
+
+  const raw = localStorage.getItem(STORAGE_KEY_CAMPOS_NUEVO);
+  if (!raw) return false;
+
+  try {
+    const datos = JSON.parse(raw);
+    if (!datos || typeof datos !== "object") return false;
+
+    if (datos.fecha) document.getElementById("date_1").value = datos.fecha;
+    if (datos.empresa) {
+      const selEmp = document.querySelector('select[name="empresa_1"]');
+      if (selEmp && Array.from(selEmp.options).some(o => o.value === datos.empresa)) {
+        selEmp.value = datos.empresa;
+      }
+    }
+    if (datos.ruta) {
+      const selRuta = document.querySelector('select[name="ruta_1"]');
+      if (selRuta && Array.from(selRuta.options).some(o => o.value === datos.ruta)) {
+        selRuta.value = datos.ruta;
+      }
+    }
+    if (datos.subtramo) {
+      const selSub = document.querySelector('select[name="subtramo_1"]');
+      if (selSub && Array.from(selSub.options).some(o => o.value === datos.subtramo)) {
+        selSub.value = datos.subtramo;
+      }
+    }
+    if (datos.km != null) {
+      document.querySelector('input[name="km_1"]').value = datos.km;
+    }
+    if (datos.sentido) {
+      const selSen = document.querySelector('select[name="sentido_1"]');
+      if (selSen && Array.from(selSen.options).some(o => o.value === datos.sentido)) {
+        selSen.value = datos.sentido;
+      }
+    }
+    if (datos.observacion != null) {
+      document.getElementById("observacion_1").value = String(datos.observacion).toUpperCase();
+    }
+    if (datos.lat != null) {
+      document.getElementById("lat_1").value = datos.lat;
+    }
+    if (datos.lon != null) {
+      document.getElementById("lon_1").value = datos.lon;
+    }
+
+    // Reaplicar subtarea una vez que el catálogo termine de poblarse
+    if (datos.tarea) {
+      const aplicarTarea = () => {
+        const selTarea = document.querySelector('select[name="tarea_1"]');
+        if (selTarea && Array.from(selTarea.options).some(o => o.value === datos.tarea)) {
+          selTarea.value = datos.tarea;
+        }
+      };
+      aplicarTarea();
+      setTimeout(aplicarTarea, 400);
+      setTimeout(aplicarTarea, 1000);
+    }
+
+    limpiarFotosYPreviews();
+    return true;
+  } catch (e) {
+    console.warn("No se pudieron restaurar los campos del registro nuevo:", e);
+    return false;
+  }
+}
+
+function resetearFormularioCompleto() {
+  const form = document.getElementById("form");
+  if (form) form.reset();
+
+  const fechaEl = document.getElementById("date_1");
+  if (fechaEl) fechaEl.value = obtenerFechaHoyLocal();
+
+  const obsEl = document.getElementById("observacion_1");
+  if (obsEl) obsEl.value = "";
+
+  const latEl = document.getElementById("lat_1");
+  const lonEl = document.getElementById("lon_1");
+  if (latEl) latEl.value = "";
+  if (lonEl) lonEl.value = "";
+
+  if (marcadoresUsuario[1] && mapasInstanciados[1]) {
+    mapasInstanciados[1].removeLayer(marcadoresUsuario[1].marker);
+    if (marcadoresUsuario[1].circle) mapasInstanciados[1].removeLayer(marcadoresUsuario[1].circle);
+    delete marcadoresUsuario[1];
+  }
+
+  limpiarFotosYPreviews();
+  localStorage.removeItem(STORAGE_KEY_CAMPOS_NUEVO);
+  localStorage.removeItem(STORAGE_KEY_EDITANDO_INFORME);
+  localStorage.removeItem(STORAGE_KEY_EDITANDO_COORDS);
+}
+
+// Campo observación simple en mayúsculas
+function configurarObservacionMayusculas() {
+  const obsInput = document.getElementById("observacion_1");
+  if (!obsInput) return;
+
+  obsInput.addEventListener("input", () => {
+    const start = obsInput.selectionStart;
+    const end = obsInput.selectionEnd;
+    const mayus = obsInput.value.toUpperCase();
+    if (obsInput.value !== mayus) {
+      obsInput.value = mayus;
+      if (typeof start === "number" && typeof end === "number") {
+        obsInput.setSelectionRange(start, end);
+      }
+    }
+  });
+}
+
+// Manejo de envío del formulario:
+// - Si es edición: limpia todo el formulario al guardar
+// - Si es registro nuevo: guarda campos (sin fotos) y va al visor
+function configurarEnvioYLimpieza() {
+  const form = document.getElementById("form");
+  const btnClear = document.getElementById("clearForm");
+
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      resetearFormularioCompleto();
+    });
+  }
+
+  if (!form) return;
+
+  form.addEventListener("submit", () => {
+    const obsEl = document.getElementById("observacion_1");
+    if (obsEl) obsEl.value = obsEl.value.toUpperCase();
+
+    if (esModoEdicionActivo()) {
+      // Edición: limpiar todo cuando se guarde
+      localStorage.removeItem(STORAGE_KEY_CAMPOS_NUEVO);
+      setTimeout(() => {
+        resetearFormularioCompleto();
+      }, 600);
+    } else {
+      // Registro nuevo: guardar campos (sin fotos) y dirigir al visor
+      guardarCamposNuevoRegistroEnStorage();
+      setTimeout(() => {
+        if (!window.location.pathname.endsWith("visor.html")) {
+          window.location.href = "visor.html";
+        }
+      }, 900);
+    }
+  });
+
+  // Permite que app.js notifique explícitamente cuando termine de guardar
+  window.addEventListener("vialreport:informeGuardado", (ev) => {
+    const fueEdicion = Boolean(ev?.detail?.esEdicion || esModoEdicionActivo());
+    if (fueEdicion) {
+      resetearFormularioCompleto();
+    } else {
+      guardarCamposNuevoRegistroEnStorage();
+      window.location.href = "visor.html";
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  configurarObservacionMayusculas();
+  configurarEnvioYLimpieza();
+
+  const restaurado = aplicarCamposGuardadosNuevoRegistro();
   const inputFecha1 = document.querySelector('input[name="date_1"]');
-  if (inputFecha1 && !inputFecha1.value) {
+  if (inputFecha1 && !inputFecha1.value && !restaurado) {
     inputFecha1.value = obtenerFechaHoyLocal();
   }
 
