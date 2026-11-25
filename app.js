@@ -485,11 +485,14 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
     if (eraEdicion) {
       limpiarTodosLosCamposFormulario();
+      ocultarCarga();
+      alert("Datos actualizados y guardados correctamente ✅");
     } else {
       limpiarFotosYPreviews();
+      ocultarCarga();
+      alert("Guardado correctamente ✅");
     }
 
-    ocultarCarga();
     window.location.href = "visor.html";
 
   } catch (err) {
