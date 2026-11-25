@@ -7,6 +7,13 @@ window.supabaseClient = supabaseClient; // Exponer globalmente para el mapa y el
 
 document.addEventListener("DOMContentLoaded", async () => {
 
+const STORAGE_KEY_CAMPOS_NUEVO = "vialReportCamposNuevoRegistro";
+
+function obtenerFechaHoyLocal() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+}
+
 // 🔒 SESSION
 (async () => {
   const { data } = await supabaseClient.auth.getSession();
@@ -276,6 +283,50 @@ function limpiarFotosYPreviews() {
   actualizarBarra(0);
 }
 
+// 🔹 LIMPIAR TODOS LOS CAMPOS DEL FORMULARIO (Para edición guardada o botón Limpiar)
+function limpiarTodosLosCamposFormulario() {
+  localStorage.removeItem("editandoInforme");
+  localStorage.removeItem("editandoInformeCoords");
+  localStorage.removeItem(STORAGE_KEY_CAMPOS_NUEVO);
+  editandoId = null;
+
+  const form = document.getElementById("form");
+  if (form) form.reset();
+
+  const fechaLocal = obtenerFechaHoyLocal();
+  const inputFecha = document.querySelector(`[name^="date_"]`);
+  if (inputFecha) inputFecha.value = fechaLocal;
+
+  const obsInput = document.querySelector(`[name^="observacion_"]`);
+  if (obsInput) obsInput.value = "";
+
+  document.querySelectorAll(`[id^="lat_"], [id^="lon_"]`).forEach((coordInput) => {
+    coordInput.value = "";
+  });
+
+  limpiarFotosYPreviews();
+}
+
+// 🔹 GUARDAR CAMPOS DEL REGISTRO NUEVO (Sin fotos, para próxima foto del sector)
+function guardarCamposRegistroNuevo(grupoEl) {
+  if (!grupoEl) return;
+
+  const datos = {
+    fecha: grupoEl.querySelector(`[name^="date_"]`)?.value || obtenerFechaHoyLocal(),
+    empresa: grupoEl.querySelector(`[name^="empresa_"]`)?.value || "",
+    ruta: grupoEl.querySelector(`[name^="ruta_"]`)?.value || "",
+    subtramo: grupoEl.querySelector(`[name^="subtramo_"]`)?.value || "",
+    tarea: grupoEl.querySelector(".tarea-select")?.value || "",
+    km: grupoEl.querySelector(`[name^="km_"]`)?.value || "",
+    sentido: grupoEl.querySelector(`[name^="sentido_"]`)?.value || "",
+    observacion: (grupoEl.querySelector(`[name^="observacion_"]`)?.value || "").toUpperCase(),
+    lat: grupoEl.querySelector(`[id^="lat_"]`)?.value || "",
+    lon: grupoEl.querySelector(`[id^="lon_"]`)?.value || ""
+  };
+
+  localStorage.setItem(STORAGE_KEY_CAMPOS_NUEVO, JSON.stringify(datos));
+}
+
 // 🔹 AGREGAR NUEVO GRUPO
 let count = 1;
 const btnAddGroup = document.getElementById("addGroup");
@@ -301,37 +352,23 @@ if (btnAddGroup) {
   });
 }
 
-// 🔹 LIMPIAR FORMULARIO COMPLETO (A pedido del usuario)
+// 🔹 BOTÓN LIMPIAR FORMULARIO COMPLETO
 const btnClear = document.getElementById("clearForm");
 if (btnClear) {
   btnClear.addEventListener("click", () => {
     if (!confirm("¿Querés limpiar todos los campos del formulario?")) return;
-    localStorage.removeItem("editandoInforme");
-    localStorage.removeItem("editandoInformeCoords");
-    editandoId = null;
-
-    const form = document.getElementById("form");
-    if (form) form.reset();
-
-    const hoy = new Date();
-    const fechaLocal = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
-    const inputFecha = document.querySelector(`[name^="date_"]`);
-    if (inputFecha) inputFecha.value = fechaLocal;
-
-    document.querySelectorAll(`[id^="lat_"], [id^="lon_"]`).forEach((coordInput) => {
-      coordInput.value = "";
-    });
-
-    limpiarFotosYPreviews();
+    limpiarTodosLosCamposFormulario();
   });
 }
 
-// 🔹 GUARDAR FORMULARIO (Conserva datos precargados y limpia solo las fotos)
+// 🔹 GUARDAR FORMULARIO
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
   mostrarCarga();
   actualizarBarra(0);
+
+  const eraEdicion = Boolean(editandoId || localStorage.getItem("editandoInforme"));
 
   const { data } = await supabaseClient.auth.getSession();
   if (!data.session) {
@@ -393,6 +430,9 @@ document.getElementById("form").addEventListener("submit", async (e) => {
       }
 
       const subtarea = g.querySelector(".tarea-select").value;
+      const obsInput = g.querySelector(`[name^="observacion_"]`);
+      const observacionMayus = (obsInput?.value || "").toUpperCase();
+      if (obsInput) obsInput.value = observacionMayus;
 
       const latInput = g.querySelector(`#lat_${grupoId}`) || g.querySelector(`[id^="lat_"]`);
       const lonInput = g.querySelector(`#lon_${grupoId}`) || g.querySelector(`[id^="lon_"]`);
@@ -408,7 +448,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         tarea: subtarea,
         km: g.querySelector(`[name^="km_"]`).value,
         sentido: g.querySelector(`[name^="sentido_"]`).value,
-        observacion: g.querySelector(`[name^="observacion_"]`).value,
+        observacion: observacionMayus,
         imagenes,
         latitud: latParsed !== null && !Number.isNaN(latParsed) ? latParsed : null,
         longitud: lonParsed !== null && !Number.isNaN(lonParsed) ? lonParsed : null,
@@ -426,9 +466,6 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           ocultarCarga();
           return;
         }
-        localStorage.removeItem("editandoInforme");
-        localStorage.removeItem("editandoInformeCoords");
-        editandoId = null;
       } else {
         const { error } = await supabaseClient
           .from("informes")
@@ -438,13 +475,22 @@ document.getElementById("form").addEventListener("submit", async (e) => {
           ocultarCarga();
           return;
         }
+        if (i === 0) {
+          guardarCamposRegistroNuevo(g);
+        }
       }
     }
 
     actualizarBarra(100);
-    limpiarFotosYPreviews();
+
+    if (eraEdicion) {
+      limpiarTodosLosCamposFormulario();
+    } else {
+      limpiarFotosYPreviews();
+    }
+
     ocultarCarga();
-    alert("Guardado correctamente ✅ Se limpiaron las fotos y se conservaron los datos cargados.");
+    window.location.href = "visor.html";
 
   } catch (err) {
     console.error(err);
@@ -484,7 +530,7 @@ async function cargarEdicion() {
   document.querySelector(`[name^="subtramo_"]`).value = data.subtramo || "";
   document.querySelector(`[name^="km_"]`).value = data.km || "";
   document.querySelector(`[name^="sentido_"]`).value = data.sentido || "";
-  document.querySelector(`[name^="observacion_"]`).value = data.observacion || "";
+  document.querySelector(`[name^="observacion_"]`).value = (data.observacion || "").toUpperCase();
 
   let latGuardada = data.latitud;
   let lonGuardada = data.longitud;
