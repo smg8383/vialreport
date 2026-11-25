@@ -601,7 +601,7 @@ async function getBase64ImageFromURL(url) {
   });
 }
 
-// 🖼️ ESTAMPADO DE DATOS EN LA FOTO (CANVAS - ARRIBA A LA IZQUIERDA Y MÁS ANGOSTO)
+// 🖼️ ESTAMPADO DE DATOS EN LA FOTO (CANVAS - ARRIBA A LA IZQUIERDA, LETRA COMPACTA Y POCO ALTO)
 async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -616,16 +616,16 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
 
       ctx.drawImage(img, 0, 0);
 
-      // Recuadro compacto arriba a la izquierda, más angosto y con salto de línea
-      const marginFromEdge = Math.max(12, Math.round(canvas.width * 0.018));
+      // Letra más chica y bloque bajo para no ocupar altura arriba a la izquierda
+      const marginFromEdge = Math.max(10, Math.round(canvas.width * 0.015));
       const maxBoxWidth = Math.min(
-        Math.round(canvas.width * 0.52),
-        Math.max(240, Math.round(canvas.width * 0.65))
+        Math.round(canvas.width * 0.68),
+        Math.max(260, Math.round(canvas.width * 0.78))
       );
-      const fontSize = Math.max(13, Math.min(28, Math.floor(maxBoxWidth * 0.042)));
-      const paddingX = Math.max(10, Math.round(fontSize * 0.65));
-      const paddingY = Math.max(8, Math.round(fontSize * 0.55));
-      const lineHeight = Math.round(fontSize * 1.3);
+      const fontSize = Math.max(11, Math.min(19, Math.floor(canvas.width * 0.015)));
+      const paddingX = Math.max(8, Math.round(fontSize * 0.55));
+      const paddingY = Math.max(5, Math.round(fontSize * 0.35));
+      const lineHeight = Math.round(fontSize * 1.18);
 
       ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
 
@@ -639,7 +639,7 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
         lineasOriginales.push(`Obs: ${datos.observacion}`);
       }
 
-      const maxTextoWidth = Math.max(100, maxBoxWidth - paddingX * 2);
+      const maxTextoWidth = Math.max(120, maxBoxWidth - paddingX * 2);
       const lineasEnvueltas = [];
 
       lineasOriginales.forEach((linea) => {
@@ -682,10 +682,10 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
 
       const boxX = marginFromEdge;
       const boxY = marginFromEdge;
-      const radius = Math.max(6, Math.round(fontSize * 0.45));
+      const radius = Math.max(5, Math.round(fontSize * 0.4));
 
       ctx.save();
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.62)';
       ctx.beginPath();
       if (typeof ctx.roundRect === 'function') {
         ctx.roundRect(boxX, boxY, boxWidth, boxHeight, radius);
