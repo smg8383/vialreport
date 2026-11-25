@@ -601,7 +601,7 @@ async function getBase64ImageFromURL(url) {
   });
 }
 
-// 🖼️ ESTAMPADO DE DATOS EN LA FOTO (CANVAS)
+// 🖼️ ESTAMPADO DE DATOS EN LA FOTO (CANVAS - ARRIBA A LA IZQUIERDA Y MÁS ANGOSTO)
 async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -616,44 +616,93 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
 
       ctx.drawImage(img, 0, 0);
 
-      const fontSize = Math.max(16, Math.floor(canvas.width * 0.022));
-      const padding = fontSize * 0.8;
-      ctx.font = `bold ${fontSize}px sans-serif`;
+      // Recuadro compacto arriba a la izquierda, más angosto y con salto de línea
+      const marginFromEdge = Math.max(12, Math.round(canvas.width * 0.018));
+      const maxBoxWidth = Math.min(
+        Math.round(canvas.width * 0.52),
+        Math.max(240, Math.round(canvas.width * 0.65))
+      );
+      const fontSize = Math.max(13, Math.min(28, Math.floor(maxBoxWidth * 0.042)));
+      const paddingX = Math.max(10, Math.round(fontSize * 0.65));
+      const paddingY = Math.max(8, Math.round(fontSize * 0.55));
+      const lineHeight = Math.round(fontSize * 1.3);
 
-      let lineas = [
+      ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+
+      const lineasOriginales = [
         `Empresa: ${datos.empresa}`,
         `Tarea: ${datos.tarea}`,
         `Ruta: ${datos.ruta} - Km: ${datos.km} (${datos.sentido})`
       ];
 
       if (datos.incluirObs && datos.observacion) {
-        lineas.push(`Obs: ${datos.observacion}`);
+        lineasOriginales.push(`Obs: ${datos.observacion}`);
       }
 
-      let maxWidth = 0;
-      lineas.forEach(linea => {
-        const metrics = ctx.measureText(linea);
-        if (metrics.width > maxWidth) maxWidth = metrics.width;
+      const maxTextoWidth = Math.max(100, maxBoxWidth - paddingX * 2);
+      const lineasEnvueltas = [];
+
+      lineasOriginales.forEach((linea) => {
+        const palabras = String(linea || "").split(/\s+/).filter(Boolean);
+        let actual = "";
+
+        palabras.forEach((palabra) => {
+          const prueba = actual ? `${actual} ${palabra}` : palabra;
+          if (ctx.measureText(prueba).width <= maxTextoWidth) {
+            actual = prueba;
+          } else {
+            if (actual) lineasEnvueltas.push(actual);
+            if (ctx.measureText(palabra).width > maxTextoWidth) {
+              let trozo = "";
+              for (const ch of palabra) {
+                const pruebaTrozo = trozo + ch;
+                if (ctx.measureText(pruebaTrozo).width <= maxTextoWidth) {
+                  trozo = pruebaTrozo;
+                } else {
+                  if (trozo) lineasEnvueltas.push(trozo);
+                  trozo = ch;
+                }
+              }
+              actual = trozo;
+            } else {
+              actual = palabra;
+            }
+          }
+        });
+
+        if (actual) lineasEnvueltas.push(actual);
       });
 
-      const boxWidth = maxWidth + (padding * 2);
-      const lineHeight = fontSize * 1.4;
-      const boxHeight = (lineas.length * lineHeight) + (padding * 2);
+      const anchoTextoReal = lineasEnvueltas.reduce((maxW, l) => {
+        return Math.max(maxW, ctx.measureText(l).width);
+      }, 0);
 
-      const marginFromEdge = canvas.width * 0.02;
+      const boxWidth = Math.min(maxBoxWidth, Math.ceil(anchoTextoReal + paddingX * 2));
+      const boxHeight = Math.ceil(lineasEnvueltas.length * lineHeight + paddingY * 2);
+
       const boxX = marginFromEdge;
-      const boxY = canvas.height - boxHeight - marginFromEdge;
+      const boxY = marginFromEdge;
+      const radius = Math.max(6, Math.round(fontSize * 0.45));
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-      ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(boxX, boxY, boxWidth, boxHeight, radius);
+      } else {
+        ctx.rect(boxX, boxY, boxWidth, boxHeight);
+      }
+      ctx.fill();
 
       ctx.fillStyle = '#FFFFFF';
-      let currentY = boxY + padding + fontSize;
+      ctx.textBaseline = 'top';
+      let currentY = boxY + paddingY;
 
-      lineas.forEach(linea => {
-        ctx.fillText(linea, boxX + padding, currentY);
+      lineasEnvueltas.forEach((linea) => {
+        ctx.fillText(linea, boxX + paddingX, currentY);
         currentY += lineHeight;
       });
+      ctx.restore();
 
       canvas.toBlob((blob) => {
         resolve(blob);
