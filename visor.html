@@ -167,7 +167,7 @@
 <!-- Contenedor Principal -->
 <div class="container py-3" style="max-width: 950px;">
 
-    <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
+  <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
     <h2 class="text-dark fw-bold fs-5 fs-md-4 m-0">
       <i class="bi bi-folder2-open text-primary"></i> Historial de Registros
     </h2>
@@ -242,9 +242,14 @@
   <!-- Filtros Rediseñados -->
   <div class="card shadow-sm mb-4">
     <div class="card-body p-4">
-      <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
-        <i class="bi bi-filter-circle-fill text-primary me-2 fs-5"></i>
-        <h6 class="mb-0 fw-bold text-dark">Filtros de Búsqueda</h6>
+      <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-filter-circle-fill text-primary me-2 fs-5"></i>
+          <h6 class="mb-0 fw-bold text-dark">Filtros de Búsqueda</h6>
+        </div>
+        <button type="button" id="btnLimpiarFiltros" class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="limpiarFiltrosVisor()">
+          <i class="bi bi-eraser"></i> Limpiar filtros
+        </button>
       </div>
 
       <div class="row g-3">
@@ -290,6 +295,23 @@
             <option value="">Todos</option>
           </select>
         </div>
+
+        <!-- Consulta por Km (puntual o rango ej. 50-65) -->
+        <div class="col-md-6 col-lg-4">
+          <label for="filterKm" class="form-label small fw-semibold text-secondary">Consultar por Km</label>
+          <div class="input-group input-group-sm">
+            <input
+              type="text"
+              id="filterKm"
+              class="form-control"
+              placeholder="Ej: 59.8 o 50-65"
+            >
+            <button type="button" id="btnConsultarKm" class="btn btn-primary fw-semibold px-3" onclick="cargar()" title="Consultar por Km">
+              <i class="bi bi-search"></i> Buscar Km
+            </button>
+          </div>
+          <div class="form-text" style="font-size: 11px;">Buscá un Km puntual (ej. <code>59.8</code>) o rango (ej. <code>50-65</code>).</div>
+        </div>
       </div>
     </div>
   </div>
@@ -328,6 +350,63 @@ function inicializarTituloInformePDF() {
       localStorage.removeItem(CLAVE_TITULO_PDF);
     }
   });
+}
+
+// 📏 CONSULTA POR KM (soporta número/texto o rango "desde-hasta")
+function parsearNumeroKm(valor) {
+  if (valor == null) return NaN;
+  const limpio = String(valor)
+    .replace(/km/gi, "")
+    .trim()
+    .replace(",", ".");
+  const match = limpio.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return NaN;
+  const num = parseFloat(match[0]);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+function coincideFiltroKm(kmRegistro, filtroKmTexto) {
+  const consulta = String(filtroKmTexto || "").trim();
+  if (!consulta) return true;
+
+  const kmRegStr = String(kmRegistro ?? "").trim();
+  if (!kmRegStr) return false;
+
+  // Rango tipo "50 - 65" o "50-65"
+  const partesRango = consulta.split(/\s*-\s*/);
+  if (partesRango.length === 2 && partesRango[0] !== "" && partesRango[1] !== "") {
+    const minKm = parsearNumeroKm(partesRango[0]);
+    const maxKm = parsearNumeroKm(partesRango[1]);
+    const regKmNum = parsearNumeroKm(kmRegStr);
+    if (!Number.isNaN(minKm) && !Number.isNaN(maxKm) && !Number.isNaN(regKmNum)) {
+      const desde = Math.min(minKm, maxKm);
+      const hasta = Math.max(minKm, maxKm);
+      return regKmNum >= desde && regKmNum <= hasta;
+    }
+  }
+
+  const consultaNorm = consulta.replace(",", ".").toLowerCase();
+  const regNorm = kmRegStr.replace(",", ".").toLowerCase();
+
+  if (regNorm.includes(consultaNorm)) return true;
+
+  const numConsulta = parsearNumeroKm(consulta);
+  const numRegistro = parsearNumeroKm(kmRegStr);
+  if (!Number.isNaN(numConsulta) && !Number.isNaN(numRegistro)) {
+    return Math.abs(numRegistro - numConsulta) < 0.0001;
+  }
+
+  return false;
+}
+
+function limpiarFiltrosVisor() {
+  document.getElementById("filterFecha").value = "";
+  document.getElementById("filterEmpresa").value = "";
+  document.getElementById("filterRuta").value = "";
+  document.getElementById("filterSubtramo").value = "";
+  document.getElementById("filterSubtarea").value = "";
+  document.getElementById("filterKm").value = "";
+  cargar();
 }
 
 // 🏢 OBTENER ORGANIZACIÓN Y USER_IDS DE COLEGAS DESDE "empresas"
@@ -413,6 +492,7 @@ async function cargar() {
   const ruta = document.getElementById("filterRuta").value;
   const subtramo = document.getElementById("filterSubtramo").value;
   const subtarea = document.getElementById("filterSubtarea").value;
+  const kmFiltro = document.getElementById("filterKm").value;
 
   let query = aplicarFiltroOrganizacion(
     supabaseClient.from("informes").select("*"),
@@ -435,8 +515,10 @@ async function cargar() {
     return; 
   }
 
-  renderInformes(data);
-  actualizarMapaVisor(data);
+  const filtrados = (data || []).filter(r => coincideFiltroKm(r.km, kmFiltro));
+
+  renderInformes(filtrados);
+  actualizarMapaVisor(filtrados);
 }
 
 // 🗺️ ACTUALIZAR PINES
@@ -616,7 +698,6 @@ async function procesarFotoConMarcaDeAgua(imagenSrc, datos) {
 
       ctx.drawImage(img, 0, 0);
 
-      // Letra más chica y bloque bajo para no ocupar altura arriba a la izquierda
       const marginFromEdge = Math.max(10, Math.round(canvas.width * 0.015));
       const maxBoxWidth = Math.min(
         Math.round(canvas.width * 0.68),
@@ -813,12 +894,12 @@ function agregarNumeracionPaginas(doc) {
 async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tituloPersonalizado = null) {
   const pageWidth = 210;
   const marginX = 10;
-  const contentWidth = pageWidth - marginX * 2; // 190 mm
+  const contentWidth = pageWidth - marginX * 2;
   const colRightX = 118;
   const colRightValX = 138;
   const colLeftValX = 31;
-  const colLeftMaxWidth = colRightX - colLeftValX - 4; // ~83 mm con separación extra
-  const colRightMaxWidth = marginX + contentWidth - colRightValX - 2; // ~60 mm
+  const colLeftMaxWidth = colRightX - colLeftValX - 4;
+  const colRightMaxWidth = marginX + contentWidth - colRightValX - 2;
   const lineStep = 4.8;
 
   doc.setDrawColor(150);
@@ -826,7 +907,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
 
   let y = 10;
 
-  // Encabezado
   doc.setFillColor(235, 238, 242);
   doc.rect(marginX, y, contentWidth, 24, 'FD');
 
@@ -867,7 +947,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
 
   y += 28;
 
-  // Preparar líneas de campos con salto automático para evitar superposiciones
   doc.setFontSize(9.5);
   const tareaLines = doc.splitTextToSize(String(r.tarea || "-"), colLeftMaxWidth);
   const obsLines = mostrarObservacion
@@ -883,7 +962,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
   const obsBlockHeight = mostrarObservacion ? (7 + obsLines.length * 4.5 + 6.5) : 0;
   const datosBoxHeight = camposBaseHeight + obsBlockHeight;
 
-  // Contenedor de Datos del Informe
   doc.setDrawColor(175);
   doc.rect(marginX, y, contentWidth, datosBoxHeight);
 
@@ -906,26 +984,21 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
     return lineas.length * lineStep;
   };
 
-  // Fila 1: Fecha | Empresa
   dibujarCampo("Fecha:", r.fecha, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
   dibujarCampo("Empresa:", r.empresa, colRightX, colRightValX, colRightMaxWidth, curY);
   curY += row1Height;
 
-  // Fila 2: Ruta | Subtramo
   dibujarCampo("Ruta:", r.ruta, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
   dibujarCampo("Subtramo:", r.subtramo, colRightX, colRightValX, colRightMaxWidth, curY);
   curY += row2Height;
 
-  // Fila 3: Tarea | Km
   dibujarCampo("Tarea:", r.tarea, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
   dibujarCampo("Km:", r.km, colRightX, colRightValX, colRightMaxWidth, curY);
   curY += row3Height;
 
-  // Fila 4: Sentido
   dibujarCampo("Sentido:", r.sentido, marginX + 3, colLeftValX, colLeftMaxWidth, curY);
   curY += row4Height;
 
-  // Observación dentro del bloque de datos con aire extra arriba y abajo
   if (mostrarObservacion) {
     curY += 2;
     doc.setFont(undefined, "bold");
@@ -942,7 +1015,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
 
   y += datosBoxHeight + 5;
 
-  // Título Registro Fotográfico
   doc.setDrawColor(175);
   doc.setFillColor(242, 244, 247);
   doc.rect(marginX, y, contentWidth, 7.5, 'FD');
@@ -957,11 +1029,10 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
   const totalFotos = imagenes.length;
   if (totalFotos === 0) return;
 
-  const footerReserve = 12; // Margen inferior antes del pie de página (290 mm)
+  const footerReserve = 12;
   const availableHeight = 290 - footerReserve - y;
   const gap = 5;
 
-  // Calcular dimensiones según cantidad de fotos para que entren sin desbordar
   let boxWidth = (contentWidth - gap) / 2;
   let boxHeight = 68;
   let rowStep = boxHeight + gap;
@@ -976,7 +1047,6 @@ async function dibujarInforme(doc, r, logoBase64, mostrarObservacion = true, tit
     boxHeight = Math.min(82, Math.max(55, availableHeight - 4));
     rowStep = boxHeight + gap;
   } else {
-    // 3 o 4 fotos: 2 columnas x 2 filas dentro del alto disponible
     boxHeight = Math.min(68, Math.max(48, Math.floor((availableHeight - gap) / 2)));
     rowStep = boxHeight + gap;
   }
@@ -1094,7 +1164,7 @@ async function generarPDFMultiple() {
   doc.save("informe_multiple.pdf");
 }
 
-// 📄 PDF UNIFICADO POR RANGO DE FECHAS
+// 📄 PDF UNIFICADO POR RANGO DE FECHAS (respetando también filtro de Km si está cargado)
 async function generarPDFRangoFechas() {
   const fechaDesde = document.getElementById("rangoFechaDesde").value;
   const fechaHasta = document.getElementById("rangoFechaHasta").value;
@@ -1127,6 +1197,7 @@ async function generarPDFRangoFechas() {
     const ruta = document.getElementById("filterRuta").value;
     const subtramo = document.getElementById("filterSubtramo").value;
     const subtarea = document.getElementById("filterSubtarea").value;
+    const kmFiltro = document.getElementById("filterKm").value;
 
     let query = aplicarFiltroOrganizacion(
       supabaseClient.from("informes").select("*"),
@@ -1140,7 +1211,7 @@ async function generarPDFRangoFechas() {
     if (subtramo) query = query.eq("subtramo", subtramo);
     if (subtarea) query = query.eq("tarea", subtarea);
 
-    const { data: registros, error } = await query
+    const { data: rows, error } = await query
       .order("fecha", { ascending: true })
       .order("id", { ascending: true });
 
@@ -1150,8 +1221,10 @@ async function generarPDFRangoFechas() {
       return;
     }
 
-    if (!registros || registros.length === 0) {
-      alert(`No se encontraron informes entre ${fechaDesde} y ${fechaHasta}.`);
+    const registros = (rows || []).filter(r => coincideFiltroKm(r.km, kmFiltro));
+
+    if (registros.length === 0) {
+      alert(`No se encontraron informes entre ${fechaDesde} y ${fechaHasta} con los filtros aplicados.`);
       return;
     }
 
@@ -1254,11 +1327,18 @@ async function cargarFiltrosSubtareas() {
   });
 }
 
-document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSubtramo, #filterSubtarea")
+document.querySelectorAll("#filterFecha, #filterEmpresa, #filterRuta, #filterSubtramo, #filterSubtarea, #filterKm")
   .forEach(el => {
     el.addEventListener("change", cargar);
     el.addEventListener("input", cargar);
   });
+
+document.getElementById("filterKm")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    cargar();
+  }
+});
 
 async function inicializar() {
   inicializarTituloInformePDF();
