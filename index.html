@@ -438,8 +438,8 @@ function interpolarKmEntreDosPuntos(p1, p2, lat, lon) {
   const metersPerDegLat = 111320;
   const metersPerDegLon = 111320 * Math.cos((latRef * Math.PI) / 180);
 
-  const ax = (Number(p1.longitud) - Number(p1.longitud)) * metersPerDegLon;
-  const ay = (Number(p1.latitud) - Number(p1.latitud)) * metersPerDegLat;
+  const ax = 0;
+  const ay = 0;
   const bx = (Number(p2.longitud) - Number(p1.longitud)) * metersPerDegLon;
   const by = (Number(p2.latitud) - Number(p1.latitud)) * metersPerDegLat;
   const px = (lon - Number(p1.longitud)) * metersPerDegLon;
@@ -584,7 +584,7 @@ async function inicializarMapa(grupoId) {
   }
 }
 
-function obtenerFechaHoyLocal() {
+function obtenerFechaHoyLocalIndex() {
   const hoy = new Date();
   const año = hoy.getFullYear();
   const mes = String(hoy.getMonth() + 1).padStart(2, '0');
@@ -594,45 +594,6 @@ function obtenerFechaHoyLocal() {
 
 function esModoEdicionActivo() {
   return Boolean(localStorage.getItem(STORAGE_KEY_EDITANDO_INFORME));
-}
-
-function limpiarFotosYPreviews() {
-  const inputFotos = document.querySelector('input[name="photos_1"]');
-  const inputCamara = document.querySelector('.camara-directa');
-  const preview = document.querySelector('.preview');
-  const actuales = document.getElementById('imagenesActuales');
-  const barra = document.querySelector('.progress-bar');
-
-  if (inputFotos) {
-    try {
-      inputFotos.value = "";
-      inputFotos.files = new DataTransfer().files;
-    } catch (_) {}
-  }
-  if (inputCamara) {
-    try {
-      inputCamara.value = "";
-    } catch (_) {}
-  }
-  if (preview) preview.innerHTML = "";
-  if (actuales) actuales.innerHTML = "";
-  if (barra) barra.style.width = "0%";
-}
-
-function guardarCamposNuevoRegistroEnStorage() {
-  const datos = {
-    fecha: document.getElementById("date_1")?.value || obtenerFechaHoyLocal(),
-    empresa: document.querySelector('select[name="empresa_1"]')?.value || "CORREDOR LITORAL SA",
-    ruta: document.querySelector('select[name="ruta_1"]')?.value || "RN N° 16",
-    subtramo: document.querySelector('select[name="subtramo_1"]')?.value || "CHACO",
-    tarea: document.querySelector('select[name="tarea_1"]')?.value || "",
-    km: document.querySelector('input[name="km_1"]')?.value || "",
-    sentido: document.querySelector('select[name="sentido_1"]')?.value || "ASCENDENTE",
-    observacion: (document.getElementById("observacion_1")?.value || "").toUpperCase(),
-    lat: document.getElementById("lat_1")?.value || "",
-    lon: document.getElementById("lon_1")?.value || ""
-  };
-  localStorage.setItem(STORAGE_KEY_CAMPOS_NUEVO, JSON.stringify(datos));
 }
 
 function aplicarCamposGuardadosNuevoRegistro() {
@@ -683,7 +644,6 @@ function aplicarCamposGuardadosNuevoRegistro() {
       document.getElementById("lon_1").value = datos.lon;
     }
 
-    // Reaplicar subtarea una vez que el catálogo termine de poblarse
     if (datos.tarea) {
       const aplicarTarea = () => {
         const selTarea = document.querySelector('select[name="tarea_1"]');
@@ -696,7 +656,6 @@ function aplicarCamposGuardadosNuevoRegistro() {
       setTimeout(aplicarTarea, 1000);
     }
 
-    limpiarFotosYPreviews();
     return true;
   } catch (e) {
     console.warn("No se pudieron restaurar los campos del registro nuevo:", e);
@@ -704,34 +663,6 @@ function aplicarCamposGuardadosNuevoRegistro() {
   }
 }
 
-function resetearFormularioCompleto() {
-  const form = document.getElementById("form");
-  if (form) form.reset();
-
-  const fechaEl = document.getElementById("date_1");
-  if (fechaEl) fechaEl.value = obtenerFechaHoyLocal();
-
-  const obsEl = document.getElementById("observacion_1");
-  if (obsEl) obsEl.value = "";
-
-  const latEl = document.getElementById("lat_1");
-  const lonEl = document.getElementById("lon_1");
-  if (latEl) latEl.value = "";
-  if (lonEl) lonEl.value = "";
-
-  if (marcadoresUsuario[1] && mapasInstanciados[1]) {
-    mapasInstanciados[1].removeLayer(marcadoresUsuario[1].marker);
-    if (marcadoresUsuario[1].circle) mapasInstanciados[1].removeLayer(marcadoresUsuario[1].circle);
-    delete marcadoresUsuario[1];
-  }
-
-  limpiarFotosYPreviews();
-  localStorage.removeItem(STORAGE_KEY_CAMPOS_NUEVO);
-  localStorage.removeItem(STORAGE_KEY_EDITANDO_INFORME);
-  localStorage.removeItem(STORAGE_KEY_EDITANDO_COORDS);
-}
-
-// Campo observación simple en mayúsculas
 function configurarObservacionMayusculas() {
   const obsInput = document.getElementById("observacion_1");
   if (!obsInput) return;
@@ -749,66 +680,18 @@ function configurarObservacionMayusculas() {
   });
 }
 
-// Manejo de envío del formulario:
-// - Si es edición: limpia todo el formulario al guardar
-// - Si es registro nuevo: guarda campos (sin fotos) y va al visor
-function configurarEnvioYLimpieza() {
-  const form = document.getElementById("form");
-  const btnClear = document.getElementById("clearForm");
-
-  if (btnClear) {
-    btnClear.addEventListener("click", () => {
-      resetearFormularioCompleto();
-    });
-  }
-
-  if (!form) return;
-
-  form.addEventListener("submit", () => {
-    const obsEl = document.getElementById("observacion_1");
-    if (obsEl) obsEl.value = obsEl.value.toUpperCase();
-
-    if (esModoEdicionActivo()) {
-      // Edición: limpiar todo cuando se guarde
-      localStorage.removeItem(STORAGE_KEY_CAMPOS_NUEVO);
-      setTimeout(() => {
-        resetearFormularioCompleto();
-      }, 600);
-    } else {
-      // Registro nuevo: guardar campos (sin fotos) y dirigir al visor
-      guardarCamposNuevoRegistroEnStorage();
-      setTimeout(() => {
-        if (!window.location.pathname.endsWith("visor.html")) {
-          window.location.href = "visor.html";
-        }
-      }, 900);
-    }
-  });
-
-  // Permite que app.js notifique explícitamente cuando termine de guardar
-  window.addEventListener("vialreport:informeGuardado", (ev) => {
-    const fueEdicion = Boolean(ev?.detail?.esEdicion || esModoEdicionActivo());
-    if (fueEdicion) {
-      resetearFormularioCompleto();
-    } else {
-      guardarCamposNuevoRegistroEnStorage();
-      window.location.href = "visor.html";
-    }
-  });
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   configurarObservacionMayusculas();
-  configurarEnvioYLimpieza();
 
   const restaurado = aplicarCamposGuardadosNuevoRegistro();
   const inputFecha1 = document.querySelector('input[name="date_1"]');
   if (inputFecha1 && !inputFecha1.value && !restaurado) {
-    inputFecha1.value = obtenerFechaHoyLocal();
+    inputFecha1.value = obtenerFechaHoyLocalIndex();
   }
 
   setTimeout(() => { inicializarMapa(1); }, 400);
-  document.getElementById("year").textContent = new Date().getFullYear();
+  const yearEl = document.getElementById("year");
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
 });
 
 // =============================
