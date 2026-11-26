@@ -76,42 +76,63 @@ function subirACloudinary(file, onProgress) {
         if (res.secure_url) {
           resolve(res.secure_url);
         } else {
-          reject(null);
+          reject(new Error("Respuesta de Cloudinary sin secure_url"));
         }
       } catch (err) {
-        reject(null);
+        reject(err);
       }
     };
 
-    xhr.onerror = () => reject(null);
+    xhr.onerror = () => reject(new Error("Error de red al subir a Cloudinary"));
 
     xhr.send(formData);
   });
 }
 
-// 🧠 COMPRESIÓN
+// 🧠 COMPRESIÓN SEGURA
 async function compressImage(file) {
   return new Promise((resolve) => {
     const img = new Image();
     const reader = new FileReader();
 
-    reader.onload = (e) => (img.src = e.target.result);
-
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const scale = 1200 / img.width;
-      canvas.width = 1200;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(
-        (blob) => resolve(new File([blob], file.name, { type: "image/jpeg" })),
-        "image/jpeg",
-        0.7
-      );
+    reader.onload = (e) => {
+      img.src = e.target.result;
     };
 
+    reader.onerror = () => resolve(file);
+
+    img.onload = () => {
+      try {
+        const maxWidth = 1200;
+        const anchoOriginal = img.width || maxWidth;
+        const altoOriginal = img.height || maxWidth;
+        const scale = anchoOriginal > maxWidth ? maxWidth / anchoOriginal : 1;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(anchoOriginal * scale));
+        canvas.height = Math.max(1, Math.round(altoOriginal * scale));
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const nuevoNombre = (file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg";
+            resolve(new File([blob], nuevoNombre, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.7
+        );
+      } catch (_) {
+        resolve(file);
+      }
+    };
+
+    img.onerror = () => resolve(file);
     reader.readAsDataURL(file);
   });
 }
@@ -125,29 +146,34 @@ function llenarSelectsTareas(data) {
 
     let currentTarea = "";
 
-    data.forEach((item) => {
-      if (item.tarea !== currentTarea) {
-        currentTarea = item.tarea;
+    (data || []).forEach((item) => {
+      if (!item?.subtarea) return;
+      const tareaLabel = item.tarea || "SIN TAREA";
+      const subtareaVal = String(item.subtarea).trim().toUpperCase();
+
+      if (tareaLabel !== currentTarea) {
+        currentTarea = tareaLabel;
 
         const optGroup = document.createElement("optgroup");
         optGroup.label = currentTarea;
         select.appendChild(optGroup);
 
         const option = document.createElement("option");
-        option.value = item.subtarea.toUpperCase();
-        option.textContent = item.subtarea.toUpperCase();
+        option.value = subtareaVal;
+        option.textContent = subtareaVal;
 
         optGroup.appendChild(option);
       } else {
         const optGroup = select.querySelector(
-          `optgroup[label="${currentTarea}"]`
+          `optgroup[label="${CSS.escape(currentTarea)}"]`
         );
 
         const option = document.createElement("option");
-        option.value = item.subtarea.toUpperCase();
-        option.textContent = item.subtarea.toUpperCase();
+        option.value = subtareaVal;
+        option.textContent = subtareaVal;
 
-        optGroup.appendChild(option);
+        if (optGroup) optGroup.appendChild(option);
+        else select.appendChild(option);
       }
     });
   });
@@ -170,8 +196,8 @@ async function cargarTareasJerarquicas(forceRefresh = false) {
     return [];
   }
 
-  tareasCache = data;
-  llenarSelectsTareas(data);
+  tareasCache = data || [];
+  llenarSelectsTareas(tareasCache);
   return tareasCache;
 }
 
@@ -234,7 +260,7 @@ if (btnGuardarNuevaTarea) {
 document.addEventListener("change", (e) => {
   if (e.target.classList.contains("fotos")) {
     const input = e.target;
-    const files = Array.from(input.files);
+    const files = Array.from(input.files || []);
 
     if (files.length > 4) {
       alert("Máximo 4 imágenes");
@@ -242,7 +268,8 @@ document.addEventListener("change", (e) => {
       return;
     }
 
-    const preview = input.closest(".grupo").querySelector(".preview");
+    const preview = input.closest(".grupo")?.querySelector(".preview");
+    if (!preview) return;
     preview.innerHTML = "";
 
     files.forEach((file) => {
@@ -257,9 +284,32 @@ document.addEventListener("change", (e) => {
   }
 });
 
-// 🔹 LIMPIAR SOLO FOTOS Y VISTAS PREVIAS
+// 🔹 ESTADO DE EDICIÓN E IMÁGENES EXISTENTES
 let editandoId = localStorage.getItem("editandoInforme");
 let imagenesExistentes = [];
+
+function renderImagenesActuales() {
+  const cont = document.getElementById("imagenesActuales");
+  if (!cont) return;
+  cont.innerHTML = "";
+
+  imagenesExistentes.forEach((img, index) => {
+    cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
+      <img src="${img}" class="img-fluid rounded border mb-1">
+      <br>
+      <button type="button"
+              class="btn btn-sm btn-danger"
+              onclick="eliminarImagen(${index})">
+        Eliminar
+      </button>
+    </div>`;
+  });
+}
+
+window.eliminarImagen = function(index) {
+  imagenesExistentes.splice(index, 1);
+  renderImagenesActuales();
+};
 
 function limpiarFotosYPreviews() {
   imagenesExistentes = [];
@@ -270,7 +320,7 @@ function limpiarFotosYPreviews() {
       inputFile.value = "";
       try {
         inputFile.files = new DataTransfer().files;
-      } catch (e) {}
+      } catch (_) {}
     });
 
     const preview = g.querySelector(".preview");
@@ -283,7 +333,6 @@ function limpiarFotosYPreviews() {
   actualizarBarra(0);
 }
 
-// 🔹 LIMPIAR TODOS LOS CAMPOS DEL FORMULARIO (Para edición guardada o botón Limpiar)
 function limpiarTodosLosCamposFormulario() {
   localStorage.removeItem("editandoInforme");
   localStorage.removeItem("editandoInformeCoords");
@@ -307,7 +356,6 @@ function limpiarTodosLosCamposFormulario() {
   limpiarFotosYPreviews();
 }
 
-// 🔹 GUARDAR CAMPOS DEL REGISTRO NUEVO (Sin fotos, para próxima foto del sector)
 function guardarCamposRegistroNuevo(grupoEl) {
   if (!grupoEl) return;
 
@@ -333,7 +381,11 @@ const btnAddGroup = document.getElementById("addGroup");
 if (btnAddGroup) {
   btnAddGroup.addEventListener("click", async () => {
     count++;
-    const clone = document.querySelector(".grupo").cloneNode(true);
+    const baseGrupo = document.querySelector(".grupo");
+    if (!baseGrupo) return;
+
+    const clone = baseGrupo.cloneNode(true);
+    clone.setAttribute("data-grupo-id", String(count));
 
     const heading = clone.querySelector("h5");
     if (heading) heading.innerText = "Tarea " + count;
@@ -341,12 +393,18 @@ if (btnAddGroup) {
       el.name = el.name.replace(/_\d+$/, "_" + count);
       if (el.type !== "file") el.value = "";
     });
+    clone.querySelectorAll("[id]").forEach((el) => {
+      el.id = el.id.replace(/_\d+$/, "_" + count);
+    });
 
-    clone.querySelector(".preview").innerHTML = "";
-    clone.querySelector(".progress-bar").style.width = "0%";
+    const preview = clone.querySelector(".preview");
+    if (preview) preview.innerHTML = "";
+    const progBar = clone.querySelector(".progress-bar");
+    if (progBar) progBar.style.width = "0%";
 
     document.getElementById("grupos").appendChild(clone);
-    document.getElementById("total_groups").value = count;
+    const totalInput = document.getElementById("total_groups");
+    if (totalInput) totalInput.value = count;
 
     await cargarTareasJerarquicas();
   });
@@ -361,55 +419,57 @@ if (btnClear) {
   });
 }
 
-// 🔹 GUARDAR FORMULARIO
+// 🔹 GUARDAR FORMULARIO (ÚNICA FUENTE DE VERDAD PARA SUBMIT)
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
   mostrarCarga();
   actualizarBarra(0);
 
-  const eraEdicion = Boolean(editandoId || localStorage.getItem("editandoInforme"));
-
-  const { data } = await supabaseClient.auth.getSession();
-  if (!data.session) {
-    alert("Sesión expirada");
-    ocultarCarga();
-    return;
-  }
-  const user = data.session.user;
-  const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
-
-  if (!miOrganizacion) {
-    alert("No se pudo identificar la empresa/organización del usuario en la tabla empresas.");
-    ocultarCarga();
-    return;
-  }
-
-  const grupos = document.querySelectorAll(".grupo");
-  let totalImagenes = 0;
-
-  grupos.forEach(g => {
-    totalImagenes += g.querySelector(`[name^="photos_"]`).files.length;
-  });
-
-  let procesadas = 0;
+  const idActualEdicion = editandoId || localStorage.getItem("editandoInforme");
+  const eraEdicion = Boolean(idActualEdicion);
 
   try {
+    const { data, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !data?.session) {
+      alert("Sesión expirada. Volvé a iniciar sesión.");
+      ocultarCarga();
+      return;
+    }
+
+    const user = data.session.user;
+    const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
+
+    if (!miOrganizacion) {
+      alert("No se pudo identificar la empresa/organización del usuario en la tabla empresas.");
+      ocultarCarga();
+      return;
+    }
+
+    const grupos = document.querySelectorAll(".grupo");
+    let totalImagenes = 0;
+
+    grupos.forEach((g) => {
+      totalImagenes += g.querySelector(`[name^="photos_"]`)?.files?.length || 0;
+    });
+
+    let procesadas = 0;
+
     for (let i = 0; i < grupos.length; i++) {
       const g = grupos[i];
-      const grupoId = g.getAttribute("data-grupo-id") || (i + 1);
+      const grupoId = g.getAttribute("data-grupo-id") || String(i + 1);
 
-      let imagenes = [...imagenesExistentes];
-      const files = g.querySelector(`[name^="photos_"]`).files;
+      let imagenes = eraEdicion ? [...imagenesExistentes] : [];
+      const inputFotos = g.querySelector(`[name^="photos_"]`);
+      const files = Array.from(inputFotos?.files || []);
 
-      for (let file of files) {
+      for (const file of files) {
         const compressed = await compressImage(file);
 
         const url = await subirACloudinary(compressed, (progress) => {
-          const porcentajeTotal = totalImagenes > 0 ? Math.round(
-            ((procesadas + progress / 100) / totalImagenes) * 100
-          ) : 100;
-
+          const porcentajeTotal = totalImagenes > 0
+            ? Math.round(((procesadas + progress / 100) / totalImagenes) * 100)
+            : 100;
           actualizarBarra(porcentajeTotal);
         });
 
@@ -422,14 +482,13 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         imagenes.push(url);
         procesadas++;
 
-        const porcentaje = totalImagenes > 0 ? Math.round(
-          (procesadas / totalImagenes) * 100
-        ) : 100;
-
+        const porcentaje = totalImagenes > 0
+          ? Math.round((procesadas / totalImagenes) * 100)
+          : 100;
         actualizarBarra(porcentaje);
       }
 
-      const subtarea = g.querySelector(".tarea-select").value;
+      const subtarea = (g.querySelector(".tarea-select")?.value || "").trim().toUpperCase();
       const obsInput = g.querySelector(`[name^="observacion_"]`);
       const observacionMayus = (obsInput?.value || "").toUpperCase();
       if (obsInput) obsInput.value = observacionMayus;
@@ -441,13 +500,13 @@ document.getElementById("form").addEventListener("submit", async (e) => {
       const lonParsed = lonInput && lonInput.value !== "" ? parseFloat(lonInput.value) : null;
 
       const dataToInsert = {
-        fecha: g.querySelector(`[name^="date_"]`).value,
-        empresa: g.querySelector(`[name^="empresa_"]`).value,
-        ruta: g.querySelector(`[name^="ruta_"]`).value,
-        subtramo: g.querySelector(`[name^="subtramo_"]`).value,
+        fecha: g.querySelector(`[name^="date_"]`)?.value || obtenerFechaHoyLocal(),
+        empresa: g.querySelector(`[name^="empresa_"]`)?.value || "",
+        ruta: g.querySelector(`[name^="ruta_"]`)?.value || "",
+        subtramo: g.querySelector(`[name^="subtramo_"]`)?.value || "",
         tarea: subtarea,
-        km: g.querySelector(`[name^="km_"]`).value,
-        sentido: g.querySelector(`[name^="sentido_"]`).value,
+        km: g.querySelector(`[name^="km_"]`)?.value || "",
+        sentido: g.querySelector(`[name^="sentido_"]`)?.value || "",
         observacion: observacionMayus,
         imagenes,
         latitud: latParsed !== null && !Number.isNaN(latParsed) ? latParsed : null,
@@ -456,12 +515,14 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         organizacion_id: miOrganizacion
       };
 
-      if (editandoId) {
+      if (eraEdicion) {
         const { error } = await supabaseClient
           .from("informes")
           .update(dataToInsert)
-          .eq("id", editandoId);
+          .eq("id", idActualEdicion);
+
         if (error) {
+          console.error("Error al actualizar en Supabase:", error);
           alert("Error al actualizar: " + error.message);
           ocultarCarga();
           return;
@@ -470,11 +531,14 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         const { error } = await supabaseClient
           .from("informes")
           .insert([dataToInsert]);
+
         if (error) {
+          console.error("Error al insertar en Supabase:", error);
           alert("Error al insertar: " + error.message);
           ocultarCarga();
           return;
         }
+
         if (i === 0) {
           guardarCamposRegistroNuevo(g);
         }
@@ -494,20 +558,20 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     }
 
     window.location.href = "visor.html";
-
   } catch (err) {
-    console.error(err);
-    alert("Ocurrió un error inesperado al guardar.");
+    console.error("Error inesperado al guardar:", err);
+    alert("Ocurrió un error inesperado al guardar: " + (err?.message || err));
     ocultarCarga();
   }
 });
 
 // 🔹 CARGAR EDICIÓN
 async function cargarEdicion() {
+  editandoId = localStorage.getItem("editandoInforme");
   if (!editandoId) return;
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
-  if (!sessionData.session) return;
+  if (!sessionData?.session) return;
   const user = sessionData.session.user;
   const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
 
@@ -524,16 +588,31 @@ async function cargarEdicion() {
 
   const { data, error } = await query.single();
 
-  if (error) { console.log(error); return; }
+  if (error || !data) {
+    console.error("Error cargando registro a editar:", error);
+    return;
+  }
 
-  document.querySelector(`[name=tarea_1]`).value = data.tarea;
-  document.querySelector(`[name^="date_"]`).value = data.fecha || "";
-  document.querySelector(`[name^="empresa_"]`).value = data.empresa || "";
-  document.querySelector(`[name^="ruta_"]`).value = data.ruta || "";
-  document.querySelector(`[name^="subtramo_"]`).value = data.subtramo || "";
-  document.querySelector(`[name^="km_"]`).value = data.km || "";
-  document.querySelector(`[name^="sentido_"]`).value = data.sentido || "";
-  document.querySelector(`[name^="observacion_"]`).value = (data.observacion || "").toUpperCase();
+  const tareaSelect = document.querySelector(`[name=tarea_1]`);
+  if (tareaSelect && data.tarea) {
+    tareaSelect.value = String(data.tarea).trim().toUpperCase();
+  }
+
+  const dateEl = document.querySelector(`[name^="date_"]`);
+  const empEl = document.querySelector(`[name^="empresa_"]`);
+  const rutaEl = document.querySelector(`[name^="ruta_"]`);
+  const subEl = document.querySelector(`[name^="subtramo_"]`);
+  const kmEl = document.querySelector(`[name^="km_"]`);
+  const senEl = document.querySelector(`[name^="sentido_"]`);
+  const obsEl = document.querySelector(`[name^="observacion_"]`);
+
+  if (dateEl) dateEl.value = data.fecha || "";
+  if (empEl) empEl.value = data.empresa || "";
+  if (rutaEl) rutaEl.value = data.ruta || "";
+  if (subEl) subEl.value = data.subtramo || "";
+  if (kmEl) kmEl.value = data.km || "";
+  if (senEl) senEl.value = data.sentido || "";
+  if (obsEl) obsEl.value = (data.observacion || "").toUpperCase();
 
   let latGuardada = data.latitud;
   let lonGuardada = data.longitud;
@@ -569,38 +648,12 @@ async function cargarEdicion() {
     window.posicionarMapaEnEdicion(Number(latGuardada), Number(lonGuardada), 1);
   }
 
-  imagenesExistentes = data.imagenes || [];
+  imagenesExistentes = Array.isArray(data.imagenes) ? [...data.imagenes] : [];
   renderImagenesActuales();
 }
 
 await cargarTareasJerarquicas();
 await cargarEdicion();
-
-// 🔹 RENDER + ELIMINAR IMAGENES
-function renderImagenesActuales() {
-  const cont = document.getElementById("imagenesActuales");
-  if (!cont) return;
-  cont.innerHTML = "";
-
-  imagenesExistentes.forEach((img, index) => {
-    cont.innerHTML += `<div class="col-md-3 mb-2 text-center">
-      <img src="${img}" class="img-fluid rounded border mb-1">
-      <br>
-      <button type="button"
-              class="btn btn-sm btn-danger"
-              onclick="eliminarImagen(${index})">
-        Eliminar
-      </button>
-    </div>`;
-  });
-}
-
-window.eliminarImagen = function(index) {
-  imagenesExistentes.splice(index, 1);
-  const fotosEl = document.querySelector(".fotos");
-  if (fotosEl) fotosEl.value = "";
-  renderImagenesActuales();
-};
 
 // =============================
 // 🔥 LOADING OVERLAY
