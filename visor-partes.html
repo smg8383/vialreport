@@ -198,6 +198,13 @@
       font-size: 12px;
     }
 
+    .consulta-mini-kpi {
+      background-color: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
     @media (max-width: 575.98px) {
       body {
         padding-bottom: 92px;
@@ -276,6 +283,10 @@
     </div>
 
     <div class="d-flex flex-wrap align-items-center gap-2">
+      <button type="button" id="btnAbrirConsultaKm" class="btn btn-outline-dark btn-sm rounded-pill px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalConsultaKm">
+        <i class="bi bi-search"></i> Consulta por Km
+      </button>
+
       <div class="btn-group btn-group-sm" role="group" aria-label="Cambiar vista">
         <button type="button" id="btnVistaTabla" class="btn btn-primary fw-semibold active">
           <i class="bi bi-table"></i> Tabla
@@ -537,6 +548,89 @@
 
         <!-- Vista Tarjetas (alternativa) -->
         <div id="vistaTarjetas" class="row g-3 d-none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Consulta por Km y Tarea -->
+<div class="modal fade" id="modalConsultaKm" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow rounded-4">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title fw-bold fs-6 m-0">
+            <i class="bi bi-search text-primary me-1"></i> Consulta de Ejecución por Rango de Km y Tarea
+          </h5>
+          <small class="text-muted">Verificá cuántos registros, qué días y qué cantidades se ejecutaron entre dos progresivas</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="formConsultaKm" class="bg-light border rounded-3 p-3 mb-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+              <label for="consultaTarea" class="form-label small fw-semibold mb-1">Tarea</label>
+              <select id="consultaTarea" class="form-select form-select-sm">
+                <option value="">Todas las tareas</option>
+              </select>
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="consultaKmDesde" class="form-label small fw-semibold mb-1">Km desde</label>
+              <input type="text" id="consultaKmDesde" class="form-control form-control-sm" placeholder="Ej: 49 o 49,000">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="consultaKmHasta" class="form-label small fw-semibold mb-1">Km hasta</label>
+              <input type="text" id="consultaKmHasta" class="form-control form-control-sm" placeholder="Ej: 50 o 50,000">
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="consultaRuta" class="form-label small fw-semibold mb-1">Ruta</label>
+              <select id="consultaRuta" class="form-select form-select-sm">
+                <option value="">Todas</option>
+              </select>
+            </div>
+
+            <div class="col-6 col-md-2">
+              <label for="consultaSubtramo" class="form-label small fw-semibold mb-1">Subtramo</label>
+              <select id="consultaSubtramo" class="form-select form-select-sm">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label for="consultaEmpresa" class="form-label small fw-semibold mb-1">Empresa</label>
+              <select id="consultaEmpresa" class="form-select form-select-sm">
+                <option value="">Todas</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-8 d-flex flex-wrap justify-content-end gap-2 mt-2">
+              <button type="button" id="btnCopiarFiltrosVisorConsulta" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+                <i class="bi bi-funnel"></i> Tomar filtros del visor
+              </button>
+              <button type="button" id="btnLimpiarConsultaKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                Limpiar
+              </button>
+              <button type="submit" id="btnEjecutarConsultaKm" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold">
+                <i class="bi bi-play-fill"></i> Consultar
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div id="resultadoConsultaKm">
+          <div class="text-muted small py-3 text-center">
+            Completá la tarea y/o el rango de Km (por ejemplo, Km 49 a Km 50) y tocá <strong>Consultar</strong>.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
@@ -896,6 +990,24 @@ function extraerKmNumericosDeParte(p) {
   return valores;
 }
 
+function parteCoincideConRangoKm(p, kmDesdeNum, kmHastaNum) {
+  if (kmDesdeNum === null && kmHastaNum === null) return true;
+
+  const kms = extraerKmNumericosDeParte(p);
+  if (!kms.length) return false;
+
+  const minParte = Math.min(...kms);
+  const maxParte = Math.max(...kms);
+
+  const desde = kmDesdeNum !== null ? kmDesdeNum : -Infinity;
+  const hasta = kmHastaNum !== null ? kmHastaNum : Infinity;
+
+  const minLimite = Math.min(desde, hasta);
+  const maxLimite = Math.max(desde, hasta);
+
+  return maxParte >= minLimite && minParte <= maxLimite;
+}
+
 function formatearKmParaTabla(kmValor, rutaValor) {
   if (kmValor === null || kmValor === undefined) return "—";
   const textoOriginal = String(kmValor).trim();
@@ -1028,6 +1140,222 @@ function obtenerEtiquetaEmpresaResumen(p) {
   }
 
   return empresaBase;
+}
+
+function poblarSelectConsultaKm() {
+  const tareas = Array.from(new Set(todosLosPartes.map(p => (p.tarea || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+  const rutas = Array.from(new Set(todosLosPartes.map(p => (p.ruta || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+  const subtramos = Array.from(new Set(todosLosPartes.map(p => (p.subtramo || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+  const empresas = Array.from(new Set(todosLosPartes.map(p => (p.empresa || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+
+  const llenar = (id, placeholder, arr) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const prev = el.value;
+    el.innerHTML = `<option value="">${placeholder}</option>` +
+      arr.map(v => `<option value="${escapeHTML(v)}">${escapeHTML(v)}</option>`).join("");
+    if (prev && arr.includes(prev)) el.value = prev;
+  };
+
+  llenar("consultaTarea", "Todas las tareas", tareas);
+  llenar("consultaRuta", "Todas", rutas);
+  llenar("consultaSubtramo", "Todos", subtramos);
+  llenar("consultaEmpresa", "Todas", empresas);
+}
+
+function ejecutarConsultaKm() {
+  const tareaSel = (document.getElementById("consultaTarea").value || "").trim();
+  const kmDesdeRaw = (document.getElementById("consultaKmDesde").value || "").trim();
+  const kmHastaRaw = (document.getElementById("consultaKmHasta").value || "").trim();
+  const rutaSel = (document.getElementById("consultaRuta").value || "").trim();
+  const subtramoSel = (document.getElementById("consultaSubtramo").value || "").trim();
+  const empresaSel = (document.getElementById("consultaEmpresa").value || "").trim();
+
+  const kmDesde = kmDesdeRaw !== "" ? numRealOrNull(kmDesdeRaw) : null;
+  const kmHasta = kmHastaRaw !== "" ? numRealOrNull(kmHastaRaw) : null;
+
+  const cont = document.getElementById("resultadoConsultaKm");
+
+  if ((kmDesdeRaw !== "" && kmDesde === null) || (kmHastaRaw !== "" && kmHasta === null)) {
+    cont.innerHTML = `<div class="alert alert-warning py-2 px-3 small mb-0">Revisá los valores ingresados en <strong>Km desde</strong> / <strong>Km hasta</strong>.</div>`;
+    return;
+  }
+
+  const baseFuente = partesFiltrados.length ? partesFiltrados : todosLosPartes;
+
+  const coincidencias = baseFuente.filter((p) => {
+    if (tareaSel && (p.tarea || "").trim() !== tareaSel) return false;
+    if (rutaSel && (p.ruta || "").trim() !== rutaSel) return false;
+    if (subtramoSel && (p.subtramo || "").trim() !== subtramoSel) return false;
+    if (empresaSel && (p.empresa || "").trim() !== empresaSel) return false;
+    if (!parteCoincideConRangoKm(p, kmDesde, kmHasta)) return false;
+    return true;
+  });
+
+  const rangoEtiqueta = (kmDesde !== null || kmHasta !== null)
+    ? `Km ${kmDesde !== null ? fmtKm3(kmDesde) : "—"} a Km ${kmHasta !== null ? fmtKm3(kmHasta) : "—"}`
+    : "Todos los Km";
+
+  const tareaEtiqueta = tareaSel || "Todas las tareas";
+
+  if (!coincidencias.length) {
+    cont.innerHTML = `
+      <div class="alert alert-info py-2 px-3 small mb-0">
+        No se encontraron ejecuciones para <strong>${escapeHTML(tareaEtiqueta)}</strong> en <strong>${escapeHTML(rangoEtiqueta)}</strong>.
+      </div>
+    `;
+    return;
+  }
+
+  const diasMap = new Map();
+  const totalesUnidad = {};
+  let totalSupM2 = 0;
+  let totalVolM3 = 0;
+  let totalCantU = 0;
+
+  coincidencias.forEach((p) => {
+    const fechaRaw = String(p.fecha || "").trim() || "Sin fecha";
+    const claveDia = obtenerClaveFechaOrden(fechaRaw) || fechaRaw;
+
+    if (!diasMap.has(claveDia)) {
+      diasMap.set(claveDia, {
+        fechaVisible: formatearFechaVisible(fechaRaw),
+        claveDia,
+        partesCount: 0,
+        kmsSet: new Set(),
+        unidadesDia: {}
+      });
+    }
+
+    const diaObj = diasMap.get(claveDia);
+    diaObj.partesCount += 1;
+
+    const kmFmt = formatearKmParaTabla(p.km, p.ruta);
+    if (kmFmt && kmFmt !== "—") {
+      diaObj.kmsSet.add(kmFmt);
+    }
+
+    const cantItem = extraerCantidadYUnidadParte(p);
+    if (cantItem) {
+      totalesUnidad[cantItem.unidad] = (totalesUnidad[cantItem.unidad] || 0) + cantItem.valor;
+      diaObj.unidadesDia[cantItem.unidad] = (diaObj.unidadesDia[cantItem.unidad] || 0) + cantItem.valor;
+    }
+
+    const sup = numRealOrNull(p.superficie_m2);
+    const vol = numRealOrNull(p.volumen_m3);
+    const u = numRealOrNull(p.cantidad_u);
+    if (sup !== null) totalSupM2 += sup;
+    if (vol !== null) totalVolM3 += vol;
+    if (u !== null) totalCantU += u;
+  });
+
+  const diasOrdenados = Array.from(diasMap.values())
+    .sort((a, b) => a.claveDia.localeCompare(b.claveDia));
+
+  const resumenCantidadesTexto = formatearMapaUnidades(totalesUnidad) || "Sin cantidades cargadas";
+
+  const extrasComputos = [];
+  if (totalVolM3 > 0) extrasComputos.push(`Volumen: ${fmtAR2(totalVolM3)} m³`);
+  if (totalSupM2 > 0) extrasComputos.push(`Superficie: ${fmtAR2(totalSupM2)} m²`);
+  if (totalCantU > 0) extrasComputos.push(`Unidades: ${fmtAR2(totalCantU)} u`);
+
+  cont.innerHTML = `
+    <div class="mb-2 small text-secondary">
+      Resultado para <strong>${escapeHTML(tareaEtiqueta)}</strong> · <strong>${escapeHTML(rangoEtiqueta)}</strong>
+    </div>
+
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="consulta-mini-kpi h-100">
+          <div class="text-muted small">Partes / Ejecuciones</div>
+          <div class="fs-5 fw-bold text-primary">${coincidencias.length}</div>
+        </div>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <div class="consulta-mini-kpi h-100">
+          <div class="text-muted small">Días ejecutados</div>
+          <div class="fs-5 fw-bold text-success">${diasOrdenados.length}</div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <div class="consulta-mini-kpi h-100">
+          <div class="text-muted small">Cantidad / Avance acumulado</div>
+          <div class="fs-6 fw-bold text-dark mt-1">${escapeHTML(resumenCantidadesTexto)}</div>
+          ${extrasComputos.length ? `<div class="text-muted" style="font-size: 11px;">${escapeHTML(extrasComputos.join(" · "))}</div>` : ""}
+        </div>
+      </div>
+    </div>
+
+    <h6 class="fw-bold small text-uppercase text-secondary mb-2">
+      <i class="bi bi-calendar3 text-primary me-1"></i> Días en que se ejecutó (${diasOrdenados.length})
+    </h6>
+    <div class="table-responsive border rounded-3 mb-3">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th class="text-center">Partes</th>
+            <th>Km registrados</th>
+            <th class="text-end">Cantidad del día</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${diasOrdenados.map((d) => `
+            <tr>
+              <td class="fw-semibold text-nowrap">${escapeHTML(d.fechaVisible)}</td>
+              <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${d.partesCount}</span></td>
+              <td class="small text-secondary">${escapeHTML(Array.from(d.kmsSet).join(" · ") || "—")}</td>
+              <td class="text-end fw-bold text-nowrap">${escapeHTML(formatearMapaUnidades(d.unidadesDia) || "—")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    <h6 class="fw-bold small text-uppercase text-secondary mb-2">
+      <i class="bi bi-list-ul text-primary me-1"></i> Registros detallados (${coincidencias.length})
+    </h6>
+    <div class="table-responsive border rounded-3">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Km</th>
+            <th>Tarea</th>
+            <th>Empresa</th>
+            <th class="text-end">Cantidad</th>
+            <th class="text-end">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${coincidencias.map((p) => {
+            const cant = extraerCantidadYUnidadParte(p);
+            const cantTxt = cant ? `${fmtTotal2(cant.valor)} ${cant.unidad}` : "—";
+            return `
+              <tr>
+                <td class="text-nowrap">${escapeHTML(formatearFechaVisible(p.fecha))}</td>
+                <td class="text-nowrap fw-semibold">${escapeHTML(formatearKmParaTabla(p.km, p.ruta))}</td>
+                <td>${escapeHTML(p.tarea || "—")}</td>
+                <td>${escapeHTML(p.empresa || "—")}</td>
+                <td class="text-end text-nowrap fw-semibold">${escapeHTML(cantTxt)}</td>
+                <td class="text-end text-nowrap">
+                  <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-0" data-bs-dismiss="modal" onclick="abrirDetalleParte('${escapeHTML(String(p.id))}')">
+                    Ver
+                  </button>
+                </td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderAvanceKmPorTarea(lista) {
@@ -1782,6 +2110,7 @@ window.eliminarParte = async function(id) {
   }
 
   todosLosPartes = todosLosPartes.filter(p => String(p.id) !== String(id));
+  poblarSelectConsultaKm();
   aplicarFiltros();
 };
 
@@ -1892,6 +2221,7 @@ async function cargarPartesDiarios() {
   poblarSelectFiltro("filtroRuta", todosLosPartes.map(p => p.ruta));
   poblarSelectFiltro("filtroSubtramo", todosLosPartes.map(p => p.subtramo));
   poblarSelectFiltro("filtroTarea", todosLosPartes.map(p => p.tarea));
+  poblarSelectConsultaKm();
 
   aplicarFiltros();
 }
@@ -1926,6 +2256,42 @@ function exportarCSV() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+document.getElementById("modalConsultaKm").addEventListener("show.bs.modal", () => {
+  poblarSelectConsultaKm();
+  const tareaVisor = document.getElementById("filtroTarea").value;
+  const tareaConsulta = document.getElementById("consultaTarea");
+  if (tareaVisor && !tareaConsulta.value) {
+    tareaConsulta.value = tareaVisor;
+  }
+});
+
+document.getElementById("formConsultaKm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  ejecutarConsultaKm();
+});
+
+document.getElementById("btnCopiarFiltrosVisorConsulta").addEventListener("click", () => {
+  document.getElementById("consultaTarea").value = document.getElementById("filtroTarea").value;
+  document.getElementById("consultaRuta").value = document.getElementById("filtroRuta").value;
+  document.getElementById("consultaSubtramo").value = document.getElementById("filtroSubtramo").value;
+  document.getElementById("consultaEmpresa").value = document.getElementById("filtroEmpresa").value;
+  ejecutarConsultaKm();
+});
+
+document.getElementById("btnLimpiarConsultaKm").addEventListener("click", () => {
+  document.getElementById("consultaTarea").value = "";
+  document.getElementById("consultaKmDesde").value = "";
+  document.getElementById("consultaKmHasta").value = "";
+  document.getElementById("consultaRuta").value = "";
+  document.getElementById("consultaSubtramo").value = "";
+  document.getElementById("consultaEmpresa").value = "";
+  document.getElementById("resultadoConsultaKm").innerHTML = `
+    <div class="text-muted small py-3 text-center">
+      Completá la tarea y/o el rango de Km (por ejemplo, Km 49 a Km 50) y tocá <strong>Consultar</strong>.
+    </div>
+  `;
+});
 
 document.getElementById("btnToggleUltimosPartes").addEventListener("click", () => {
   const cont = document.getElementById("contenedorUltimosPartesEmpresa");
