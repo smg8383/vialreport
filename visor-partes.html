@@ -526,7 +526,7 @@
           </small>
           <div class="text-muted mt-1" style="font-size: 11px;">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Los kilómetros se calculan a partir de las progresivas registradas (o largos/losas cuando corresponda) sobre el total de cada ruta. Cada empresa muestra sus km ejecutados y su <strong>% sobre el tramo total</strong> (en tareas compartidas por varias empresas, el % de cada una refleja su aporte individual sobre la longitud total del tramo).
+            <strong>Aclaración:</strong> Los km ejecutados de la fila se obtienen sumando los km de cada empresa (a partir de las progresivas registradas o largos/losas cuando corresponda), y el <strong>% Avance por km</strong> se calcula sobre la longitud total de cada ruta. Cada empresa muestra sus km ejecutados y su <strong>% sobre el tramo total</strong>.
           </div>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -1506,7 +1506,6 @@ function renderAvanceKmPorTarea(lista) {
   const filas = Array.from(gruposMap.values())
     .map((g) => {
       const totalCalc = calcularKmDeAcumulador(g, g.tarea);
-      const kmEjecutados = totalCalc.kmEjecutados;
 
       const desgloseEmpresas = Array.from(g.porEmpresaMap.values())
         .map((empAcc) => {
@@ -1522,6 +1521,9 @@ function renderAvanceKmPorTarea(lista) {
           };
         })
         .sort((a, b) => b.kmEjecutados - a.kmEjecutados || a.empresa.localeCompare(b.empresa));
+
+      const sumaKmEmpresas = desgloseEmpresas.reduce((acc, emp) => acc + emp.kmEjecutados, 0);
+      const kmEjecutados = desgloseEmpresas.length > 0 ? sumaKmEmpresas : totalCalc.kmEjecutados;
 
       const porcentaje = g.longitudTramoKm > 0
         ? (kmEjecutados / g.longitudTramoKm) * 100
