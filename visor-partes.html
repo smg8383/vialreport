@@ -526,7 +526,7 @@
           </small>
           <div class="text-muted mt-1" style="font-size: 11px;">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Se calculan cierres de km por fecha (con cierres parciales cuando hay frentes separados o km puntuales) y se acumula el km total por día de cada empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
+            <strong>Aclaración:</strong> Se calcula el cierre por franjas de 1 km (max - min de la franja; si no hay diferencia min/max, se toma la longitud en km) y se acumula por empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
           </div>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -553,12 +553,10 @@
       </div>
 
       <div id="contenedorListadoPartes" class="mt-2">
-        <!-- Estado de carga / vacío -->
         <div id="estadoLista" class="alert alert-info py-2 px-3 small">
           Cargando partes diarios...
         </div>
 
-        <!-- Vista Tabla (predeterminada, con Estado, Fotos > 0 y Acciones en segunda línea) -->
         <div id="vistaTabla" class="border rounded-3 overflow-hidden">
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -585,7 +583,6 @@
           </div>
         </div>
 
-        <!-- Vista Tarjetas (alternativa) -->
         <div id="vistaTarjetas" class="row g-3 d-none"></div>
       </div>
     </div>
@@ -727,9 +724,6 @@ const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v2";
 // Longitudes de tramos de referencia (km)
 const LONGITUD_TRAMO_RN16 = 211.20; // Km 0,000 al Km 211,200
 const LONGITUD_TRAMO_RN12 = 1209.69 - 871.20; // Km 871,200 al Km 1.209,690 = 338,490 km
-
-// Umbral de salto (en km) dentro de una misma fecha y empresa para abrir cierres parciales
-const UMBRAL_CIERRE_PARCIAL_KM = 2.0;
 
 const KPIS_PUNTUALES_DEFAULT = [
   {
@@ -1396,77 +1390,92 @@ function ejecutarConsultaKm() {
 }
 
 /**
- * Calcula los km de un día para una empresa haciendo cierres parciales cuando hay
- * frentes separados por más de `umbralSaltoKm` (y tomando rangos explícitos o largos puntuales).
+ * Calcula los km por franjas de 1 km [k, k+1) para una empresa:
+ * - Si hay amplitud (max - min > 0) en la franja, toma max - min.
+ * - Si no hay amplitud (max - min === 0 o un solo punto), toma largo_m / 1000.
  */
-function calcularCierreDiarioEmpresa(diaAcc, umbralSaltoKm = UMBRAL_CIERRE_PARCIAL_KM) {
-  let kmDia = 0;
-
-  if (Array.isArray(diaAcc.rangosExplicitosKm) && diaAcc.rangosExplicitosKm.length > 0) {
-    kmDia += diaAcc.rangosExplicitosKm.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
-  }
-
-  const puntosOrdenados = (Array.isArray(diaAcc.puntosKm) ? diaAcc.puntosKm : [])
-    .filter((v) => typeof v === "number" && Number.isFinite(v))
-    .sort((a, b) => a - b);
-
-  let kmParcialesPuntos = 0;
-  let cantBloques = 0;
-
-  if (puntosOrdenados.length >= 2) {
-    let bloqueMin = puntosOrdenados[0];
-    let bloqueMax = puntosOrdenados[0];
-    let puntosEnBloque = 1;
-
-    for (let i = 1; i < puntosOrdenados.length; i++) {
-      const actual = puntosOrdenados[i];
-      if (actual - bloqueMax > umbralSaltoKm) {
-        if (puntosEnBloque >= 2) {
-          kmParcialesPuntos += Math.max(0, bloqueMax - bloqueMin);
-          cantBloques += 1;
-        }
-        bloqueMin = actual;
-        bloqueMax = actual;
-        puntosEnBloque = 1;
-      } else {
-        bloqueMax = actual;
-        puntosEnBloque += 1;
-      }
-    }
-
-    if (puntosEnBloque >= 2) {
-      kmParcialesPuntos += Math.max(0, bloqueMax - bloqueMin);
-      cantBloques += 1;
-    }
-  }
-
-  if (kmParcialesPuntos > 0) {
-    kmDia += kmParcialesPuntos;
-  } else if (kmDia === 0 && diaAcc.sumaLargosM > 0) {
-    kmDia += diaAcc.sumaLargosM / 1000;
-  }
-
-  return {
-    kmDia,
-    cantBloques
-  };
-}
-
-function calcularKmPorCierresDiarios(empAcc) {
-  let totalKm = 0;
-  let diasConCierre = 0;
-  let totalBloquesParciales = 0;
+function calcularKmPorFranjasDe1Km(empAcc) {
+  const franjasMap = new Map();
   const todosLosKm = [];
+  const fechasUnicas = new Set();
 
-  empAcc.porFecha.forEach((diaAcc) => {
-    if (Array.isArray(diaAcc.todosKmDia)) {
-      todosLosKm.push(...diaAcc.todosKmDia);
+  if (Array.isArray(empAcc.registrosDetalle)) {
+    empAcc.registrosDetalle.forEach((reg) => {
+      if (reg.claveFecha) {
+        fechasUnicas.add(reg.claveFecha);
+      }
+      const kms = reg.numsKm || [];
+      const largoM = reg.largoM || 0;
+
+      if (kms.length >= 2) {
+        todosLosKm.push(...kms);
+        const minR = Math.min(...kms);
+        const maxR = Math.max(...kms);
+        const franjaIni = Math.floor(minR);
+        const franjaFin = Math.floor(maxR);
+
+        if (franjaIni === franjaFin) {
+          if (!franjasMap.has(franjaIni)) {
+            franjasMap.set(franjaIni, { minKm: Infinity, maxKm: -Infinity, sumaLargosM: 0, aporteDirecto: 0 });
+          }
+          const fObj = franjasMap.get(franjaIni);
+          fObj.minKm = Math.min(fObj.minKm, minR, maxR);
+          fObj.maxKm = Math.max(fObj.maxKm, minR, maxR);
+          fObj.sumaLargosM += largoM;
+        } else {
+          const spanTotal = Math.max(0, maxR - minR);
+          const cantFranjas = franjaFin - franjaIni + 1;
+          const aportePorFranja = spanTotal / cantFranjas;
+          for (let k = franjaIni; k <= franjaFin; k++) {
+            if (!franjasMap.has(k)) {
+              franjasMap.set(k, { minKm: Infinity, maxKm: -Infinity, sumaLargosM: 0, aporteDirecto: 0 });
+            }
+            const fObj = franjasMap.get(k);
+            fObj.aporteDirecto += aportePorFranja;
+          }
+        }
+      } else if (kms.length === 1) {
+        const kmVal = kms[0];
+        todosLosKm.push(kmVal);
+        const franja = Math.floor(kmVal);
+        if (!franjasMap.has(franja)) {
+          franjasMap.set(franja, { minKm: Infinity, maxKm: -Infinity, sumaLargosM: 0, aporteDirecto: 0 });
+        }
+        const fObj = franjasMap.get(franja);
+        fObj.minKm = Math.min(fObj.minKm, kmVal);
+        fObj.maxKm = Math.max(fObj.maxKm, kmVal);
+        fObj.sumaLargosM += largoM;
+      } else if (largoM > 0) {
+        const franja = 0;
+        if (!franjasMap.has(franja)) {
+          franjasMap.set(franja, { minKm: Infinity, maxKm: -Infinity, sumaLargosM: 0, aporteDirecto: 0 });
+        }
+        const fObj = franjasMap.get(franja);
+        fObj.sumaLargosM += largoM;
+      }
+    });
+  }
+
+  let totalKm = 0;
+  let cantFranjasConCierre = 0;
+
+  franjasMap.forEach((fObj) => {
+    const tieneMinMax = Number.isFinite(fObj.minKm) && Number.isFinite(fObj.maxKm);
+    const amplitud = tieneMinMax ? Math.max(0, fObj.maxKm - fObj.minKm) : 0;
+
+    let aporteFranja = 0;
+    if (fObj.aporteDirecto > 0) {
+      aporteFranja += fObj.aporteDirecto;
     }
-    const resDia = calcularCierreDiarioEmpresa(diaAcc, UMBRAL_CIERRE_PARCIAL_KM);
-    if (resDia.kmDia > 0) {
-      totalKm += resDia.kmDia;
-      diasConCierre += 1;
-      totalBloquesParciales += resDia.cantBloques;
+    if (amplitud > 0) {
+      aporteFranja += amplitud;
+    } else if (fObj.aporteDirecto === 0 && fObj.sumaLargosM > 0) {
+      aporteFranja += fObj.sumaLargosM / 1000;
+    }
+
+    if (aporteFranja > 0) {
+      totalKm += aporteFranja;
+      cantFranjasConCierre += 1;
     }
   });
 
@@ -1479,9 +1488,9 @@ function calcularKmPorCierresDiarios(empAcc) {
       : `Km ${fmtKm3(minKm)} – ${fmtKm3(maxKm)}`;
   }
 
-  const metodoTexto = diasConCierre > 0
-    ? `Cierres por fecha (${diasConCierre} d${totalBloquesParciales > 0 ? ` · ${totalBloquesParciales} parc.` : ""})`
-    : "Sin km/largos en fecha";
+  const metodoTexto = cantFranjasConCierre > 0
+    ? `Franjas 1 km (${cantFranjasConCierre} franjas · ${fechasUnicas.size} d)`
+    : `Sin km/largos (${fechasUnicas.size} d)`;
 
   return {
     kmEjecutados: totalKm,
@@ -1524,39 +1533,23 @@ function renderAvanceKmPorTarea(lista) {
     if (!g.porEmpresaMap.has(empresaEtiqueta)) {
       g.porEmpresaMap.set(empresaEtiqueta, {
         empresa: empresaEtiqueta,
-        porFecha: new Map()
+        registrosDetalle: []
       });
     }
     const empAcc = g.porEmpresaMap.get(empresaEtiqueta);
 
     const claveFecha = obtenerClaveFechaOrden(p.fecha) || String(p.fecha || "sin-fecha");
-    if (!empAcc.porFecha.has(claveFecha)) {
-      empAcc.porFecha.set(claveFecha, {
-        rangosExplicitosKm: [],
-        puntosKm: [],
-        todosKmDia: [],
-        sumaLargosM: 0
-      });
-    }
-    const diaAcc = empAcc.porFecha.get(claveFecha);
-
     const numsKm = extraerKmNumericosDeParte(p);
-    if (numsKm.length >= 2) {
-      const minR = Math.min(...numsKm);
-      const maxR = Math.max(...numsKm);
-      diaAcc.rangosExplicitosKm.push(Math.abs(maxR - minR));
-      diaAcc.todosKmDia.push(...numsKm);
+    if (numsKm.length > 0) {
       g.todosKmGrupo.push(...numsKm);
-    } else if (numsKm.length === 1) {
-      diaAcc.puntosKm.push(numsKm[0]);
-      diaAcc.todosKmDia.push(numsKm[0]);
-      g.todosKmGrupo.push(numsKm[0]);
     }
 
     const largo = numRealOrNull(p.largo_m);
-    if (largo !== null && largo > 0) {
-      diaAcc.sumaLargosM += largo;
-    }
+    empAcc.registrosDetalle.push({
+      claveFecha,
+      numsKm,
+      largoM: largo !== null && largo > 0 ? largo : 0
+    });
 
     const cantItem = extraerCantidadYUnidadParte(p);
     if (cantItem) {
@@ -1568,7 +1561,7 @@ function renderAvanceKmPorTarea(lista) {
     .map((g) => {
       const desgloseEmpresas = Array.from(g.porEmpresaMap.values())
         .map((empAcc) => {
-          const calcEmp = calcularKmPorCierresDiarios(empAcc);
+          const calcEmp = calcularKmPorFranjasDe1Km(empAcc);
           const pctEmpresa = g.longitudTramoKm > 0
             ? (calcEmp.kmEjecutados / g.longitudTramoKm) * 100
             : 0;
@@ -1597,8 +1590,8 @@ function renderAvanceKmPorTarea(lista) {
       }
 
       const metodoTexto = desgloseEmpresas.length > 1
-        ? `Cierres diarios por empresa (${desgloseEmpresas.length})`
-        : (desgloseEmpresas[0]?.metodoTexto || "Cierres por fecha");
+        ? `Franjas 1 km por empresa (${desgloseEmpresas.length})`
+        : (desgloseEmpresas[0]?.metodoTexto || "Franjas 1 km");
 
       const porcentaje = g.longitudTramoKm > 0
         ? (kmEjecutados / g.longitudTramoKm) * 100
