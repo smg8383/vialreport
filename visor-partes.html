@@ -524,14 +524,20 @@
           <small class="text-muted">
             Solo frente Obra · Longitud total de referencia: RN 16 = 211,200 km · RN 12 = 338,490 km.
           </small>
-          <div class="text-muted mt-1" style="font-size: 11px;">
-            <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Se calcula el cierre por franjas de 1 km (max - min de la franja; si no hay diferencia min/max —por ejemplo, un solo punto o día como Km 0,500 con un bache de 20 m × 5 m—, se toma como parcial la longitud de la tarea en km) y se acumula por empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
-          </div>
         </div>
-        <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
-          <i class="bi bi-chevron-up"></i> Ocultar
-        </button>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <button type="button" id="btnToggleAclaracionKm" class="btn btn-outline-info btn-sm rounded-pill px-3 fw-semibold">
+            <i class="bi bi-info-circle"></i> Ver aclaración
+          </button>
+          <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+            <i class="bi bi-chevron-up"></i> Ocultar
+          </button>
+        </div>
+      </div>
+
+      <div id="contenedorAclaracionKm" class="bg-light border rounded-3 p-2 mb-2 d-none text-muted" style="font-size: 11px; line-height: 1.35;">
+        <i class="bi bi-info-circle text-info me-1"></i>
+        <strong>Aclaración:</strong> Se agrupa por franjas de 1 km y se toma <code>max - min</code>; si no hay diferencia <code>min/max</code> (por ejemplo, un solo punto o día como <code>Km 0,500</code> con un bache de <code>20 m × 5 m</code>), se toma como parcial la longitud de la tarea en km (<code>largo_m / 1.000</code>), acumulando por empresa. El <strong>% Avance por km</strong> resulta de dividir los km cerrados acumulados sobre la longitud total de la ruta en km (<code>(Km cerrados / Total km ruta) × 100</code>, con <code>211,200 km</code> en RN 16 y <code>338,490 km</code> en RN 12); si coinciden varias empresas en el mismo ítem, se suman los km de cada una sobre el total de la ruta.
       </div>
 
       <div id="contenedorAvanceKmTareas" class="table-responsive mt-2">
@@ -1471,7 +1477,6 @@ function calcularKmPorFranjasDe1Km(empAcc) {
     if (amplitud > 0) {
       aporteFranja += amplitud;
     } else if (fObj.aporteDirecto === 0 && fObj.sumaLargosM > 0) {
-      // Sin diferencia min/max en la franja: se toma la longitud de la tarea (largo_m en km)
       aporteFranja += fObj.sumaLargosM / 1000;
     }
 
@@ -2475,6 +2480,15 @@ document.getElementById("btnToggleUltimosPartes").addEventListener("click", () =
   btn.innerHTML = oculto
     ? `<i class="bi bi-chevron-down"></i> Mostrar`
     : `<i class="bi bi-chevron-up"></i> Ocultar`;
+});
+
+document.getElementById("btnToggleAclaracionKm").addEventListener("click", () => {
+  const cont = document.getElementById("contenedorAclaracionKm");
+  const btn = document.getElementById("btnToggleAclaracionKm");
+  const oculto = cont.classList.toggle("d-none");
+  btn.innerHTML = oculto
+    ? `<i class="bi bi-info-circle"></i> Ver aclaración`
+    : `<i class="bi bi-eye-slash"></i> Ocultar aclaración`;
 });
 
 document.getElementById("btnToggleAvanceKm").addEventListener("click", () => {
