@@ -216,7 +216,7 @@ footer {
             
             <div class="col-md-4">
               <label class="form-label fw-semibold text-secondary small">Km (Progresiva)</label>
-              <input type="text" name="km_1" class="form-control" placeholder="Ej: 59.8 o usar GPS">
+              <input type="text" name="km_1" class="form-control" placeholder="Ej: 59.800 o usar GPS">
             </div>
 
             <div class="col-md-4">
@@ -417,6 +417,24 @@ function parsearProgresivaNumerica(valor) {
   return Number.isFinite(num) ? num : NaN;
 }
 
+function formatearKmTresDecimales(valor) {
+  if (valor == null || String(valor).trim() === "") return "";
+  const str = String(valor).trim();
+
+  if (str.includes("-")) {
+    return str
+      .split("-")
+      .map((parte) => {
+        const n = parsearProgresivaNumerica(parte);
+        return Number.isFinite(n) ? n.toFixed(3) : parte.trim();
+      })
+      .join(" - ");
+  }
+
+  const num = parsearProgresivaNumerica(str);
+  return Number.isFinite(num) ? num.toFixed(3) : str;
+}
+
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -505,15 +523,14 @@ function interpolarKmEntreDosPuntos(p1, p2, lat, lon) {
 
   const t = Math.max(0, Math.min(1, tRaw));
   const kmInterpolado = km1 + t * (km2 - km1);
-  return Number(kmInterpolado.toFixed(2));
+  return Number(kmInterpolado.toFixed(3));
 }
 
-// Cálculo 100% local en el cliente: filtra por ventana geográfica cercana y calcula distancia/interpolación
 function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
   if (!puntos || puntos.length === 0) return null;
 
-  const deltaLat = 0.05; // ~5.5 km aprox
-  const deltaLon = 0.06; // ~5.5 km aprox
+  const deltaLat = 0.05;
+  const deltaLon = 0.06;
 
   let candidatos = [];
   for (let i = 0; i < puntos.length; i++) {
@@ -534,7 +551,6 @@ function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
     });
   }
 
-  // Si no hubo puntos dentro de ~5.5 km, ampliar búsqueda a toda la tabla en memoria
   if (candidatos.length === 0) {
     for (let i = 0; i < puntos.length; i++) {
       const p = puntos[i];
@@ -570,13 +586,13 @@ function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
     }) || null;
   }
 
-  let progresivaFinal = masCercano.progresiva;
+  let progresivaFinal = formatearKmTresDecimales(masCercano.progresiva);
   let interpolado = false;
 
   if (segundoMismaRuta) {
     const kmInterp = interpolarKmEntreDosPuntos(masCercano, segundoMismaRuta, lat, lon);
     if (kmInterp != null) {
-      progresivaFinal = String(kmInterp);
+      progresivaFinal = kmInterp.toFixed(3);
       interpolado = true;
     }
   }
@@ -584,7 +600,7 @@ function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
   return {
     ...masCercano,
     progresiva: progresivaFinal,
-    progresivaNodo: masCercano.progresiva,
+    progresivaNodo: formatearKmTresDecimales(masCercano.progresiva),
     interpolado,
     distanciaMetros: Math.round(masCercano.distanciaMetros)
   };
@@ -595,7 +611,7 @@ function aplicarPuntoEnFormulario(cardGrupo, punto) {
 
   const inputKm = cardGrupo.querySelector(`[name^="km_"]`);
   if (inputKm && punto.progresiva != null) {
-    inputKm.value = punto.progresiva;
+    inputKm.value = formatearKmTresDecimales(punto.progresiva);
   }
 
   const selectRuta = cardGrupo.querySelector(`[name^="ruta_"]`);
@@ -614,6 +630,7 @@ function dibujarPuntosEnMapa(map, puntos) {
     if (punto.latitud != null && punto.longitud != null) {
       const rutaTexto = normalizarRutaDesdeKMZ(punto.ruta) || punto.ruta;
       let colorCirculo = (String(punto.ruta).includes('12')) ? '#1F4E78' : '#28a745';
+      const progFmt = formatearKmTresDecimales(punto.progresiva) || punto.progresiva;
 
       let circleMarker = L.circleMarker([punto.latitud, punto.longitud], {
         radius: 4,
@@ -624,7 +641,7 @@ function dibujarPuntosEnMapa(map, puntos) {
         fillOpacity: 0.8
       }).addTo(map);
 
-      circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
+      circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${progFmt}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
     }
   });
 }
@@ -642,7 +659,6 @@ async function inicializarMapa(grupoId) {
   mapasInstanciados[grupoId] = map;
   setTimeout(() => { map.invalidateSize(); }, 300);
 
-  // Cargar caché local de inmediato para que el Km esté listo sin esperar red
   const cacheLocal = leerCacheProgresivas();
   if (cacheLocal && cacheLocal.length > 0 && todosLosKmMapa.length === 0) {
     todosLosKmMapa = cacheLocal;
@@ -714,7 +730,7 @@ function aplicarCamposGuardadosNuevoRegistro() {
       }
     }
     if (datos.km != null) {
-      document.querySelector('input[name="km_1"]').value = datos.km;
+      document.querySelector('input[name="km_1"]').value = formatearKmTresDecimales(datos.km);
     }
     if (datos.sentido) {
       const selSen = document.querySelector('select[name="sentido_1"]');
@@ -767,6 +783,15 @@ function configurarObservacionMayusculas() {
     }
   });
 }
+
+document.addEventListener("focusout", (e) => {
+  if (e.target && e.target.matches('[name^="km_"]')) {
+    const formateado = formatearKmTresDecimales(e.target.value);
+    if (formateado) {
+      e.target.value = formateado;
+    }
+  }
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   configurarObservacionMayusculas();
@@ -853,7 +878,6 @@ function pedirPosicionRapida(opciones) {
 }
 
 async function obtenerPosicionOptimaEnCampo() {
-  // 1) Intento rápido (acepta caché reciente de hasta 15s y corta a los 6s si no hay señal)
   try {
     return await pedirPosicionRapida({
       enableHighAccuracy: true,
@@ -861,7 +885,6 @@ async function obtenerPosicionOptimaEnCampo() {
       maximumAge: 15000
     });
   } catch (errRapido) {
-    // 2) Fallback con menor exigencia de precisión para responder rápido en campo
     return await pedirPosicionRapida({
       enableHighAccuracy: false,
       timeout: 8000,
@@ -887,7 +910,6 @@ async function activarUbicacionGPS(btn) {
   btn.disabled = true;
 
   try {
-    // Si ya tenemos caché o puntos en memoria, el cálculo del Km es instantáneo en el cliente
     let puntos = todosLosKmMapa.length > 0 ? todosLosKmMapa : leerCacheProgresivas();
 
     const position = await obtenerPosicionOptimaEnCampo();
@@ -898,7 +920,6 @@ async function activarUbicacionGPS(btn) {
     if (inputLat) inputLat.value = lat;
     if (inputLon) inputLon.value = lon;
 
-    // Si aún no había puntos cargados, consultar Supabase en ese momento
     if (!puntos || puntos.length === 0) {
       const clienteDB = window.supabaseClient || window.supabase;
       if (!clienteDB) {
@@ -915,7 +936,6 @@ async function activarUbicacionGPS(btn) {
     const puntoCercano = buscarKmMasCercanoEnPuntos(puntos, lat, lon);
 
     if (puntoCercano) {
-      // Completar Km y Ruta de inmediato antes de redibujar el mapa
       aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
 
       if (map) {
