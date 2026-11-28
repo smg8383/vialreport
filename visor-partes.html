@@ -526,7 +526,7 @@
           </small>
           <div class="text-muted mt-1" style="font-size: 11px;">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Se calculan los kilómetros ejecutados por cada empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
+            <strong>Aclaración:</strong> Se calculan cierres de km por fecha (con cierres parciales cuando hay frentes separados o km puntuales) y se acumula el km total por día de cada empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
           </div>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -727,6 +727,9 @@ const STORAGE_KEY_KPIS = "vial_report_kpis_puntuales_v2";
 // Longitudes de tramos de referencia (km)
 const LONGITUD_TRAMO_RN16 = 211.20; // Km 0,000 al Km 211,200
 const LONGITUD_TRAMO_RN12 = 1209.69 - 871.20; // Km 871,200 al Km 1.209,690 = 338,490 km
+
+// Umbral de salto (en km) dentro de una misma fecha y empresa para abrir cierres parciales
+const UMBRAL_CIERRE_PARCIAL_KM = 2.0;
 
 const KPIS_PUNTUALES_DEFAULT = [
   {
@@ -1107,11 +1110,6 @@ function esParteDePeaje(p) {
   return texto.includes("peaje");
 }
 
-function esTareaHormigonPavimentoRigido(tarea) {
-  const t = normalizarBusqueda(tarea);
-  return t.includes("hormigon") && (t.includes("rigido") || t.includes("losas") || t.includes("bacheo"));
-}
-
 function badgeFrente(frente) {
   const f = normalizarFrente(frente);
   if (f === "Peaje") {
@@ -1397,38 +1395,96 @@ function ejecutarConsultaKm() {
   `;
 }
 
-function calcularKmDeAcumulador(acc, tarea) {
-  let rangoTexto = "—";
-  let amplitudKm = 0;
+/**
+ * Calcula los km de un día para una empresa haciendo cierres parciales cuando hay
+ * frentes separados por más de `umbralSaltoKm` (y tomando rangos explícitos o largos puntuales).
+ */
+function calcularCierreDiarioEmpresa(diaAcc, umbralSaltoKm = UMBRAL_CIERRE_PARCIAL_KM) {
+  let kmDia = 0;
 
-  if (acc.kmsPuntos.length > 0) {
-    const minKm = Math.min(...acc.kmsPuntos);
-    const maxKm = Math.max(...acc.kmsPuntos);
-    amplitudKm = maxKm - minKm;
-    rangoTexto = acc.kmsPuntos.length === 1
+  if (Array.isArray(diaAcc.rangosExplicitosKm) && diaAcc.rangosExplicitosKm.length > 0) {
+    kmDia += diaAcc.rangosExplicitosKm.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+  }
+
+  const puntosOrdenados = (Array.isArray(diaAcc.puntosKm) ? diaAcc.puntosKm : [])
+    .filter((v) => typeof v === "number" && Number.isFinite(v))
+    .sort((a, b) => a - b);
+
+  let kmParcialesPuntos = 0;
+  let cantBloques = 0;
+
+  if (puntosOrdenados.length >= 2) {
+    let bloqueMin = puntosOrdenados[0];
+    let bloqueMax = puntosOrdenados[0];
+    let puntosEnBloque = 1;
+
+    for (let i = 1; i < puntosOrdenados.length; i++) {
+      const actual = puntosOrdenados[i];
+      if (actual - bloqueMax > umbralSaltoKm) {
+        if (puntosEnBloque >= 2) {
+          kmParcialesPuntos += Math.max(0, bloqueMax - bloqueMin);
+          cantBloques += 1;
+        }
+        bloqueMin = actual;
+        bloqueMax = actual;
+        puntosEnBloque = 1;
+      } else {
+        bloqueMax = actual;
+        puntosEnBloque += 1;
+      }
+    }
+
+    if (puntosEnBloque >= 2) {
+      kmParcialesPuntos += Math.max(0, bloqueMax - bloqueMin);
+      cantBloques += 1;
+    }
+  }
+
+  if (kmParcialesPuntos > 0) {
+    kmDia += kmParcialesPuntos;
+  } else if (kmDia === 0 && diaAcc.sumaLargosM > 0) {
+    kmDia += diaAcc.sumaLargosM / 1000;
+  }
+
+  return {
+    kmDia,
+    cantBloques
+  };
+}
+
+function calcularKmPorCierresDiarios(empAcc) {
+  let totalKm = 0;
+  let diasConCierre = 0;
+  let totalBloquesParciales = 0;
+  const todosLosKm = [];
+
+  empAcc.porFecha.forEach((diaAcc) => {
+    if (Array.isArray(diaAcc.todosKmDia)) {
+      todosLosKm.push(...diaAcc.todosKmDia);
+    }
+    const resDia = calcularCierreDiarioEmpresa(diaAcc, UMBRAL_CIERRE_PARCIAL_KM);
+    if (resDia.kmDia > 0) {
+      totalKm += resDia.kmDia;
+      diasConCierre += 1;
+      totalBloquesParciales += resDia.cantBloques;
+    }
+  });
+
+  let rangoTexto = "—";
+  if (todosLosKm.length > 0) {
+    const minKm = Math.min(...todosLosKm);
+    const maxKm = Math.max(...todosLosKm);
+    rangoTexto = todosLosKm.length === 1
       ? `Km ${fmtKm3(minKm)}`
       : `Km ${fmtKm3(minKm)} – ${fmtKm3(maxKm)}`;
   }
 
-  const kmDesdeLargos = acc.sumaLargoMetros / 1000;
-  let kmEjecutados = acc.sumaParcialesKm;
-  let metodoTexto = "Tramos en km";
-
-  if (esTareaHormigonPavimentoRigido(tarea)) {
-    if (acc.kmsPuntos.length >= 2 && amplitudKm > 0) {
-      kmEjecutados = amplitudKm;
-      metodoTexto = "Rango Km máx – Km mín";
-    } else if (kmDesdeLargos > 0) {
-      kmEjecutados = kmDesdeLargos;
-      metodoTexto = `Losas (${acc.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
-    }
-  } else if (kmEjecutados === 0 && kmDesdeLargos > 0) {
-    kmEjecutados = kmDesdeLargos;
-    metodoTexto = `Suma largos (${acc.sumaLargoMetros.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m)`;
-  }
+  const metodoTexto = diasConCierre > 0
+    ? `Cierres por fecha (${diasConCierre} d${totalBloquesParciales > 0 ? ` · ${totalBloquesParciales} parc.` : ""})`
+    : "Sin km/largos en fecha";
 
   return {
-    kmEjecutados,
+    kmEjecutados: totalKm,
     rangoTexto,
     metodoTexto
   };
@@ -1457,9 +1513,7 @@ function renderAvanceKmPorTarea(lista) {
         rutaClave: tramoInfo.clave,
         longitudTramoKm: tramoInfo.longitudKm,
         descripcionTramo: tramoInfo.descripcionTramo,
-        kmsPuntos: [],
-        sumaParcialesKm: 0,
-        sumaLargoMetros: 0,
+        todosKmGrupo: [],
         unidades: {},
         porEmpresaMap: new Map()
       });
@@ -1470,31 +1524,38 @@ function renderAvanceKmPorTarea(lista) {
     if (!g.porEmpresaMap.has(empresaEtiqueta)) {
       g.porEmpresaMap.set(empresaEtiqueta, {
         empresa: empresaEtiqueta,
-        kmsPuntos: [],
-        sumaParcialesKm: 0,
-        sumaLargoMetros: 0
+        porFecha: new Map()
       });
     }
     const empAcc = g.porEmpresaMap.get(empresaEtiqueta);
 
+    const claveFecha = obtenerClaveFechaOrden(p.fecha) || String(p.fecha || "sin-fecha");
+    if (!empAcc.porFecha.has(claveFecha)) {
+      empAcc.porFecha.set(claveFecha, {
+        rangosExplicitosKm: [],
+        puntosKm: [],
+        todosKmDia: [],
+        sumaLargosM: 0
+      });
+    }
+    const diaAcc = empAcc.porFecha.get(claveFecha);
+
     const numsKm = extraerKmNumericosDeParte(p);
     if (numsKm.length >= 2) {
-      for (let idx = 1; idx < numsKm.length; idx++) {
-        const diff = Math.abs(numsKm[idx] - numsKm[idx - 1]);
-        g.sumaParcialesKm += diff;
-        empAcc.sumaParcialesKm += diff;
-      }
-      g.kmsPuntos.push(...numsKm);
-      empAcc.kmsPuntos.push(...numsKm);
+      const minR = Math.min(...numsKm);
+      const maxR = Math.max(...numsKm);
+      diaAcc.rangosExplicitosKm.push(Math.abs(maxR - minR));
+      diaAcc.todosKmDia.push(...numsKm);
+      g.todosKmGrupo.push(...numsKm);
     } else if (numsKm.length === 1) {
-      g.kmsPuntos.push(numsKm[0]);
-      empAcc.kmsPuntos.push(numsKm[0]);
+      diaAcc.puntosKm.push(numsKm[0]);
+      diaAcc.todosKmDia.push(numsKm[0]);
+      g.todosKmGrupo.push(numsKm[0]);
     }
 
     const largo = numRealOrNull(p.largo_m);
     if (largo !== null && largo > 0) {
-      g.sumaLargoMetros += largo;
-      empAcc.sumaLargoMetros += largo;
+      diaAcc.sumaLargosM += largo;
     }
 
     const cantItem = extraerCantidadYUnidadParte(p);
@@ -1507,7 +1568,7 @@ function renderAvanceKmPorTarea(lista) {
     .map((g) => {
       const desgloseEmpresas = Array.from(g.porEmpresaMap.values())
         .map((empAcc) => {
-          const calcEmp = calcularKmDeAcumulador(empAcc, g.tarea);
+          const calcEmp = calcularKmPorCierresDiarios(empAcc);
           const pctEmpresa = g.longitudTramoKm > 0
             ? (calcEmp.kmEjecutados / g.longitudTramoKm) * 100
             : 0;
@@ -1521,16 +1582,23 @@ function renderAvanceKmPorTarea(lista) {
         })
         .sort((a, b) => b.kmEjecutados - a.kmEjecutados || a.empresa.localeCompare(b.empresa));
 
-      // Calcula los km hechos por cada empresa y, si coinciden en el mismo ítem, suma los km de cada una
       const kmEjecutados = desgloseEmpresas.reduce(
         (acc, emp) => acc + (Number.isFinite(emp.kmEjecutados) ? emp.kmEjecutados : 0),
         0
       );
 
-      const totalCalcRef = calcularKmDeAcumulador(g, g.tarea);
+      let rangoTexto = "—";
+      if (g.todosKmGrupo.length > 0) {
+        const minG = Math.min(...g.todosKmGrupo);
+        const maxG = Math.max(...g.todosKmGrupo);
+        rangoTexto = g.todosKmGrupo.length === 1
+          ? `Km ${fmtKm3(minG)}`
+          : `Km ${fmtKm3(minG)} – ${fmtKm3(maxG)}`;
+      }
+
       const metodoTexto = desgloseEmpresas.length > 1
-        ? `Suma por empresa (${desgloseEmpresas.length})`
-        : (desgloseEmpresas[0]?.metodoTexto || totalCalcRef.metodoTexto);
+        ? `Cierres diarios por empresa (${desgloseEmpresas.length})`
+        : (desgloseEmpresas[0]?.metodoTexto || "Cierres por fecha");
 
       const porcentaje = g.longitudTramoKm > 0
         ? (kmEjecutados / g.longitudTramoKm) * 100
@@ -1543,7 +1611,7 @@ function renderAvanceKmPorTarea(lista) {
         ...g,
         kmEjecutados,
         metodoTexto,
-        rangoTexto: totalCalcRef.rangoTexto,
+        rangoTexto,
         desgloseEmpresas,
         porcentaje,
         porcentajeBarra,
@@ -1575,7 +1643,7 @@ function renderAvanceKmPorTarea(lista) {
                 ${f.desgloseEmpresas.map((emp) => {
                   const empPctFmt = `${emp.porcentajeTramo.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
                   return `
-                    <div class="km-parcial-item" title="${escapeHTML(emp.empresa)} (${escapeHTML(emp.rangoTexto)})">
+                    <div class="km-parcial-item" title="${escapeHTML(emp.empresa)} (${escapeHTML(emp.rangoTexto)} · ${escapeHTML(emp.metodoTexto)})">
                       <span class="km-parcial-emp">${escapeHTML(emp.empresa)}</span>
                       <span class="km-parcial-val">
                         ${escapeHTML(fmtKm3(emp.kmEjecutados))} km
