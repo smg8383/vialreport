@@ -526,7 +526,7 @@
           </small>
           <div class="text-muted mt-1" style="font-size: 11px;">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Los km ejecutados de la fila se obtienen sumando los km de cada empresa (a partir de las progresivas registradas o largos/losas cuando corresponda), y el <strong>% Avance por km</strong> se calcula sobre la longitud total de cada ruta. Cada empresa muestra sus km ejecutados y su <strong>% sobre el tramo total</strong>.
+            <strong>Aclaración:</strong> Se calculan los kilómetros ejecutados por cada empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
           </div>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -1505,8 +1505,6 @@ function renderAvanceKmPorTarea(lista) {
 
   const filas = Array.from(gruposMap.values())
     .map((g) => {
-      const totalCalc = calcularKmDeAcumulador(g, g.tarea);
-
       const desgloseEmpresas = Array.from(g.porEmpresaMap.values())
         .map((empAcc) => {
           const calcEmp = calcularKmDeAcumulador(empAcc, g.tarea);
@@ -1517,13 +1515,22 @@ function renderAvanceKmPorTarea(lista) {
             empresa: empAcc.empresa,
             kmEjecutados: calcEmp.kmEjecutados,
             porcentajeTramo: pctEmpresa,
-            rangoTexto: calcEmp.rangoTexto
+            rangoTexto: calcEmp.rangoTexto,
+            metodoTexto: calcEmp.metodoTexto
           };
         })
         .sort((a, b) => b.kmEjecutados - a.kmEjecutados || a.empresa.localeCompare(b.empresa));
 
-      const sumaKmEmpresas = desgloseEmpresas.reduce((acc, emp) => acc + emp.kmEjecutados, 0);
-      const kmEjecutados = desgloseEmpresas.length > 0 ? sumaKmEmpresas : totalCalc.kmEjecutados;
+      // Calcula los km hechos por cada empresa y, si coinciden en el mismo ítem, suma los km de cada una
+      const kmEjecutados = desgloseEmpresas.reduce(
+        (acc, emp) => acc + (Number.isFinite(emp.kmEjecutados) ? emp.kmEjecutados : 0),
+        0
+      );
+
+      const totalCalcRef = calcularKmDeAcumulador(g, g.tarea);
+      const metodoTexto = desgloseEmpresas.length > 1
+        ? `Suma por empresa (${desgloseEmpresas.length})`
+        : (desgloseEmpresas[0]?.metodoTexto || totalCalcRef.metodoTexto);
 
       const porcentaje = g.longitudTramoKm > 0
         ? (kmEjecutados / g.longitudTramoKm) * 100
@@ -1535,8 +1542,8 @@ function renderAvanceKmPorTarea(lista) {
       return {
         ...g,
         kmEjecutados,
-        metodoTexto: totalCalc.metodoTexto,
-        rangoTexto: totalCalc.rangoTexto,
+        metodoTexto,
+        rangoTexto: totalCalcRef.rangoTexto,
         desgloseEmpresas,
         porcentaje,
         porcentajeBarra,
