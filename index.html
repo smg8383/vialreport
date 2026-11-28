@@ -268,20 +268,16 @@ footer {
 
             <!-- 🗺️ MAPA Y GPS MANUAL -->
             <div class="col-md-12 mt-4 pt-3 border-top">
-              <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-2">
-                <div class="d-flex align-items-center">
-                  <i class="bi bi-geo-alt-fill text-primary fs-5 me-1"></i>
-                  <span class="fw-bold text-dark">Geolocalización GPS (Manual o por Cámara)</span>
-                </div>
-                <small id="estadoCacheKm" class="text-muted" style="font-size: 11px;"></small>
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-geo-alt-fill text-primary fs-5 me-1"></i>
+                <span class="fw-bold text-dark">Geolocalización GPS (Manual o por Cámara)</span>
               </div>
               
-              <div class="mb-2">
+              <div class="mb-3">
                 <button type="button" class="btn btn-primary-custom w-100 py-2 rounded-pill text-white shadow-sm" onclick="activarUbicacionGPS(this)">
                   <i class="bi bi-crosshair fs-6"></i> Activar mi GPS actual y autocompletar Km
                 </button>
               </div>
-              <div id="estadoGpsRapido" class="small text-secondary mb-2" aria-live="polite"></div>
 
               <div id="map_1" class="mapa-tarea shadow-sm"></div>
               <input type="hidden" name="lat_1" id="lat_1">
@@ -362,18 +358,6 @@ const STORAGE_KEY_CAMPOS_NUEVO = "vialReportCamposNuevoRegistro";
 const STORAGE_KEY_EDITANDO_INFORME = "editandoInforme";
 const STORAGE_KEY_EDITANDO_COORDS = "editandoInformeCoords";
 const STORAGE_KEY_CACHE_PROGRESIVAS = "vialReportCacheProgresivasV1";
-
-function actualizarEstadoCacheKm(texto) {
-  const el = document.getElementById("estadoCacheKm");
-  if (el) el.textContent = texto || "";
-}
-
-function mostrarEstadoGps(html, tipo = "secondary") {
-  const el = document.getElementById("estadoGpsRapido");
-  if (!el) return;
-  el.className = `small text-${tipo} mb-2`;
-  el.innerHTML = html || "";
-}
 
 function leerCacheProgresivas() {
   try {
@@ -493,7 +477,6 @@ async function obtenerTodosLosPuntosKMZ(clienteDB, forzarRed = false) {
     if (acumulados.length > 0) {
       todosLosKmMapa = acumulados;
       guardarCacheProgresivas(acumulados);
-      actualizarEstadoCacheKm(`${acumulados.length} progresivas listas`);
     }
 
     promesaCargaKm = null;
@@ -671,7 +654,6 @@ async function inicializarMapa(grupoId) {
   if (cacheLocal && cacheLocal.length > 0 && todosLosKmMapa.length === 0) {
     todosLosKmMapa = cacheLocal;
     dibujarPuntosEnMapa(map, todosLosKmMapa);
-    actualizarEstadoCacheKm(`${todosLosKmMapa.length} progresivas (caché)`);
   }
 
   try {
@@ -857,10 +839,6 @@ async function procesarExifYPosicionar(file, grupoId) {
       const puntoCercano = buscarKmMasCercanoEnPuntos(puntos, lat, lon);
       if (puntoCercano) {
         aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
-        mostrarEstadoGps(
-          `<i class="bi bi-check-circle-fill text-success me-1"></i> Km autocompletado desde foto: <strong>${puntoCercano.progresiva}</strong> (${puntoCercano.rutaNormalizada || puntoCercano.ruta || ""})`,
-          "success"
-        );
       }
     }
   } catch (e) {
@@ -881,62 +859,27 @@ document.addEventListener("change", async (e) => {
 });
 
 // =============================
-// ⚡ GPS ULTRARRÁPIDO EN CAMPO (Tope máx. ~5s)
+// 📍 GPS RÁPIDO + VENTANA EMERGENTE (ALERT)
 // =============================
-function pedirPosicionConLimite(opciones, limiteMs) {
+function pedirPosicionDirecta(opciones) {
   return new Promise((resolve, reject) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        reject(new Error("TIMEOUT_GPS"));
-      }
-    }, limiteMs);
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          resolve(pos);
-        }
-      },
-      (err) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          reject(err);
-        }
-      },
-      opciones
-    );
+    navigator.geolocation.getCurrentPosition(resolve, reject, opciones);
   });
 }
 
-async function obtenerPosicionRapidaEnCampo() {
-  // Carrera entre ubicación rápida (red/caché reciente) y GPS de alta precisión con tope de 5s
-  const lecturas = [
-    pedirPosicionConLimite({
-      enableHighAccuracy: false,
-      timeout: 3000,
-      maximumAge: 60000
-    }, 3200),
-    pedirPosicionConLimite({
-      enableHighAccuracy: true,
-      timeout: 4800,
-      maximumAge: 15000
-    }, 5000)
-  ];
-
+async function obtenerPosicionRapida() {
   try {
-    return await Promise.any(lecturas);
-  } catch (e) {
-    // Último intento breve de respaldo si ambos fallaron rápido
-    return await pedirPosicionConLimite({
+    return await pedirPosicionDirecta({
       enableHighAccuracy: false,
-      timeout: 2500,
-      maximumAge: 120000
-    }, 2600);
+      timeout: 4500,
+      maximumAge: 30000
+    });
+  } catch (_) {
+    return await pedirPosicionDirecta({
+      enableHighAccuracy: true,
+      timeout: 6000,
+      maximumAge: 15000
+    });
   }
 }
 
@@ -948,19 +891,16 @@ async function activarUbicacionGPS(btn) {
   const map = mapasInstanciados[grupoId];
 
   if (!navigator.geolocation) {
-    mostrarEstadoGps("Tu dispositivo no soporta geolocalización.", "danger");
+    alert("Tu dispositivo no soporta geolocalización.");
     return;
   }
 
   const textoOriginalBtn = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
-  btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Buscando ubicación...`;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Obteniendo GPS...`;
   btn.disabled = true;
-  mostrarEstadoGps(`<span class="spinner-border spinner-border-sm me-1"></span> Obteniendo ubicación (máx. ~5 s)...`, "primary");
 
   try {
-    let puntos = todosLosKmMapa.length > 0 ? todosLosKmMapa : leerCacheProgresivas();
-
-    const position = await obtenerPosicionRapidaEnCampo();
+    const position = await obtenerPosicionRapida();
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
     const accuracy = position.coords.accuracy;
@@ -968,6 +908,20 @@ async function activarUbicacionGPS(btn) {
     if (inputLat) inputLat.value = lat;
     if (inputLon) inputLon.value = lon;
 
+    if (map) {
+      map.invalidateSize();
+      map.setView([lat, lon], 15);
+      if (marcadoresUsuario[grupoId]) {
+        map.removeLayer(marcadoresUsuario[grupoId].marker);
+        if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
+      }
+
+      const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
+      const accuracyCircle = L.circle([lat, lon], { radius: accuracy, color: '#dc3545', fillColor: '#f03', fillOpacity: 0.2 }).addTo(map);
+      marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
+    }
+
+    let puntos = todosLosKmMapa.length > 0 ? todosLosKmMapa : leerCacheProgresivas();
     if (!puntos || puntos.length === 0) {
       const clienteDB = window.supabaseClient || window.supabase;
       if (clienteDB) {
@@ -980,38 +934,20 @@ async function activarUbicacionGPS(btn) {
     if (puntoCercano) {
       aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
 
-      if (map) {
-        requestAnimationFrame(() => {
-          map.invalidateSize();
-          map.setView([lat, lon], 15);
-          if (marcadoresUsuario[grupoId]) {
-            map.removeLayer(marcadoresUsuario[grupoId].marker);
-            if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
-          }
-
-          const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
-          const accuracyCircle = L.circle([lat, lon], { radius: accuracy, color: '#dc3545', fillColor: '#f03', fillOpacity: 0.2 }).addTo(map);
-          marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
-        });
-      }
-
       const rutaLabel = puntoCercano.rutaNormalizada || puntoCercano.ruta || "";
       const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
       const modoTexto = puntoCercano.interpolado ? "interpolado" : "más cercano";
-      const accTexto = Number.isFinite(accuracy) ? ` · ±${Math.round(accuracy)} m` : "";
-      mostrarEstadoGps(
-        `<i class="bi bi-check-circle-fill text-success me-1"></i> Km ${modoTexto}: <strong>${puntoCercano.progresiva}</strong> (${rutaLabel})${distTexto}${accTexto}`,
-        "success"
-      );
+      const accTexto = Number.isFinite(accuracy) ? ` | GPS ±${Math.round(accuracy)} m` : "";
+      alert(`¡Ubicación detectada! Km ${modoTexto}: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}${accTexto}`);
     } else {
-      mostrarEstadoGps("Coordenadas obtenidas, pero no hay progresivas cargadas para calcular el Km.", "warning");
+      alert(`Coordenadas detectadas (${lat.toFixed(5)}, ${lon.toFixed(5)}), pero no hay progresivas cargadas para calcular el Km.`);
     }
   } catch (err) {
     console.error("Error obteniendo GPS o calculando Km:", err);
-    if (err && err.code === 1) {
-      mostrarEstadoGps("Permiso de ubicación denegado. Activá el GPS en los ajustes del dispositivo.", "danger");
+    if (err && typeof err.code === "number") {
+      alert("No se pudo obtener la ubicación GPS. Verifica los permisos de ubicación y la señal en tu celular.");
     } else {
-      mostrarEstadoGps("No se pudo obtener señal GPS a tiempo. Probá de nuevo o ingresá el Km manualmente.", "warning");
+      alert(`Error al calcular Km: ${err && err.message ? err.message : err}`);
     }
   } finally {
     btn.innerHTML = textoOriginalBtn;
