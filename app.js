@@ -14,12 +14,6 @@ function obtenerFechaHoyLocal() {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 }
 
-// 🔒 SESSION
-(async () => {
-  const { data } = await supabaseClient.auth.getSession();
-  if (!data.session) window.location.href = "login.html";
-})();
-
 // 🚪 CERRAR SESIÓN
 const btnLogout = document.getElementById("btnLogout");
 if (btnLogout) {
@@ -505,7 +499,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         ruta: g.querySelector(`[name^="ruta_"]`)?.value || "",
         subtramo: g.querySelector(`[name^="subtramo_"]`)?.value || "",
         tarea: subtarea,
-        km: g.querySelector(`[name^="km_"]`)?.value || "",
+        km: (g.querySelector(`[name^="km_"]`)?.value || "").trim(),
         sentido: g.querySelector(`[name^="sentido_"]`)?.value || "",
         observacion: observacionMayus,
         imagenes,
@@ -571,7 +565,11 @@ async function cargarEdicion() {
   if (!editandoId) return;
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
-  if (!sessionData?.session) return;
+  if (!sessionData?.session) {
+    window.location.href = "login.html";
+    return;
+  }
+
   const user = sessionData.session.user;
   const miOrganizacion = await obtenerOrganizacionUsuario(user.id);
 
@@ -610,7 +608,11 @@ async function cargarEdicion() {
   if (empEl) empEl.value = data.empresa || "";
   if (rutaEl) rutaEl.value = data.ruta || "";
   if (subEl) subEl.value = data.subtramo || "";
-  if (kmEl) kmEl.value = data.km || "";
+  if (kmEl) {
+    kmEl.value = typeof window.formatearKmTresDecimales === "function"
+      ? window.formatearKmTresDecimales(data.km || "")
+      : (data.km || "");
+  }
   if (senEl) senEl.value = data.sentido || "";
   if (obsEl) obsEl.value = (data.observacion || "").toUpperCase();
 
