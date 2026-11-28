@@ -526,7 +526,7 @@
           </small>
           <div class="text-muted mt-1" style="font-size: 11px;">
             <i class="bi bi-info-circle me-1"></i>
-            <strong>Aclaración:</strong> Se calcula el cierre por franjas de 1 km (max - min de la franja; si no hay diferencia min/max, se toma la longitud en km) y se acumula por empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
+            <strong>Aclaración:</strong> Se calcula el cierre por franjas de 1 km (max - min de la franja; si no hay diferencia min/max —por ejemplo, un solo punto o día como Km 0,500 con un bache de 20 m × 5 m—, se toma como parcial la longitud de la tarea en km) y se acumula por empresa; si dos o más empresas coinciden en el mismo ítem, el total del ítem es la suma de los kilómetros de cada empresa sobre el total de la ruta.
           </div>
         </div>
         <button type="button" id="btnToggleAvanceKm" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
@@ -1392,7 +1392,8 @@ function ejecutarConsultaKm() {
 /**
  * Calcula los km por franjas de 1 km [k, k+1) para una empresa:
  * - Si hay amplitud (max - min > 0) en la franja, toma max - min.
- * - Si no hay amplitud (max - min === 0 o un solo punto), toma largo_m / 1000.
+ * - Si no hay diferencia min/max (por ejemplo, un solo punto o día como Km 0,500
+ *   con un bache de 20 m x 5 m), toma la longitud de la tarea (largo_m / 1000).
  */
 function calcularKmPorFranjasDe1Km(empAcc) {
   const franjasMap = new Map();
@@ -1470,6 +1471,7 @@ function calcularKmPorFranjasDe1Km(empAcc) {
     if (amplitud > 0) {
       aporteFranja += amplitud;
     } else if (fObj.aporteDirecto === 0 && fObj.sumaLargosM > 0) {
+      // Sin diferencia min/max en la franja: se toma la longitud de la tarea (largo_m en km)
       aporteFranja += fObj.sumaLargosM / 1000;
     }
 
