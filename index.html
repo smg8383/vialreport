@@ -268,9 +268,12 @@ footer {
 
             <!-- 🗺️ MAPA Y GPS MANUAL -->
             <div class="col-md-12 mt-4 pt-3 border-top">
-              <div class="d-flex align-items-center mb-2">
-                <i class="bi bi-geo-alt-fill text-primary fs-5 me-1"></i>
-                <span class="fw-bold text-dark">Geolocalización GPS (Manual o por Cámara)</span>
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-2">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-geo-alt-fill text-primary fs-5 me-1"></i>
+                  <span class="fw-bold text-dark">Geolocalización GPS (Manual o por Cámara)</span>
+                </div>
+                <small id="estadoCacheKm" class="text-muted" style="font-size: 11px;"></small>
               </div>
               
               <div class="mb-3">
@@ -351,11 +354,39 @@ footer {
 const mapasInstanciados = {};
 const marcadoresUsuario = {};
 let todosLosKmMapa = [];
+let promesaCargaKm = null;
 let ultimoErrorSupabaseKm = null;
 
 const STORAGE_KEY_CAMPOS_NUEVO = "vialReportCamposNuevoRegistro";
 const STORAGE_KEY_EDITANDO_INFORME = "editandoInforme";
 const STORAGE_KEY_EDITANDO_COORDS = "editandoInformeCoords";
+const STORAGE_KEY_CACHE_PROGRESIVAS = "vialReportCacheProgresivasV1";
+
+function actualizarEstadoCacheKm(texto) {
+  const el = document.getElementById("estadoCacheKm");
+  if (el) el.textContent = texto || "";
+}
+
+function leerCacheProgresivas() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CACHE_PROGRESIVAS);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.puntos) && parsed.puntos.length > 0) {
+      return parsed.puntos;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function guardarCacheProgresivas(puntos) {
+  try {
+    localStorage.setItem(STORAGE_KEY_CACHE_PROGRESIVAS, JSON.stringify({
+      guardadoEn: Date.now(),
+      puntos
+    }));
+  } catch (e) {}
+}
 
 window.posicionarMapaEnEdicion = function(lat, lon, grupoId = 1) {
   const map = mapasInstanciados[grupoId];
@@ -399,32 +430,51 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-async function obtenerTodosLosPuntosKMZ(clienteDB) {
-  ultimoErrorSupabaseKm = null;
-  let acumulados = [];
-  const tamanoPagina = 1000;
-  let desde = 0;
-
-  while (true) {
-    const { data, error } = await clienteDB
-      .from('progresivas')
-      .select('id, ruta, progresiva, distrito, latitud, longitud')
-      .range(desde, desde + tamanoPagina - 1);
-
-    if (error) {
-      console.error("Error cargando progresivas:", error);
-      ultimoErrorSupabaseKm = error.message || "Error desconocido en Supabase";
-      break;
-    }
-
-    if (!data || data.length === 0) break;
-
-    acumulados = acumulados.concat(data);
-    if (data.length < tamanoPagina) break;
-    desde += tamanoPagina;
+async function obtenerTodosLosPuntosKMZ(clienteDB, forzarRed = false) {
+  if (!forzarRed && todosLosKmMapa.length > 0) {
+    return todosLosKmMapa;
   }
 
-  return acumulados;
+  if (!forzarRed && promesaCargaKm) {
+    return promesaCargaKm;
+  }
+
+  promesaCargaKm = (async () => {
+    ultimoErrorSupabaseKm = null;
+    let acumulados = [];
+    const tamanoPagina = 1000;
+    let desde = 0;
+
+    while (true) {
+      const { data, error } = await clienteDB
+        .from('progresivas')
+        .select('id, ruta, progresiva, distrito, latitud, longitud')
+        .range(desde, desde + tamanoPagina - 1);
+
+      if (error) {
+        console.error("Error cargando progresivas:", error);
+        ultimoErrorSupabaseKm = error.message || "Error desconocido en Supabase";
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+
+      acumulados = acumulados.concat(data);
+      if (data.length < tamanoPagina) break;
+      desde += tamanoPagina;
+    }
+
+    if (acumulados.length > 0) {
+      todosLosKmMapa = acumulados;
+      guardarCacheProgresivas(acumulados);
+      actualizarEstadoCacheKm(`${acumulados.length} progresivas listas`);
+    }
+
+    promesaCargaKm = null;
+    return todosLosKmMapa.length > 0 ? todosLosKmMapa : acumulados;
+  })();
+
+  return promesaCargaKm;
 }
 
 function interpolarKmEntreDosPuntos(p1, p2, lat, lon) {
@@ -458,24 +508,49 @@ function interpolarKmEntreDosPuntos(p1, p2, lat, lon) {
   return Number(kmInterpolado.toFixed(2));
 }
 
+// Cálculo 100% local en el cliente: filtra por ventana geográfica cercana y calcula distancia/interpolación
 function buscarKmMasCercanoEnPuntos(puntos, lat, lon) {
   if (!puntos || puntos.length === 0) return null;
 
-  const candidatos = [];
-  for (const p of puntos) {
-    if (p.latitud != null && p.longitud != null) {
+  const deltaLat = 0.05; // ~5.5 km aprox
+  const deltaLon = 0.06; // ~5.5 km aprox
+
+  let candidatos = [];
+  for (let i = 0; i < puntos.length; i++) {
+    const p = puntos[i];
+    if (p.latitud == null || p.longitud == null) continue;
+    const latNum = Number(p.latitud);
+    const lonNum = Number(p.longitud);
+    if (Number.isNaN(latNum) || Number.isNaN(lonNum)) continue;
+    if (Math.abs(latNum - lat) > deltaLat || Math.abs(lonNum - lon) > deltaLon) continue;
+
+    const d = calcularDistanciaMetros(lat, lon, latNum, lonNum);
+    candidatos.push({
+      ...p,
+      latNum,
+      lonNum,
+      distanciaMetros: d,
+      rutaNormalizada: normalizarRutaDesdeKMZ(p.ruta)
+    });
+  }
+
+  // Si no hubo puntos dentro de ~5.5 km, ampliar búsqueda a toda la tabla en memoria
+  if (candidatos.length === 0) {
+    for (let i = 0; i < puntos.length; i++) {
+      const p = puntos[i];
+      if (p.latitud == null || p.longitud == null) continue;
       const latNum = Number(p.latitud);
       const lonNum = Number(p.longitud);
-      if (!Number.isNaN(latNum) && !Number.isNaN(lonNum)) {
-        const d = calcularDistanciaMetros(lat, lon, latNum, lonNum);
-        candidatos.push({
-          ...p,
-          latNum,
-          lonNum,
-          distanciaMetros: d,
-          rutaNormalizada: normalizarRutaDesdeKMZ(p.ruta)
-        });
-      }
+      if (Number.isNaN(latNum) || Number.isNaN(lonNum)) continue;
+
+      const d = calcularDistanciaMetros(lat, lon, latNum, lonNum);
+      candidatos.push({
+        ...p,
+        latNum,
+        lonNum,
+        distanciaMetros: d,
+        rutaNormalizada: normalizarRutaDesdeKMZ(p.ruta)
+      });
     }
   }
 
@@ -532,6 +607,28 @@ function aplicarPuntoEnFormulario(cardGrupo, punto) {
   }
 }
 
+function dibujarPuntosEnMapa(map, puntos) {
+  if (!map || !Array.isArray(puntos)) return;
+
+  puntos.forEach(punto => {
+    if (punto.latitud != null && punto.longitud != null) {
+      const rutaTexto = normalizarRutaDesdeKMZ(punto.ruta) || punto.ruta;
+      let colorCirculo = (String(punto.ruta).includes('12')) ? '#1F4E78' : '#28a745';
+
+      let circleMarker = L.circleMarker([punto.latitud, punto.longitud], {
+        radius: 4,
+        fillColor: colorCirculo,
+        color: '#fff',
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.8
+      }).addTo(map);
+
+      circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
+    }
+  });
+}
+
 async function inicializarMapa(grupoId) {
   const mapElementId = `map_${grupoId}`;
   const el = document.getElementById(mapElementId);
@@ -545,6 +642,14 @@ async function inicializarMapa(grupoId) {
   mapasInstanciados[grupoId] = map;
   setTimeout(() => { map.invalidateSize(); }, 300);
 
+  // Cargar caché local de inmediato para que el Km esté listo sin esperar red
+  const cacheLocal = leerCacheProgresivas();
+  if (cacheLocal && cacheLocal.length > 0 && todosLosKmMapa.length === 0) {
+    todosLosKmMapa = cacheLocal;
+    dibujarPuntosEnMapa(map, todosLosKmMapa);
+    actualizarEstadoCacheKm(`${todosLosKmMapa.length} progresivas (caché)`);
+  }
+
   try {
     const clienteDB = window.supabaseClient || window.supabase;
     if (!clienteDB) {
@@ -552,27 +657,10 @@ async function inicializarMapa(grupoId) {
       return;
     }
 
-    if (todosLosKmMapa.length === 0) {
-      todosLosKmMapa = await obtenerTodosLosPuntosKMZ(clienteDB);
+    const puntosFrescos = await obtenerTodosLosPuntosKMZ(clienteDB, true);
+    if (!cacheLocal && puntosFrescos.length > 0) {
+      dibujarPuntosEnMapa(map, puntosFrescos);
     }
-
-    todosLosKmMapa.forEach(punto => {
-      if (punto.latitud != null && punto.longitud != null) {
-        const rutaTexto = normalizarRutaDesdeKMZ(punto.ruta) || punto.ruta;
-        let colorCirculo = (String(punto.ruta).includes('12')) ? '#1F4E78' : '#28a745';
-
-        let circleMarker = L.circleMarker([punto.latitud, punto.longitud], {
-          radius: 4,
-          fillColor: colorCirculo,
-          color: '#fff',
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(map);
-
-        circleMarker.bindPopup(`<b>Ruta:</b> ${rutaTexto}<br><b>Progresiva:</b> Km ${punto.progresiva}<br><b>Distrito:</b> ${punto.distrito || 'N/D'}`);
-      }
-    });
 
     const latVal = parseFloat(document.getElementById("lat_1")?.value);
     const lonVal = parseFloat(document.getElementById("lon_1")?.value);
@@ -689,7 +777,7 @@ document.addEventListener("DOMContentLoaded", () => {
     inputFecha1.value = obtenerFechaHoyLocalIndex();
   }
 
-  setTimeout(() => { inicializarMapa(1); }, 400);
+  setTimeout(() => { inicializarMapa(1); }, 300);
   const yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 });
@@ -725,12 +813,15 @@ async function procesarExifYPosicionar(file, grupoId) {
         marcadoresUsuario[grupoId] = { marker: userMarker };
       }
 
-      const clienteDB = window.supabaseClient || window.supabase;
-      if (todosLosKmMapa.length === 0 && clienteDB) {
-        todosLosKmMapa = await obtenerTodosLosPuntosKMZ(clienteDB);
+      let puntos = todosLosKmMapa.length > 0 ? todosLosKmMapa : leerCacheProgresivas();
+      if (!puntos || puntos.length === 0) {
+        const clienteDB = window.supabaseClient || window.supabase;
+        if (clienteDB) {
+          puntos = await obtenerTodosLosPuntosKMZ(clienteDB);
+        }
       }
 
-      const puntoCercano = buscarKmMasCercanoEnPuntos(todosLosKmMapa, lat, lon);
+      const puntoCercano = buscarKmMasCercanoEnPuntos(puntos, lat, lon);
       if (puntoCercano) {
         aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
       }
@@ -753,8 +844,32 @@ document.addEventListener("change", async (e) => {
 });
 
 // =============================
-// 📍 GPS MANUAL (Botón)
+// 📍 GPS RÁPIDO EN CAMPO + CÁLCULO LOCAL DEL KM
 // =============================
+function pedirPosicionRapida(opciones) {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, opciones);
+  });
+}
+
+async function obtenerPosicionOptimaEnCampo() {
+  // 1) Intento rápido (acepta caché reciente de hasta 15s y corta a los 6s si no hay señal)
+  try {
+    return await pedirPosicionRapida({
+      enableHighAccuracy: true,
+      timeout: 6000,
+      maximumAge: 15000
+    });
+  } catch (errRapido) {
+    // 2) Fallback con menor exigencia de precisión para responder rápido en campo
+    return await pedirPosicionRapida({
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 30000
+    });
+  }
+}
+
 async function activarUbicacionGPS(btn) {
   const cardGrupo = btn.closest(".grupo");
   const grupoId = cardGrupo.getAttribute("data-grupo-id");
@@ -767,10 +882,15 @@ async function activarUbicacionGPS(btn) {
     return;
   }
 
+  const textoOriginalBtn = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
   btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Obteniendo GPS...`;
   btn.disabled = true;
 
-  navigator.geolocation.getCurrentPosition(async (position) => {
+  try {
+    // Si ya tenemos caché o puntos en memoria, el cálculo del Km es instantáneo en el cliente
+    let puntos = todosLosKmMapa.length > 0 ? todosLosKmMapa : leerCacheProgresivas();
+
+    const position = await obtenerPosicionOptimaEnCampo();
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
     const accuracy = position.coords.accuracy;
@@ -778,66 +898,60 @@ async function activarUbicacionGPS(btn) {
     if (inputLat) inputLat.value = lat;
     if (inputLon) inputLon.value = lon;
 
-    if (map) {
-      map.invalidateSize();
-      map.setView([lat, lon], 15);
-      if (marcadoresUsuario[grupoId]) {
-        map.removeLayer(marcadoresUsuario[grupoId].marker);
-        if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
-      }
-
-      const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
-      const accuracyCircle = L.circle([lat, lon], { radius: accuracy, color: '#dc3545', fillColor: '#f03', fillOpacity: 0.2 }).addTo(map);
-      
-      marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
-    }
-
-    try {
+    // Si aún no había puntos cargados, consultar Supabase en ese momento
+    if (!puntos || puntos.length === 0) {
       const clienteDB = window.supabaseClient || window.supabase;
       if (!clienteDB) {
         alert("Error de Supabase: no se encontró el cliente de Supabase inicializado.");
         return;
       }
-
-      if (todosLosKmMapa.length === 0) {
-        todosLosKmMapa = await obtenerTodosLosPuntosKMZ(clienteDB);
-      }
-
-      if (ultimoErrorSupabaseKm) {
+      puntos = await obtenerTodosLosPuntosKMZ(clienteDB);
+      if (ultimoErrorSupabaseKm && (!puntos || puntos.length === 0)) {
         alert(`Error de Supabase al consultar progresivas: ${ultimoErrorSupabaseKm}`);
         return;
       }
-
-      if (todosLosKmMapa.length === 0) {
-        alert("La tabla progresivas devolvió 0 filas.");
-        return;
-      }
-
-      const puntoCercano = buscarKmMasCercanoEnPuntos(todosLosKmMapa, lat, lon);
-
-      if (puntoCercano) {
-        aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
-        const rutaLabel = puntoCercano.rutaNormalizada || puntoCercano.ruta || "";
-        const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
-        const modoTexto = puntoCercano.interpolado ? "interpolado" : "más cercano";
-        const accTexto = Number.isFinite(accuracy) ? ` | GPS ±${Math.round(accuracy)} m` : "";
-        alert(`¡Ubicación detectada! Km ${modoTexto}: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}${accTexto}`);
-      } else {
-        alert("La tabla progresivas devolvió 0 filas con latitud y longitud válidas.");
-      }
-    } catch (err) {
-      console.error("Error al buscar Km en los puntos del mapa:", err);
-      alert(`Error de Supabase / excepción: ${err && err.message ? err.message : err}`);
-    } finally {
-      btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
-      btn.disabled = false;
     }
 
-  }, (error) => {
-    btn.innerHTML = `<i class="bi bi-crosshair"></i> Activar mi GPS actual y autocompletar Km`;
+    const puntoCercano = buscarKmMasCercanoEnPuntos(puntos, lat, lon);
+
+    if (puntoCercano) {
+      // Completar Km y Ruta de inmediato antes de redibujar el mapa
+      aplicarPuntoEnFormulario(cardGrupo, puntoCercano);
+
+      if (map) {
+        requestAnimationFrame(() => {
+          map.invalidateSize();
+          map.setView([lat, lon], 15);
+          if (marcadoresUsuario[grupoId]) {
+            map.removeLayer(marcadoresUsuario[grupoId].marker);
+            if (marcadoresUsuario[grupoId].circle) map.removeLayer(marcadoresUsuario[grupoId].circle);
+          }
+
+          const userMarker = L.marker([lat, lon]).addTo(map).bindPopup("📍 Tu posición actual").openPopup();
+          const accuracyCircle = L.circle([lat, lon], { radius: accuracy, color: '#dc3545', fillColor: '#f03', fillOpacity: 0.2 }).addTo(map);
+          marcadoresUsuario[grupoId] = { marker: userMarker, circle: accuracyCircle };
+        });
+      }
+
+      const rutaLabel = puntoCercano.rutaNormalizada || puntoCercano.ruta || "";
+      const distTexto = puntoCercano.distanciaMetros != null ? ` (~${puntoCercano.distanciaMetros} m)` : "";
+      const modoTexto = puntoCercano.interpolado ? "interpolado" : "más cercano";
+      const accTexto = Number.isFinite(accuracy) ? ` | GPS ±${Math.round(accuracy)} m` : "";
+      alert(`¡Ubicación detectada! Km ${modoTexto}: ${puntoCercano.progresiva} (${rutaLabel})${distTexto}${accTexto}`);
+    } else {
+      alert("No se encontraron progresivas con latitud y longitud válidas.");
+    }
+  } catch (err) {
+    console.error("Error obteniendo GPS o calculando Km:", err);
+    if (err && typeof err.code === "number") {
+      alert("No se pudo obtener la ubicación GPS. Verifica los permisos de ubicación y la señal en tu celular.");
+    } else {
+      alert(`Error al calcular Km: ${err && err.message ? err.message : err}`);
+    }
+  } finally {
+    btn.innerHTML = textoOriginalBtn;
     btn.disabled = false;
-    alert("No se pudo obtener la ubicación GPS. Verifica los permisos en los ajustes de tu celular.");
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }
 }
 
 // =============================
